@@ -34,8 +34,8 @@ export GEMINI_API_KEY=...   # or GOOGLE_API_KEY
 ```
 
 **CLI:** `./openclaude version`, `./openclaude doctor`, `./openclaude --help`  
-**Flags:** `--config`, `--provider`, `--model`, `--base-url`, `--tui`  
-**In-session:** `/help`, `/provider`, `/mcp list`, `/compact`, `/clear`, `/exit`  
+**Flags:** `--config`, `--provider`, `--model`, `--base-url`, `--tui`, `--session`, `--resume`, `--list-sessions`, `--no-session`  
+**In-session:** `/help`, `/provider`, `/mcp list`, `/session …`, `/compact`, `/clear`, `/exit`  
 **TUI:** `./openclaude --tui` or `OPENCLAUDE_TUI=1` — full-screen Bubble Tea UI (streaming transcript, tool call/result blocks, permission prompts). Kernel uses [`OnEvent`](./internal/core/event.go) only; model text is not duplicated to stdout.
 
 ### Install (release binaries)
@@ -59,6 +59,10 @@ Tagged releases (semver, e.g. `v0.1.0`) publish archives via [GoReleaser](./gore
 | [docs/OPENCLAUDE3_ARCHITECTURE_SUMMARY.md](./docs/OPENCLAUDE3_ARCHITECTURE_SUMMARY.md) | What v3 does today (baseline) |
 | [docs/DESIGN.md](./docs/DESIGN.md) | Target architecture and principles for v4 |
 | [docs/ROADMAP.md](./docs/ROADMAP.md) | Phased delivery plan |
+| [docs/MIGRATION_V3.md](./docs/MIGRATION_V3.md) | Moving from v3 CLI — config, commands, gRPC |
+| [docs/RELEASE_CHECKLIST.md](./docs/RELEASE_CHECKLIST.md) | Semver, GoReleaser, changelog, security pointer |
+| [docs/PROTO_VERSIONING.md](./docs/PROTO_VERSIONING.md) | v3 vs v4 gRPC package and compatibility |
+| [docs/VSCODE_EXTENSION.md](./docs/VSCODE_EXTENSION.md) | Future VS Code extension milestone (planning) |
 | [TODO.md](./TODO.md) | Actionable checklist |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | Build, test, lint, PR notes |
 | [steps/step1.md](./steps/step1.md) | Go bootstrap notes + status |

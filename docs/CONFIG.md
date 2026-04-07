@@ -85,6 +85,19 @@ Failed servers are skipped with a message on stderr; chat still starts if built-
 | `GEMINI_BASE_URL` | Override Gemini OpenAI-compatible base URL |
 | `OPENCLAUDE_AUTO_APPROVE_TOOLS` | `1` / `true` to skip dangerous-tool prompts (dev only) |
 
+### Sessions and compaction
+
+| Variable / flag | Purpose |
+|-----------------|--------|
+| `--session` / `OPENCLAUDE_SESSION` | Fixed session id (file name base under the session directory) |
+| `--resume` / `OPENCLAUDE_RESUME` | Open the last saved session (`last_session_id` or newest `*.json`) |
+| `--list-sessions` | Print saved sessions and exit |
+| `--no-session` / `OPENCLAUDE_NO_SESSION` | Do not read or write session files |
+| `OPENCLAUDE_SESSION_DIR` / `session.dir` | Override session directory (default `~/.local/share/openclaude/sessions`) |
+| `OPENCLAUDE_SESSION_COMPACT_TOKEN_THRESHOLD` / `session.compact_token_threshold` | Rough token estimate above which the next user turn auto-compacts (0 = off) |
+| `OPENCLAUDE_SESSION_SUMMARIZE_OVER_THRESHOLD` / `session.summarize_over_threshold` | If threshold tripped, call the model for a summary instead of lossy tail trim (falls back to trim on failure) |
+| `OPENCLAUDE_SESSION_COMPACT_KEEP_MESSAGES` / `session.compact_keep_messages` | Tail size for `/compact` and lossy auto-compact (default 24 after system) |
+
 Ollama exposes an OpenAI-compatible chat API at `{OLLAMA_HOST}/v1` ([Ollama OpenAI docs](https://github.com/ollama/ollama/blob/main/docs/openai.md)).
 
 ## v3 migration notes
@@ -104,7 +117,7 @@ Invalid `provider.name` values are rejected at chat startup (`config.Validate()`
 
 ## In-session slash commands (REPL)
 
-Handled in the chat loop (not config keys): `/help`, `/provider`, `/mcp list`, `/compact` (lossy transcript trim: keeps system + last 24 messages), `/clear`, `/exit`, `/quit`.
+Handled in the chat loop (not config keys): `/help`, `/provider`, `/mcp list`, `/session` (show, list, load, new, save), `/compact` (lossy transcript trim: keeps system + last N messages, default 24; override via `session.compact_keep_messages`), `/clear`, `/exit`, `/quit`.
 
 ## Diagnostics
 

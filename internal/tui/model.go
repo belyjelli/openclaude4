@@ -24,6 +24,8 @@ type Config struct {
 	AutoApprove bool
 	Banner      string
 	Slash       func(line string) (appendOut string, exitChat bool, err error)
+	// BeforeUserTurn runs before each user-authored model turn (optional; e.g. auto-compact).
+	BeforeUserTurn func() error
 	// AfterTurn runs after a successful model turn (optional; e.g. persist session).
 	AfterTurn func() error
 }
@@ -214,6 +216,14 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.cfg.BeforeUserTurn != nil {
+		if err := m.cfg.BeforeUserTurn(); err != nil {
+			m.busy = false
+			m.commitLine(errStyle.Render("before turn: ") + err.Error())
+			return m, textinput.Blink
+		}
+	}
+
 	send := m.send
 	ctx := m.cfg.Ctx
 	go func(user string) {
@@ -347,7 +357,7 @@ func (m *model) View() string {
 			okStyle.Render("[y]")+" approve  "+dimStyle.Render("[n]")+" deny  "+dimStyle.Render("[esc]")+" deny",
 		)
 		permBlock = lipgloss.NewStyle().
-			Width(m.width - 2).
+			Width(m.width-2).
 			Border(lipgloss.DoubleBorder()).
 			Padding(1, 2).
 			Render(box)

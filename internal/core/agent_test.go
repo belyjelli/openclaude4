@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gitlawb/openclaude4/internal/session"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
 )
@@ -417,5 +418,69 @@ func TestRunUserTurn_MaxIterations(t *testing.T) {
 	err := agent.RunUserTurn(ctx, &messages, "keep reading")
 	if err == nil || !strings.Contains(err.Error(), "exceeded") {
 		t.Fatalf("expected iteration limit error, got %v", err)
+	}
+}
+
+// TestRunUserTurn_RecoveredInterruptedToolTranscript ensures a transcript saved mid-tool
+// (assistant issued tool calls without all tool results) is repaired and the next user turn succeeds.
+func TestRunUserTurn_RecoveredInterruptedToolTranscript(t *testing.T) {
+	tmp := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmp, "f.txt"), []byte("ok"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	msgs := []sdk.ChatCompletionMessage{
+		{Role: sdk.ChatMessageRoleSystem, Content: "s"},
+		{Role: sdk.ChatMessageRoleUser, Content: "read f.txt"},
+		{
+			Role: sdk.ChatMessageRoleAssistant,
+			ToolCalls: []sdk.ToolCall{
+				{
+					ID:   "call_1",
+					Type: sdk.ToolTypeFunction,
+					Function: sdk.FunctionCall{
+						Name:      "FileRead",
+						Arguments: `{"file_path":"f.txt"}`,
+					},
+				},
+			},
+		},
+	}
+	msgs = session.RepairTranscript(msgs)
+
+	body := sseBody(
+		sdk.ChatCompletionStreamResponse{
+			Choices: []sdk.ChatCompletionStreamChoice{
+				{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{Content: "Done after recovery."}},
+			},
+		},
+		sdk.ChatCompletionStreamResponse{
+			Choices: []sdk.ChatCompletionStreamChoice{
+				{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{}, FinishReason: sdk.FinishReasonStop},
+			},
+		},
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(srv.Close)
+
+	ctx := tools.WithWorkDir(context.Background(), tmp)
+	reg := tools.NewRegistry()
+	reg.Register(tools.FileRead{})
+
+	var out bytes.Buffer
+	agent := &Agent{
+		Client:   newTestStreamClient(t, srv),
+		Registry: reg,
+		Out:      &out,
+	}
+
+	if err := agent.RunUserTurn(ctx, &msgs, "continue"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "Done after recovery") {
+		t.Fatalf("stdout = %q", out.String())
 	}
 }

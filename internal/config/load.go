@@ -73,6 +73,7 @@ func bindViperEnv() {
 	_ = viper.BindEnv("gemini.model", "GEMINI_MODEL")
 	_ = viper.BindEnv("gemini.base_url", "GEMINI_BASE_URL")
 	_ = viper.BindEnv("session.name", "OPENCLAUDE_SESSION")
+	_ = viper.BindEnv("session.resume_last", "OPENCLAUDE_RESUME")
 	_ = viper.BindEnv("session.dir", "OPENCLAUDE_SESSION_DIR")
 	_ = viper.BindEnv("session.disabled", "OPENCLAUDE_NO_SESSION")
 	_ = viper.BindEnv("session.compact_token_threshold", "OPENCLAUDE_SESSION_COMPACT_TOKEN_THRESHOLD")

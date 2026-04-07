@@ -48,7 +48,6 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 	defer cancel()
 
 	clientCh := make(chan *openclaudev4.ClientMessage, 16)
-	recvDone := make(chan struct{})
 	go func() {
 		defer close(clientCh)
 		for {
@@ -63,8 +62,6 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 			}
 		}
 	}()
-	close(recvDone) // reserved if we need recv err later
-	_ = recvDone
 
 	var sendMu sync.Mutex
 	var sendErr error
@@ -86,6 +83,9 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 	var turnMu sync.Mutex
 	var turnWG sync.WaitGroup
 	pgate := new(permGate)
+
+	// Correlate PermissionAck with PermissionRequired.prompt_id (kernel events use tool name only).
+	tl := new(turnLocal)
 
 	for {
 		select {
@@ -130,7 +130,7 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 						Registry: s.Kernel.Registry,
 						Out:      io.Discard,
 						OnEvent: func(e core.Event) {
-							if msg := serverMessageFromEvent(e); msg != nil {
+							if msg := serverMessageFromEvent(e, tl); msg != nil {
 								_ = send(msg)
 							}
 						},
@@ -138,7 +138,7 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 							if s.Kernel.AutoApprove {
 								return true
 							}
-							return pgate.wait(ctx, send, toolName, args)
+							return pgate.wait(ctx, send, tl, toolName, args)
 						},
 					}
 					_ = agent.RunUserTurn(turnCtx, &messages, req.GetUserText())
@@ -168,14 +168,35 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 	}
 }
 
+// turnLocal holds wire-only correlation for permission messages (not in core.Event).
+type turnLocal struct {
+	mu                 sync.Mutex
+	activePermPromptID string
+}
+
+func (t *turnLocal) setPermPromptID(id string) {
+	t.mu.Lock()
+	t.activePermPromptID = id
+	t.mu.Unlock()
+}
+
+func (t *turnLocal) takePermPromptID() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	id := t.activePermPromptID
+	t.activePermPromptID = ""
+	return id
+}
+
 type permGate struct {
 	mu sync.Mutex
 	id string
 	ch chan bool
 }
 
-func (g *permGate) wait(ctx context.Context, send func(*openclaudev4.ServerMessage) error, toolName string, args map[string]any) bool {
+func (g *permGate) wait(ctx context.Context, send func(*openclaudev4.ServerMessage) error, tl *turnLocal, toolName string, args map[string]any) bool {
 	id := newPromptID()
+	tl.setPermPromptID(id)
 	argsJSON := ""
 	if args != nil {
 		b, err := json.Marshal(args)
@@ -201,10 +222,10 @@ func (g *permGate) wait(ctx context.Context, send func(*openclaudev4.ServerMessa
 
 	q := fmt.Sprintf("Approve tool %q with args %s?", toolName, core.FormatToolArgsForLog(args))
 	_ = send(&openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_PermissionRequired{PermissionRequired: &openclaudev4.PermissionRequired{
-		PromptId:       id,
-		ToolName:       toolName,
-		ArgumentsJson:  argsJSON,
-		Question:       q,
+		PromptId:      id,
+		ToolName:      toolName,
+		ArgumentsJson: argsJSON,
+		Question:      q,
 	}}})
 
 	select {
@@ -241,7 +262,7 @@ func newPromptID() string {
 	return hex.EncodeToString(b[:])
 }
 
-func serverMessageFromEvent(e core.Event) *openclaudev4.ServerMessage {
+func serverMessageFromEvent(e core.Event, tl *turnLocal) *openclaudev4.ServerMessage {
 	switch e.Kind {
 	case core.KindUserMessage:
 		return nil
@@ -251,9 +272,9 @@ func serverMessageFromEvent(e core.Event) *openclaudev4.ServerMessage {
 		}}}
 	case core.KindAssistantFinished:
 		return &openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_AssistantFinished{AssistantFinished: &openclaudev4.AssistantFinished{
-			FullText:      e.AssistantText,
-			ToolCallCount: int32(e.ToolCallCount),
-			FinishReason:  e.FinishReason,
+			FullText:       e.AssistantText,
+			ToolCallCount:  int32(e.ToolCallCount),
+			FinishReason:   e.FinishReason,
 			AssistantRound: int32(e.AssistantRounds),
 		}}}
 	case core.KindModelRefusal:
@@ -271,9 +292,13 @@ func serverMessageFromEvent(e core.Event) *openclaudev4.ServerMessage {
 		// PermissionRequired is sent from Confirm with a prompt id; omit duplicate event.
 		return nil
 	case core.KindPermissionResult:
+		pid := ""
+		if tl != nil {
+			pid = tl.takePermPromptID()
+		}
 		return &openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_PermissionAck{PermissionAck: &openclaudev4.PermissionAck{
-			PromptId:  e.PermissionTool,
-			Approved:  e.PermissionApproved,
+			PromptId: pid,
+			Approved: e.PermissionApproved,
 		}}}
 	case core.KindToolResult:
 		isErr := e.ToolExecError != ""

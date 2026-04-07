@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/session"
@@ -16,8 +17,6 @@ import (
 
 // errSlashExitChat signals the REPL should return (normal exit).
 var errSlashExitChat = errors.New("slash exit chat")
-
-const compactTailMessages = 24
 
 type chatState struct {
 	messages *[]sdk.ChatCompletionMessage
@@ -56,8 +55,9 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 		}
 		_, _ = fmt.Fprintln(out, "(conversation cleared)")
 	case "compact":
+		keep := config.SessionCompactKeepMessages()
 		cur := *st.messages
-		next := compactTail(cur, compactTailMessages)
+		next := session.CompactTail(cur, keep)
 		if len(next) == len(cur) {
 			_, _ = fmt.Fprintln(out, "(nothing to compact)")
 			return nil
@@ -66,7 +66,7 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 		if st.persist != nil {
 			_ = st.persist.Save()
 		}
-		_, _ = fmt.Fprintf(out, "(compacted: kept system + last %d messages; older turns dropped)\n", compactTailMessages)
+		_, _ = fmt.Fprintf(out, "(compacted: kept system + last %d messages; older turns dropped)\n", keep)
 	case "session":
 		return handleSessionSlash(args, st, out)
 	case "provider":
@@ -77,43 +77,18 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 	return nil
 }
 
-// compactTail keeps the first system message (if present) and the last maxAfterSystem messages.
-func compactTail(msgs []sdk.ChatCompletionMessage, maxAfterSystem int) []sdk.ChatCompletionMessage {
-	if len(msgs) == 0 {
-		return nil
-	}
-	if maxAfterSystem < 1 {
-		maxAfterSystem = 1
-	}
-	if len(msgs) > 0 && msgs[0].Role == sdk.ChatMessageRoleSystem {
-		sys := msgs[0]
-		rest := msgs[1:]
-		if len(rest) <= maxAfterSystem {
-			return msgs
-		}
-		out := make([]sdk.ChatCompletionMessage, 0, 1+maxAfterSystem)
-		out = append(out, sys)
-		out = append(out, rest[len(rest)-maxAfterSystem:]...)
-		return out
-	}
-	if len(msgs) <= maxAfterSystem {
-		return msgs
-	}
-	return msgs[len(msgs)-maxAfterSystem:]
-}
-
 func handleSessionSlash(args []string, st chatState, out io.Writer) error {
 	if st.persist == nil {
-		return fmt.Errorf("sessions disabled — use --session <name>, --resume, or OPENCLAUDE_SESSION")
+		return fmt.Errorf("sessions disabled — omit --no-session to enable on-disk sessions")
 	}
 	switch {
 	case len(args) == 0 || args[0] == "show" || args[0] == "status":
-		h := st.persist.handle
+		s := st.persist.store
 		n := 0
 		if st.messages != nil {
 			n = len(*st.messages)
 		}
-		_, _ = fmt.Fprintf(out, "Session %q → %s\n(%d messages in memory)\n", h.Name, h.Path(), n)
+		_, _ = fmt.Fprintf(out, "Session %q → %s\n(%d messages in memory)\n", s.ID, s.SessionPath(), n)
 		return nil
 	case args[0] == "list":
 		list, err := session.List(st.persist.dir)
@@ -125,7 +100,11 @@ func handleSessionSlash(args []string, st chatState, out io.Writer) error {
 			return nil
 		}
 		for _, e := range list {
-			_, _ = fmt.Fprintf(out, "  %-20s  %d msgs  %s  cwd=%s\n", e.Name, e.NMsgs, e.Updated.Format(time.RFC3339), e.CWD)
+			updated := ""
+			if !e.Updated.IsZero() {
+				updated = e.Updated.UTC().Format(time.RFC3339)
+			}
+			_, _ = fmt.Fprintf(out, "  %-24s  %d msgs  %s  cwd=%s\n", e.Name, e.NMsgs, updated, e.CWD)
 		}
 		return nil
 	case args[0] == "save":
@@ -141,7 +120,7 @@ func handleSessionSlash(args []string, st chatState, out io.Writer) error {
 		if err := st.persist.SwitchTo(args[1]); err != nil {
 			return err
 		}
-		_, _ = fmt.Fprintf(out, "(loaded session %q)\n", st.persist.handle.Name)
+		_, _ = fmt.Fprintf(out, "(loaded session %q)\n", st.persist.store.ID)
 		return nil
 	case args[0] == "new":
 		if len(args) < 2 {
@@ -150,10 +129,9 @@ func handleSessionSlash(args []string, st chatState, out io.Writer) error {
 		if err := st.persist.BranchTo(args[1]); err != nil {
 			return err
 		}
-		_, _ = fmt.Fprintf(out, "(new session %q — transcript cleared)\n", st.persist.handle.Name)
+		_, _ = fmt.Fprintf(out, "(new session %q — transcript cleared)\n", st.persist.store.ID)
 		return nil
 	default:
 		return fmt.Errorf("unknown /session %q — try /session list, load, new, save, show", args[0])
 	}
 }
-

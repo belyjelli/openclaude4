@@ -55,6 +55,10 @@ Chat streaming uses `github.com/sashabaranov/go-openai` with `sdk.DefaultConfig`
 
 MCP tools use `session.CallTool(ctx, …)` with the same chat `context` (`internal/mcpclient/manager.go`). OpenClaude does **not** set a separate timeout or rate limit for MCP beyond that context and whatever the MCP SDK/server does.
 
+## On-disk sessions
+
+The CLI saves chat transcripts as **JSON** under the session directory (default `~/.local/share/openclaude/sessions/`, or `session.dir` / `OPENCLAUDE_SESSION_DIR`). Files include **message text, tool arguments, and tool outputs** from the model loop — treat them as **sensitive** (credentials, file paths, code). Use `--no-session` or `OPENCLAUDE_NO_SESSION=true` to disable persistence. A `last_session_id` file records the last session written for `--resume`. See [CONFIG.md](./CONFIG.md#sessions-and-compaction).
+
 ## Transcript and log redaction
 
 Kernel events delivered to [`Agent.OnEvent`](../internal/core/agent.go) (TUI, future session exports) pass through [`RedactEventForLog`](../internal/core/redact.go) so common secret shapes are replaced with `[REDACTED]` before handlers run. **API traffic to the model is unchanged**; only the observable/logged event copy is scrubbed. Dangerous-tool confirmation on the plain REPL prints JSON arguments via the same redaction helper.

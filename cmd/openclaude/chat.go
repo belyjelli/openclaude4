@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
@@ -25,10 +26,33 @@ import (
 )
 
 func runChat(cmd *cobra.Command, _ []string) error {
+	listSessions, _ := cmd.Flags().GetBool("list-sessions")
+	if listSessions {
+		dir := config.EffectiveSessionDir()
+		entries, err := session.List(dir)
+		if err != nil {
+			return err
+		}
+		if len(entries) == 0 {
+			_, _ = fmt.Fprintf(os.Stdout, "(no saved sessions in %s)\n", dir)
+			return nil
+		}
+		_, _ = fmt.Fprintf(os.Stdout, "Sessions in %s:\n", dir)
+		for _, e := range entries {
+			ts := "(unknown)"
+			if !e.Updated.IsZero() {
+				ts = e.Updated.UTC().Format(time.RFC3339)
+			}
+			_, _ = fmt.Fprintf(os.Stdout, "  %-24s  %4d msgs  %s  cwd=%s\n", e.Name, e.NMsgs, ts, e.CWD)
+		}
+		return nil
+	}
+
 	if err := config.Validate(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return err
 	}
+
 	client, err := providers.NewStreamClient()
 	if err != nil {
 		switch {
@@ -75,8 +99,17 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		}
 	}()
 	if persist != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Session %q — %d message(s) loaded · %s\n",
-			persist.handle.Name, len(messages), persist.handle.Path())
+		_, _ = fmt.Fprintf(os.Stderr, "Session %q — %d message(s) in memory · %s\n",
+			persist.store.ID, len(messages), persist.store.SessionPath())
+	}
+
+	beforeUserTurn := func() error {
+		return session.ApplyTokenThreshold(ctx, client, &messages,
+			config.SessionCompactTokenThreshold(),
+			config.SessionSummarizeOverThreshold(),
+			config.SessionCompactKeepMessages(),
+			core.DefaultSystemPrompt,
+		)
 	}
 
 	autoApprove := strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "1") ||
@@ -88,12 +121,13 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		writeChatBanner(&banner, client, mcpMgr)
 		bannerStr := strings.TrimSpace(banner.String()) + "\nTUI: Ctrl+C to quit · same /commands as plain REPL."
 		return tui.Run(tui.Config{
-			Ctx:         ctx,
-			Client:      client,
-			Registry:    reg,
-			Messages:    &messages,
-			AutoApprove: autoApprove,
-			Banner:      bannerStr,
+			Ctx:            ctx,
+			Client:         client,
+			Registry:       reg,
+			Messages:       &messages,
+			AutoApprove:    autoApprove,
+			Banner:         bannerStr,
+			BeforeUserTurn: beforeUserTurn,
 			AfterTurn: func() error {
 				if persist != nil {
 					return persist.Save()
@@ -170,6 +204,10 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			continue
 		}
 
+		if err := beforeUserTurn(); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			continue
+		}
 		if err := agent.RunUserTurn(ctx, &messages, line); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
@@ -182,59 +220,82 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	}
 }
 
-// chatPersist binds a named session file to the in-memory transcript.
+// chatPersist binds a [session.Store] to the in-memory transcript.
 type chatPersist struct {
 	dir      string
 	wd       string
-	handle   *session.Handle
+	store    *session.Store
 	messages *[]sdk.ChatCompletionMessage
 }
 
 func (p *chatPersist) Save() error {
-	if p == nil || p.handle == nil || p.messages == nil {
+	if p == nil || p.store == nil || p.messages == nil {
 		return nil
 	}
-	return p.handle.SaveFrom(*p.messages, p.wd)
+	return p.store.Save(session.RepairTranscript(*p.messages), p.wd)
 }
 
-func (p *chatPersist) SwitchTo(name string) error {
+func (p *chatPersist) SwitchTo(id string) error {
 	if p == nil {
 		return fmt.Errorf("sessions not enabled")
 	}
-	h, err := session.NewHandle(p.dir, name)
-	if err != nil {
-		return err
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return fmt.Errorf("empty session id")
 	}
-	if p.handle != nil {
+	if p.store != nil {
 		if err := p.Save(); err != nil {
 			return fmt.Errorf("save before switch: %w", err)
 		}
 	}
-	p.handle = h
-	*p.messages = nil
-	return h.LoadInto(p.messages)
+	p.store = &session.Store{Dir: p.dir, ID: id}
+	data, err := p.store.Load()
+	if err != nil {
+		if os.IsNotExist(err) {
+			*p.messages = nil
+			return nil
+		}
+		return err
+	}
+	*p.messages = session.RepairTranscript(data.Messages)
+	return nil
 }
 
-func (p *chatPersist) BranchTo(name string) error {
+func (p *chatPersist) BranchTo(id string) error {
 	if p == nil {
 		return fmt.Errorf("sessions not enabled")
 	}
-	h, err := session.NewHandle(p.dir, name)
-	if err != nil {
-		return err
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return fmt.Errorf("empty session id")
 	}
-	if p.handle != nil {
+	if p.store != nil {
 		if err := p.Save(); err != nil {
 			return fmt.Errorf("save before switch: %w", err)
 		}
 	}
-	p.handle = h
+	p.store = &session.Store{Dir: p.dir, ID: id}
 	*p.messages = nil
 	return p.Save()
 }
 
 func resolveChatPersistence(cmd *cobra.Command, wd string, messages *[]sdk.ChatCompletionMessage) (*chatPersist, error) {
+	if config.SessionDisabled() {
+		resume, _ := cmd.Flags().GetBool("resume")
+		if resume || envTruthy("OPENCLAUDE_RESUME") {
+			return nil, fmt.Errorf("sessions are disabled (--no-session) but resume was requested")
+		}
+		sFlag, _ := cmd.Flags().GetString("session")
+		if strings.TrimSpace(sFlag) != "" || strings.TrimSpace(viper.GetString("session.name")) != "" {
+			return nil, fmt.Errorf("sessions are disabled (--no-session) but a session name was set")
+		}
+		return nil, nil
+	}
+
 	resume, _ := cmd.Flags().GetBool("resume")
+	if viper.GetBool("session.resume_last") {
+		resume = true
+	}
 	if envTruthy("OPENCLAUDE_RESUME") {
 		resume = true
 	}
@@ -246,30 +307,36 @@ func resolveChatPersistence(cmd *cobra.Command, wd string, messages *[]sdk.ChatC
 	if resume && name != "" {
 		return nil, fmt.Errorf("use either --resume (or OPENCLAUDE_RESUME) or --session / OPENCLAUDE_SESSION, not both")
 	}
-	dir, err := session.DefaultDir()
-	if err != nil {
-		return nil, err
-	}
-	var sessName string
-	if resume {
-		n, err := session.LatestName(dir)
-		if err != nil {
-			return nil, err
+	dir := config.EffectiveSessionDir()
+
+	var sessID string
+	switch {
+	case resume:
+		id, err := session.ResolveResumeID(dir)
+		if err != nil || strings.TrimSpace(id) == "" {
+			sessID = session.NewRandomID()
+			_, _ = fmt.Fprintf(os.Stderr, "openclaude: no last session on disk; starting new session %q\n", sessID)
+		} else {
+			sessID = id
 		}
-		sessName = n
-	} else if name != "" {
-		sessName = name
-	} else {
-		return nil, nil
+	case name != "":
+		sessID = name
+	default:
+		sessID = session.NewRandomID()
 	}
-	h, err := session.NewHandle(dir, sessName)
+
+	st := &session.Store{Dir: dir, ID: sessID}
+	p := &chatPersist{dir: dir, wd: wd, store: st, messages: messages}
+	data, err := st.Load()
 	if err != nil {
-		return nil, err
+		if os.IsNotExist(err) {
+			return p, nil
+		}
+		_, _ = fmt.Fprintf(os.Stderr, "openclaude: could not load session file (%v); starting with an empty transcript.\n", err)
+		*messages = nil
+		return p, nil
 	}
-	p := &chatPersist{dir: dir, wd: wd, handle: h, messages: messages}
-	if err := h.LoadInto(messages); err != nil {
-		return nil, err
-	}
+	*messages = session.RepairTranscript(data.Messages)
 	return p, nil
 }
 
@@ -330,6 +397,11 @@ func printChatHelpTo(w io.Writer) {
 	const help = `Commands:
   /provider    Show active provider, model, base URL, credential hint
   /mcp list    List connected MCP servers and tool names (see openclaude.yaml mcp.servers)
+  /session     Show active session file path (when sessions enabled)
+  /session list    List saved session files on disk
+  /session load <id>   Switch to another session (saves current first)
+  /session new <id>    New empty session under id (saves current first)
+  /session save    Force write current transcript to disk
   /compact     Drop older messages (keeps system + last 24); lossy — use before long sessions
   /clear       Clear conversation history for this session
   /help        Show this help

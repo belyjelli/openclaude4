@@ -5,15 +5,16 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Entry is a row for session listing.
 type Entry struct {
-	ID        string
-	UpdatedAt string
-	WorkDir   string
-	Path      string
-	Messages  int
+	Name    string
+	NMsgs   int
+	Updated time.Time
+	CWD     string
+	Path    string
 }
 
 // List scans dir for *.json session files (excluding malformed names).
@@ -45,7 +46,7 @@ func List(dir string) ([]Entry, error) {
 		data, err := ReadFileV1(full)
 		if err != nil {
 			out = append(out, Entry{
-				ID:   base + " (unreadable)",
+				Name: base + " (unreadable)",
 				Path: full,
 			})
 			continue
@@ -54,22 +55,20 @@ func List(dir string) ([]Entry, error) {
 		if id == "" {
 			id = base
 		}
-		updated := ""
-		if !data.UpdatedAt.IsZero() {
-			updated = data.UpdatedAt.UTC().Format(timeRFC3339Minute)
-		}
 		out = append(out, Entry{
-			ID:        id,
-			UpdatedAt: updated,
-			WorkDir:   data.WorkDir,
-			Path:      full,
-			Messages:  len(data.Messages),
+			Name:    id,
+			NMsgs:   len(data.Messages),
+			Updated: data.UpdatedAt,
+			CWD:     data.WorkDir,
+			Path:    full,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {
+		ti, tj := out[i].Updated, out[j].Updated
+		if !ti.Equal(tj) {
+			return ti.After(tj)
+		}
 		return out[i].Path < out[j].Path
 	})
 	return out, nil
 }
-
-const timeRFC3339Minute = "2006-01-02 15:04 UTC"

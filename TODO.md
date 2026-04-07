@@ -4,6 +4,52 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 **Active codebase:** Go single binary — `go.mod`, [`cmd/openclaude`](./cmd/openclaude/), [`internal/`](./internal/). Bootstrap notes: [`steps/step1.md`](./steps/step1.md). [docs/DESIGN.md](./docs/DESIGN.md) still describes an optional **npm `packages/`** layout; that track is listed at the bottom for doc alignment only.
 
+**OpenClaude v3 baseline:** The TypeScript repo (`openclaude3`) is the functional reference: Ink TUI, large tool surface (incl. skills, LSP, web fetch), many providers, plugins, agent routing, always-on session/transcript model, gRPC with `session_id`, VS Code extension, etc. **v4 does not yet match that breadth**; the checklist below plus **Gaps vs v3** track what is still missing or only partial.
+
+---
+
+## Gaps vs OpenClaude v3 (parity backlog)
+
+Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller alternative exists).
+
+### Providers and auth
+
+- [ ] **Codex** provider (v4 returns `ErrCodexNotImplemented` from [`internal/providers/runtime.go`](./internal/providers/runtime.go))
+- [ ] **GitHub Models** and interactive onboarding equivalent to v3 `/onboard-github` (token capture, saved profile)
+- [ ] **Atomic Chat**, **Bedrock / Vertex / Foundry** and other env-driven backends listed in [v3 README](https://github.com/Gitlawb/openclaude) “Supported Providers”
+- [ ] Optional: v3-style **secure storage / keychain** hydration for Gemini and GitHub (beyond env + `.openclaude-profile.json` merge)
+
+### Tools and agent behavior
+
+- [ ] **WebFetch** tool (v4 has [`WebSearch`](./internal/tools/web_search.go) only — DDG instant-answer style)
+- [ ] Optional **Firecrawl** (or similar) for richer search + scrape when `FIRECRAWL_API_KEY` is set (v3 README behavior)
+- [ ] **Skills** / **SkillTool** and user slash-command skill loading; **plugin directories** and plugin CLI (v3 `main.tsx` / `src/tools/SkillTool`)
+- [ ] **LSP** integration ([`src/services/lsp`](https://github.com/Gitlawb/openclaude/tree/main/src/services/lsp) in v3)
+- [ ] **Multimodal / vision** inputs (image URL or base64) on the chat path for models that support it
+- [ ] **Agent routing** — v3 `settings.json` `agentModels` + `agentRouting` (per-agent model selection); v4 today uses one stream client and a **Task** sub-loop only
+
+### CLI / UX
+
+- [ ] **Interactive `/provider` wizard** (v4 [`/provider`](./cmd/openclaude/slash.go) prints config only)
+- [ ] **Headless one-shot** mode (v3 `-p` / print) for scripts and CI
+- [ ] Optional: **concurrent session registry** / `ps`-style listing (v3 PID files under a sessions dir)
+- [ ] Expand **slash commands** toward v3 surface where still relevant (`/onboard-github`, MCP management, etc.)
+
+### MCP
+
+- [ ] **MCP subcommands** (v3 `mcp add`, `mcp doctor`, …); v4 is **stdio servers from config** + [`doctor`](./cmd/openclaude/doctor.go) one-liner + [`/mcp list`](./cmd/openclaude/slash.go)
+
+### Headless gRPC and extension
+
+- [ ] **CLI to start gRPC** — implementation + proto + tests live under [`internal/grpc`](./internal/grpc/server.go); **no** `serve` subcommand in `cmd/openclaude` yet (steps in [`internal/grpc/README.md`](./internal/grpc/README.md#wiring-openclaude-serve-follow-up))
+- [ ] **v3 proto parity** — v3 [`openclaude.v1`](https://github.com/Gitlawb/openclaude/blob/main/src/proto/openclaude.proto) uses `ChatRequest.session_id`, `ActionRequired` / `FinalResponse` / `ErrorResponse`; v4 uses `openclaude.v4` and different event names. Document migration or provide a **compatibility gateway** for existing clients
+- [ ] VS Code extension plan remains Phase 6 (v3 ships [`vscode-extension/openclaude-vscode`](https://github.com/Gitlawb/openclaude/tree/main/vscode-extension/openclaude-vscode))
+
+### Engineering / correctness (session + CLI)
+
+- [x] **`/session list` + `--list-sessions`** — use [`session.Entry`](./internal/session/list.go) fields consistently ([`slash.go`](./cmd/openclaude/slash.go), [`chat.go`](./cmd/openclaude/chat.go)); `--list-sessions` runs **before** provider validation so listing works without API keys
+- [x] Align **[docs/CONFIG.md](./docs/CONFIG.md)** / [README](./README.md) session semantics with [`resolveChatPersistence`](./cmd/openclaude/chat.go) (default random id + save unless `--no-session`)
+
 ---
 
 ## Phase 0 — Foundation (Go)
@@ -44,7 +90,7 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 - [x] **Task** tool — bounded sub-session, fresh system + user goal, same tools/client, stdout discarded for sub-run; child registry omits `Task` (no recursion) — [`internal/core/task_tool.go`](./internal/core/task_tool.go)
 - [x] MCP: stdio `ConnectAndRegister`, tool list + `CallTool` proxy, YAML `mcp.servers`, `/mcp list`, `doctor` prints configured servers — [`internal/mcpclient`](./internal/mcpclient/), [`internal/config/mcp.go`](./internal/config/mcp.go)
 - [x] Basic permission hook: REPL confirms dangerous tools before run
-- [x] Slash commands — [`cmd/openclaude/slash.go`](./cmd/openclaude/slash.go): `/help`, `/provider`, `/mcp list`, `/compact`, `/clear`, `/exit`, `/quit`
+- [x] Slash commands — [`cmd/openclaude/slash.go`](./cmd/openclaude/slash.go): `/help`, `/provider`, `/mcp list`, `/session` (when persistence enabled), `/compact`, `/clear`, `/exit`, `/quit`
 
 ## Phase 4 — Terminal UI
 
@@ -55,18 +101,20 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 ## Phase 5 — Sessions & compaction
 
-- [ ] Session persistence on disk
-- [ ] Resume last session; session listing
-- [ ] Compaction / summarize over token threshold
-- [ ] Tests for recovery after interrupted tool run
+- [x] Partial: on-disk session JSON + [`internal/session`](./internal/session/) (`Store`, `Handle` path, resume id, token helpers)
+- [x] Partial: default **on-disk** session (random id per run unless `--session` / `OPENCLAUDE_SESSION`, or `--resume` / last-id file) with `--no-session` to disable — differs from v3 **path/layout** and **jsonl transcript** model; see **Gaps vs v3** for full parity
+- [x] **`/session list` + `--list-sessions`** wired (see **Gaps vs v3** engineering notes)
+- [x] **[`session.ApplyTokenThreshold`](./internal/session/tokens.go)** before each user turn in stdin REPL and TUI ([`BeforeUserTurn`](./internal/tui/model.go)) when `session.compact_token_threshold` is set positive; manual [`/compact`](./cmd/openclaude/slash.go) still uses lossy tail via [`session.CompactTail`](./internal/session/transcript.go)
+- [x] Tests for recovery after interrupted tool run — [`internal/session/store_test.go`](./internal/session/store_test.go) (`TestRepairInterruptedToolRound`), [`internal/core/agent_test.go`](./internal/core/agent_test.go) (`TestRunUserTurn_RecoveredInterruptedToolTranscript`)
 
 ## Phase 6 — Headless & release
 
-- [ ] gRPC or HTTP API server sharing kernel ([`internal/grpc/README.md`](./internal/grpc/README.md))
-- [ ] Proto versioning vs v3 `openclaude.proto`
-- [ ] Release checklist: semver, changelog, security policy pointer
-- [ ] Migration guide from v3 CLI
-- [ ] VS Code extension plan (separate milestone)
+- [x] Partial: gRPC **server + generated stubs + v3 mapping table** — [`internal/grpc/README.md`](./internal/grpc/README.md)
+- [ ] **`openclaude serve`** (shared bootstrap with chat: config, client, registry, MCP, Task tool) — see README § “Wiring `openclaude serve`”
+- [ ] Optional: **gRPC stream session binding** (`session_id`-style) aligned with on-disk sessions for multi-client reuse (v3 had `session_id` on `ChatRequest`)
+- [x] Release checklist: semver, changelog, security policy pointer — [docs/RELEASE_CHECKLIST.md](./docs/RELEASE_CHECKLIST.md)
+- [x] Migration guide from v3 CLI (config, flags, gRPC package / event names) — [docs/MIGRATION_V3.md](./docs/MIGRATION_V3.md), [docs/PROTO_VERSIONING.md](./docs/PROTO_VERSIONING.md)
+- [x] VS Code extension plan (separate milestone) — [docs/VSCODE_EXTENSION.md](./docs/VSCODE_EXTENSION.md)
 
 ## Security & quality (continuous)
 

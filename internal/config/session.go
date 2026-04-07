@@ -25,7 +25,7 @@ func expandPath(p, home string) string {
 		return p
 	}
 	if strings.HasPrefix(p, "~/") && home != "" {
-		return filepath.Join(home, strings.TrimPrefix(p[2:], string(filepath.Separator)))
+		return filepath.Join(home, p[2:])
 	}
 	if p == "~" && home != "" {
 		return home
@@ -35,7 +35,11 @@ func expandPath(p, home string) string {
 
 // SessionDisabled is true when --no-session / session.disabled suppresses persistence.
 func SessionDisabled() bool {
-	return viper.GetBool("session.disabled")
+	if viper.GetBool("session.disabled") {
+		return true
+	}
+	v := strings.TrimSpace(os.Getenv("OPENCLAUDE_NO_SESSION"))
+	return strings.EqualFold(v, "1") || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 }
 
 // SessionCompactTokenThreshold enables automatic compaction/summarization when rough

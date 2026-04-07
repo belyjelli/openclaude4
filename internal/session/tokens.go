@@ -8,9 +8,13 @@ import (
 	"io"
 	"strings"
 
-	"github.com/gitlawb/openclaude4/internal/core"
 	sdk "github.com/sashabaranov/go-openai"
 )
+
+// StreamCompleter matches [core.StreamClient] without importing core (avoids test import cycles).
+type StreamCompleter interface {
+	StreamChatWithTools(ctx context.Context, messages []sdk.ChatCompletionMessage, toolList []sdk.Tool) (*sdk.ChatCompletionStream, error)
+}
 
 // RoughTokenEstimate is a fast heuristic (~4 chars per token) for budgeting; not exact.
 func RoughTokenEstimate(msgs []sdk.ChatCompletionMessage) int {
@@ -40,7 +44,8 @@ func roughStringTokens(s string) int {
 
 // ApplyTokenThreshold compacts or (optionally) summarizes the transcript when the rough
 // token estimate exceeds threshold. threshold <= 0 disables the check.
-func ApplyTokenThreshold(ctx context.Context, client core.StreamClient, messages *[]sdk.ChatCompletionMessage, threshold int, summarize bool, tail int) error {
+// systemPrompt is used when summarization resets the transcript (typically [core.DefaultSystemPrompt]).
+func ApplyTokenThreshold(ctx context.Context, client StreamCompleter, messages *[]sdk.ChatCompletionMessage, threshold int, summarize bool, tail int, systemPrompt string) error {
 	if messages == nil || threshold <= 0 {
 		return nil
 	}
@@ -54,8 +59,11 @@ func ApplyTokenThreshold(ctx context.Context, client core.StreamClient, messages
 	if summarize && client != nil {
 		sum, err := summarizeTranscript(ctx, client, msgs)
 		if err == nil && sum != "" {
+			if systemPrompt == "" {
+				systemPrompt = "You are a coding assistant."
+			}
 			*messages = []sdk.ChatCompletionMessage{
-				{Role: sdk.ChatMessageRoleSystem, Content: core.DefaultSystemPrompt},
+				{Role: sdk.ChatMessageRoleSystem, Content: systemPrompt},
 				{
 					Role:    sdk.ChatMessageRoleUser,
 					Content: "Summary of earlier conversation (auto-compacted over token limit):\n\n" + sum,
@@ -68,7 +76,7 @@ func ApplyTokenThreshold(ctx context.Context, client core.StreamClient, messages
 	return nil
 }
 
-func summarizeTranscript(ctx context.Context, client core.StreamClient, msgs []sdk.ChatCompletionMessage) (string, error) {
+func summarizeTranscript(ctx context.Context, client StreamCompleter, msgs []sdk.ChatCompletionMessage) (string, error) {
 	if client == nil {
 		return "", errors.New("session: no client for summarize")
 	}
