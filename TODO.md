@@ -42,7 +42,7 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 - [x] `grep` tool (uses `rg` when available — see tool implementation)
 - [x] `glob` tool
 - [ ] Sub-agent or task primitive (simpler than v3 is OK)
-- [ ] MCP: transport connect, capability negotiation, tool proxying (`steps/step3.md`, `steps/step4.md` are design drafts)
+- [x] MCP: stdio `ConnectAndRegister`, tool list + `CallTool` proxy, YAML `mcp.servers`, `/mcp list`, doctor — [`internal/mcpclient`](./internal/mcpclient/), [`internal/config/mcp.go`](./internal/config/mcp.go), [`cmd/openclaude/chat.go`](./cmd/openclaude/chat.go)
 - [x] Basic permission hook: REPL confirms dangerous tools before run
 - [x] Slash commands: `/help`, `/provider`, `/clear`, `/exit` — extend set (`/help` text lists current)
 

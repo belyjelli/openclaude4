@@ -9,6 +9,12 @@ All built-in backends speak the **OpenAI Chat Completions** HTTP API (`POST /v1/
 | **gemini** | Google Gemini via **OpenAI-compatible** endpoint | `GEMINI_API_KEY` or `GOOGLE_API_KEY` | `https://generativelanguage.googleapis.com/v1beta/openai` (override with `GEMINI_BASE_URL` / `gemini.base_url`) | `GEMINI_MODEL` / `gemini.model` / `provider.model` (default `gemini-2.0-flash`) |
 | **codex** | Reserved | — | — | Not implemented yet (`openclaude` will error at startup). |
 
+## MCP (Model Context Protocol)
+
+Optional **stdio** MCP servers are listed under `mcp.servers` in `openclaude.yaml` (see [CONFIG.md](./CONFIG.md)). At chat startup, OpenClaude connects each server, lists tools, and registers them on the same registry as built-ins. Exposed OpenAI function names are `mcp_<server>__<tool>` (see [`OpenAIToolName`](../internal/mcpclient/schema.go)).
+
+Use `/mcp list` in the REPL and `openclaude doctor` to inspect configuration. Failed servers are skipped with a stderr line; chat still runs with built-in tools only.
+
 ## Wiring in code
 
 - Factory: [`internal/providers/runtime.go`](../internal/providers/runtime.go) (`NewStreamClient`).

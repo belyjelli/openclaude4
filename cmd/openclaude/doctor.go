@@ -47,6 +47,24 @@ func runDoctor(_ *cobra.Command, _ []string) {
 
 	_, _ = fmt.Fprintf(os.Stdout, "%s\n", providers.PingProviderBestEffort())
 
+	mcpSrv := config.MCPServers()
+	if len(mcpSrv) == 0 {
+		_, _ = fmt.Fprintln(os.Stdout, "MCP (config): no servers in mcp.servers")
+	} else {
+		_, _ = fmt.Fprintf(os.Stdout, "MCP (config): %d server(s)\n", len(mcpSrv))
+		for _, s := range mcpSrv {
+			cmd0 := ""
+			if len(s.Command) > 0 {
+				cmd0 = s.Command[0]
+			}
+			ap := s.Approval
+			if ap == "" {
+				ap = "ask"
+			}
+			_, _ = fmt.Fprintf(os.Stdout, "  - %s: argv0=%q approval=%s\n", s.Name, cmd0, ap)
+		}
+	}
+
 	if _, err := providers.NewStreamClient(); err != nil {
 		_, _ = fmt.Fprintf(os.Stdout, "Client: error — %v\n", err)
 	} else {

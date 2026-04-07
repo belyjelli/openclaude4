@@ -41,8 +41,6 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	printChatBanner(client)
-
 	ctx := cmd.Context()
 	if ctx == nil {
 		ctx = context.Background()
@@ -54,12 +52,14 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	}
 	ctx = tools.WithWorkDir(ctx, wd)
 
-	var messages []sdk.ChatCompletionMessage
-	reader := bufio.NewReader(os.Stdin)
 	reg := tools.NewDefaultRegistry()
-
 	mcpMgr := mcpclient.ConnectAndRegister(ctx, reg, config.MCPServers(), os.Stderr)
 	defer mcpMgr.Close()
+
+	printChatBanner(client, mcpMgr)
+
+	var messages []sdk.ChatCompletionMessage
+	reader := bufio.NewReader(os.Stdin)
 
 	autoApprove := strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "1") ||
 		strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "true")
@@ -126,13 +126,20 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	}
 }
 
-func printChatBanner(c core.StreamClient) {
+func printChatBanner(c core.StreamClient, mcp *mcpclient.Manager) {
 	if info, ok := providers.AsStreamClientInfo(c); ok {
 		_, _ = fmt.Fprintf(os.Stderr, "OpenClaude v4 (phase 3). Provider: %s. Model: %s. Type /help. Ctrl+D to exit.\n",
 			info.ProviderKind(), info.Model())
-		return
+	} else {
+		_, _ = fmt.Fprintln(os.Stderr, "OpenClaude v4 (phase 3). Type /help. Ctrl+D to exit.")
 	}
-	_, _ = fmt.Fprintln(os.Stderr, "OpenClaude v4 (phase 3). Type /help. Ctrl+D to exit.")
+	if mcp != nil && len(mcp.Servers) > 0 {
+		toolsN := 0
+		for _, s := range mcp.Servers {
+			toolsN += len(s.OpenAINames)
+		}
+		_, _ = fmt.Fprintf(os.Stderr, "MCP: %d tool(s) from %d server(s) — /mcp list\n", toolsN, len(mcp.Servers))
+	}
 }
 
 func printProviderInfo(c core.StreamClient) {
