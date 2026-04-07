@@ -30,14 +30,14 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 
 ### CLI / UX
 
-- [ ] **Interactive `/provider` wizard** (v4 [`/provider`](./cmd/openclaude/slash.go) prints config only)
+- [x] **Interactive `/provider` wizard** — [`/provider wizard`](./cmd/openclaude/slash.go) + [`slash_provider_wizard.go`](./cmd/openclaude/slash_provider_wizard.go); TUI falls back to static copy-paste guide
 - [x] **Headless one-shot** mode (v3 `-p` / print) for scripts and CI — [`runPrintTurn`](./cmd/openclaude/chat.go); `--print` / `-p` (optional `-p -` stdin); incompatible with `--tui`; dangerous tools need `OPENCLAUDE_AUTO_APPROVE_TOOLS` or they are skipped (stderr)
 - [ ] Optional: **concurrent session registry** / `ps`-style listing (v3 PID files under a sessions dir)
 - [ ] Expand **slash commands** toward v3 surface where still relevant (`/onboard-github`, MCP management, etc.)
 
 ### MCP
 
-- [ ] **MCP subcommands** (v3 `mcp add`, `mcp doctor`, …); v4 is **stdio servers from config** + [`doctor`](./cmd/openclaude/doctor.go) one-liner + [`/mcp list`](./cmd/openclaude/slash.go)
+- [x] **MCP subcommands** — [`openclaude mcp list`](./cmd/openclaude/mcp.go), [`mcp doctor`](./cmd/openclaude/mcp.go), [`mcp add`](./cmd/openclaude/mcp.go) (append to config via [`AppendMCPServerToConfigFile`](./internal/config/mcp_configfile.go)); REPL [`/mcp list`](./cmd/openclaude/slash.go) / [`/mcp doctor`](./cmd/openclaude/slash.go)
 
 ### Headless gRPC and extension
 
@@ -88,9 +88,9 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 - [x] `grep` tool (uses `rg` when available — see tool implementation)
 - [x] `glob` tool
 - [x] **Task** tool — bounded sub-session, fresh system + user goal, same tools/client, stdout discarded for sub-run; child registry omits `Task` (no recursion) — [`internal/core/task_tool.go`](./internal/core/task_tool.go)
-- [x] MCP: stdio `ConnectAndRegister`, tool list + `CallTool` proxy, YAML `mcp.servers`, `/mcp list`, `doctor` prints configured servers — [`internal/mcpclient`](./internal/mcpclient/), [`internal/config/mcp.go`](./internal/config/mcp.go)
+- [x] MCP: stdio `ConnectAndRegister`, tool list + `CallTool` proxy, YAML `mcp.servers`, `/mcp list`, `doctor` prints configured servers, **`openclaude mcp list` / `mcp doctor`** — [`internal/mcpclient`](./internal/mcpclient/), [`internal/config/mcp.go`](./internal/config/mcp.go), [`cmd/openclaude/mcp.go`](./cmd/openclaude/mcp.go)
 - [x] Basic permission hook: REPL confirms dangerous tools before run
-- [x] Slash commands — [`cmd/openclaude/slash.go`](./cmd/openclaude/slash.go): `/help`, `/provider`, `/mcp list`, `/session` (when persistence enabled), `/compact`, `/clear`, `/exit`, `/quit`
+- [x] Slash commands — [`cmd/openclaude/slash.go`](./cmd/openclaude/slash.go): `/help`, `/provider`, `/mcp list`, `/mcp doctor`, `/session` (when persistence enabled), `/compact`, `/clear`, `/exit`, `/quit`
 
 ## Phase 4 — Terminal UI
 

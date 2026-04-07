@@ -19,10 +19,11 @@ import (
 var errSlashExitChat = errors.New("slash exit chat")
 
 type chatState struct {
-	messages *[]sdk.ChatCompletionMessage
-	mcpMgr   *mcpclient.Manager
-	client   core.StreamClient
-	persist  *chatPersist
+	messages         *[]sdk.ChatCompletionMessage
+	mcpMgr           *mcpclient.Manager
+	client           core.StreamClient
+	persist          *chatPersist
+	providerWizardIn io.Reader // stdin in plain REPL; nil in TUI (wizard prints static guide only)
 }
 
 func handleSlashLine(line string, st chatState, out io.Writer) error {
@@ -75,7 +76,24 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 	case "session":
 		return handleSessionSlash(args, st, out)
 	case "provider":
-		printProviderInfoTo(st.client, out)
+		if len(args) == 0 {
+			printProviderInfoTo(st.client, out)
+			return nil
+		}
+		sub := strings.ToLower(strings.TrimSpace(args[0]))
+		switch sub {
+		case "show", "status":
+			printProviderInfoTo(st.client, out)
+		case "wizard":
+			return handleProviderWizard(st, out)
+		case "help":
+			_, _ = fmt.Fprint(out, `/provider              Show active provider, model, base URL, credential hint
+/provider wizard      Step through setup (plain REPL only; restart openclaude to apply)
+/provider show        Same as bare /provider
+`)
+		default:
+			return fmt.Errorf("unknown /provider %q — try /provider wizard or /provider help", args[0])
+		}
 	default:
 		return fmt.Errorf("unknown command %q - try /help", fields[0])
 	}

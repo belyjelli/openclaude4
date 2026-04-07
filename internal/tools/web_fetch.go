@@ -61,7 +61,7 @@ func (WebFetch) Execute(ctx context.Context, args map[string]any) (string, error
 	if err != nil {
 		return "", fmt.Errorf("parse url: %w", err)
 	}
-	if err := validateFetchURL(u); err != nil {
+	if err := ValidateFetchURL(u); err != nil {
 		return "", err
 	}
 
@@ -83,7 +83,7 @@ func (WebFetch) Execute(ctx context.Context, args map[string]any) (string, error
 				return fmt.Errorf("too many redirects (max %d)", webFetchMaxRedirects)
 			}
 			if req.URL != nil {
-				if err := validateFetchURL(req.URL); err != nil {
+				if err := ValidateFetchURL(req.URL); err != nil {
 					return err
 				}
 			}
@@ -135,7 +135,8 @@ func (WebFetch) Execute(ctx context.Context, args map[string]any) (string, error
 	return text + truncNote, nil
 }
 
-func validateFetchURL(u *url.URL) error {
+// ValidateFetchURL enforces the same http(s) and SSRF-minded rules as [WebFetch].
+func ValidateFetchURL(u *url.URL) error {
 	if u == nil {
 		return fmt.Errorf("nil url")
 	}

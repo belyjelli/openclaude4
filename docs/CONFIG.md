@@ -70,6 +70,8 @@ Each entry runs **`command`** as a subprocess; OpenClaude talks to it over **std
 
 Failed servers are skipped with a message on stderr; chat still starts if built-in tools are enough.
 
+**CLI:** `openclaude mcp add --name <id> --exec <argv1> --exec <argv2> ...` appends a server to the config file [`config.WritableConfigPath`](../internal/config/mcp_configfile.go) would choose (same rules as loading: explicit `--config`, else first `openclaude.{yaml,yml,json}` on the search path, else `~/.config/openclaude/openclaude.yaml`). Use `--approval always|never|ask`, `--dry-run` to preview. Rewriting YAML drops comments.
+
 ## Environment variables
 
 | Variable | Purpose |
@@ -119,7 +121,7 @@ Invalid `provider.name` values are rejected at chat startup (`config.Validate()`
 
 ## In-session slash commands (REPL)
 
-Handled in the chat loop (not config keys): `/help`, `/provider`, `/mcp list`, `/session` (show, list, load, new, save), `/compact` (lossy transcript trim: keeps system + last N messages, default 24; override via `session.compact_keep_messages`), `/clear`, `/exit`, `/quit`.
+Handled in the chat loop (not config keys): `/help`, `/provider` (and **`/provider wizard`** for interactive YAML/env setup in the plain REPL; in `--tui`, wizard prints a static copy-paste guide), `/mcp list`, `/mcp doctor`, `/session` (show, list, load, new, save), `/compact` (lossy transcript trim: keeps system + last N messages, default 24; override via `session.compact_keep_messages`), `/clear`, `/exit`, `/quit`. From the shell: **`openclaude mcp list`** (config only), **`openclaude mcp doctor`** (connect + list tools; exit 1 if any server fails), **`openclaude mcp add`** (append a `mcp.servers` entry — repeats `--exec` per argv token; **`--dry-run`** to preview; YAML comments are not preserved on rewrite).
 
 ## Diagnostics
 

@@ -33,10 +33,10 @@ export GEMINI_API_KEY=...   # or GOOGLE_API_KEY
 ./openclaude
 ```
 
-**CLI:** `./openclaude version`, `./openclaude doctor`, **`./openclaude serve`** (gRPC `openclaude.v4.AgentService`; see [internal/grpc/README.md](./internal/grpc/README.md)), `./openclaude --help`  
+**CLI:** `./openclaude version`, `./openclaude doctor`, **`./openclaude mcp list`** / **`mcp doctor`** / **`mcp add`**, **`./openclaude serve`** (gRPC `openclaude.v4.AgentService`; see [internal/grpc/README.md](./internal/grpc/README.md)), `./openclaude --help`  
 **Flags:** `--config`, `--provider`, `--model`, `--base-url`, `--print` / `-p` (one-shot script/CI; final reply on stdout), `--tui`, `--session`, `--resume`, `--list-sessions`, `--no-session`  
 **Serve:** `--listen` or **`OPENCLAUDE_GRPC_ADDR`** (default `:50051`)  
-**In-session:** `/help`, `/provider`, `/mcp list`, `/session …`, `/compact`, `/clear`, `/exit`  
+**In-session:** `/help`, `/provider` (+ `/provider wizard` in plain REPL), `/mcp list`, `/mcp doctor`, `/session …`, `/compact`, `/clear`, `/exit`  
 **TUI:** `./openclaude --tui` or `OPENCLAUDE_TUI=1` — full-screen Bubble Tea UI (streaming transcript, tool call/result blocks, permission prompts). Kernel uses [`OnEvent`](./internal/core/event.go) only; model text is not duplicated to stdout.
 
 ### Install (release binaries)

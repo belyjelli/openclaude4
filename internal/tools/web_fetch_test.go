@@ -25,7 +25,7 @@ func TestValidateFetchURL(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse %q: %v", tc.raw, err)
 		}
-		err = validateFetchURL(u)
+		err = ValidateFetchURL(u)
 		if tc.ok && err != nil {
 			t.Errorf("%q: want ok, got %v", tc.raw, err)
 		}

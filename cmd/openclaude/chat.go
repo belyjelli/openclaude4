@@ -150,10 +150,11 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			Slash: func(line string) (string, bool, error) {
 				var out bytes.Buffer
 				err := handleSlashLine(line, chatState{
-					messages: &messages,
-					mcpMgr:   mcpMgr,
-					client:   client,
-					persist:  persist,
+					messages:         &messages,
+					mcpMgr:           mcpMgr,
+					client:           client,
+					persist:          persist,
+					providerWizardIn: nil, // TUI: /provider wizard prints static guide only
 				}, &out)
 				if errors.Is(err, errSlashExitChat) {
 					return out.String(), true, nil
@@ -203,10 +204,11 @@ func runChat(cmd *cobra.Command, _ []string) error {
 
 		if strings.HasPrefix(line, "/") {
 			err := handleSlashLine(line, chatState{
-				messages: &messages,
-				mcpMgr:   mcpMgr,
-				client:   client,
-				persist:  persist,
+				messages:         &messages,
+				mcpMgr:           mcpMgr,
+				client:           client,
+				persist:          persist,
+				providerWizardIn: os.Stdin,
 			}, os.Stdout)
 			if errors.Is(err, errSlashExitChat) {
 				return nil
@@ -469,7 +471,8 @@ func printChatHelpTo(w io.Writer) {
 		w = os.Stdout
 	}
 	const help = `Commands:
-  /provider    Show active provider, model, base URL, credential hint
+  /provider         Show active provider, model, base URL, credential hint
+  /provider wizard  Interactive setup (YAML/env hints; plain REPL only — use /provider help)
   /mcp list    List connected MCP servers and tool names (see openclaude.yaml mcp.servers)
   /mcp doctor  Show same as list + tip to run openclaude mcp doctor for a fresh check
   /session     Show active session file path (when sessions enabled)
