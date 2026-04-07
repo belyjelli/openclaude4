@@ -14,10 +14,14 @@ func NewStreamClient() (core.StreamClient, error) {
 	switch config.ProviderName() {
 	case "ollama":
 		return openaicomp.NewOllama()
+	case "gemini":
+		return openaicomp.NewGemini()
+	case "codex":
+		return nil, ErrCodexNotImplemented
 	default:
 		name := config.ProviderName()
 		if name != "" && name != "openai" {
-			return nil, fmt.Errorf("unknown provider %q (try openai or ollama)", name)
+			return nil, fmt.Errorf("unknown provider %q (try openai, ollama, or gemini)", name)
 		}
 		return openaicomp.New()
 	}
@@ -43,6 +47,8 @@ func PingProviderBestEffort() string {
 	switch config.ProviderName() {
 	case "ollama":
 		return pingOllama()
+	case "gemini":
+		return pingGemini()
 	default:
 		return pingOpenAI()
 	}

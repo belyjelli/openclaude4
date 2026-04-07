@@ -332,8 +332,9 @@ Run: `go run ./cmd/openclaude` from the repo (set `OPENAI_API_KEY`). See [README
 |------|--------|
 | Config file search (`openclaude.yaml` / json, `--config`) | Done — [docs/CONFIG.md](../docs/CONFIG.md) |
 | Env + flag merge via Viper | Done |
-| Second provider: **Ollama** (OpenAI-compatible `/v1` on host) | Done |
+| **Ollama** (OpenAI-compatible `/v1` on host) | Done |
+| **Gemini** (Google OpenAI-compatible endpoint + `go-openai`) | Done |
+| **Codex** | Explicit `ErrCodexNotImplemented` (v3 protocol not ported) |
+| v3 **`.openclaude-profile.json`** merge (cwd → `$HOME`, under YAML) | Done — `internal/config/profile_v3.go` |
 | `openclaude doctor` | Done |
-| Gemini / Codex providers | Not started |
-| Import `.openclaude-profile.json` automatically | Not started |
-| CI tests with `httptest` mock API | Partial — `internal/core/agent_test.go` + `internal/providers/ping_test.go` |
+| CI tests with `httptest` | `internal/core/agent_test.go`, `internal/providers/ping_test.go`, `internal/providers/openaicomp/client_test.go`, `internal/config/profile_v3_test.go` |

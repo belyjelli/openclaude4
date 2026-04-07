@@ -1,6 +1,6 @@
 # OpenClaude v4
 
-Greenfield rewrite of [OpenClaude](https://github.com/Gitlawb/openclaude) (v3 lives in **openclaude3**). This repository holds design docs and a **Go CLI** with multi-provider config, **Ollama**, and Phase 1 tools.
+Greenfield rewrite of [OpenClaude](https://github.com/Gitlawb/openclaude) (v3 lives in **openclaude3**). This repository holds design docs and a **Go CLI** with multi-provider config (**OpenAI-compatible**, **Ollama**, **Gemini**), v3 profile import, and Phase 1 tools.
 
 ## Build (Go)
 
@@ -25,11 +25,19 @@ export OLLAMA_MODEL=llama3.2   # optional
 ./openclaude
 ```
 
+### Run (Gemini, OpenAI-compatible API)
+
+```bash
+export OPENCLAUDE_PROVIDER=gemini
+export GEMINI_API_KEY=...   # or GOOGLE_API_KEY
+./openclaude
+```
+
 **CLI:** `./openclaude version`, `./openclaude doctor`, `./openclaude --help`  
 **Flags:** `--config`, `--provider`, `--model`, `--base-url`  
 **In-session:** `/help`, `/provider`, `/clear`, `/exit`
 
-**Config file:** optional `openclaude.yaml` in the current directory or `~/.config/openclaude/` — see [docs/CONFIG.md](./docs/CONFIG.md) and [openclaude.example.yaml](./openclaude.example.yaml).
+**Config layers:** v3 `.openclaude-profile.json` (cwd, then `$HOME`), then `openclaude.yaml` — see [docs/CONFIG.md](./docs/CONFIG.md) and [openclaude.example.yaml](./openclaude.example.yaml).
 
 **Tools:** `FileRead`, `FileWrite`, `FileEdit`, `Bash`, `Grep`, `Glob`, `WebSearch`. Workspace = process working directory (paths cannot escape it). Details: [docs/SECURITY.md](./docs/SECURITY.md).
 
@@ -51,9 +59,9 @@ export OLLAMA_MODEL=llama3.2   # optional
 
 ## Status
 
-**Phase 2 (started)** — Config file discovery, env merge, `openai` + `ollama` providers, `openclaude doctor`, [docs/CONFIG.md](./docs/CONFIG.md). **Not yet:** Gemini/Codex adapters, automatic v3 profile import. Kernel tests use `httptest` against the OpenAI streaming shape (`internal/core/agent_test.go`).
+**Phase 2 (breadth slice done)** — v3 `.openclaude-profile.json` merge, `openclaude.yaml`, **`openai` / `ollama` / `gemini`**, explicit **codex** “not implemented” error, `doctor`, [docs/CONFIG.md](./docs/CONFIG.md). Tests: `internal/core/agent_test.go`, `internal/providers/openaicomp/client_test.go`, config profile tests.
 
-**Phase 1** — Streaming tool loop, registry, sandboxed shell — see [steps/step2.md](./steps/step2.md).
+**Phase 1** — Streaming tool loop — see [steps/step2.md](./steps/step2.md).
 
 ## License
 

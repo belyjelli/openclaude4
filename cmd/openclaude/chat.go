@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/providers"
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
@@ -19,10 +20,21 @@ import (
 )
 
 func runChat(cmd *cobra.Command, _ []string) error {
+	if err := config.Validate(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return err
+	}
 	client, err := providers.NewStreamClient()
 	if err != nil {
-		if errors.Is(err, openaicomp.ErrMissingAPIKey) {
-			_, _ = fmt.Fprintln(os.Stderr, "Error: set OPENAI_API_KEY (or use provider ollama with a local Ollama install).")
+		switch {
+		case errors.Is(err, openaicomp.ErrMissingAPIKey):
+			_, _ = fmt.Fprintln(os.Stderr, "Error: set OPENAI_API_KEY (or use --provider ollama / gemini as appropriate).")
+			return err
+		case errors.Is(err, openaicomp.ErrMissingGeminiKey):
+			_, _ = fmt.Fprintln(os.Stderr, "Error: set GEMINI_API_KEY or GOOGLE_API_KEY for provider gemini.")
+			return err
+		case errors.Is(err, providers.ErrCodexNotImplemented):
+			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return err
 		}
 		return err
@@ -141,7 +153,8 @@ func printChatHelp() {
 Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch.
 Workspace is the current working directory.
 
-Providers: openai (default, needs OPENAI_API_KEY) or ollama (local, OPENCLAUDE_PROVIDER=ollama).
+Providers: openai (OPENAI_API_KEY), ollama (local), gemini (GEMINI_API_KEY or GOOGLE_API_KEY).
+v3 users: .openclaude-profile.json in cwd or $HOME is merged automatically (under openclaude.yaml).
 See docs/CONFIG.md and openclaude doctor.
 
 Dangerous tools prompt unless OPENCLAUDE_AUTO_APPROVE_TOOLS=1

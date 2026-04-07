@@ -11,13 +11,16 @@ import (
 // ErrMissingAPIKey is returned when OPENAI_API_KEY is unset.
 var ErrMissingAPIKey = errors.New("OPENAI_API_KEY is not set")
 
+// ErrMissingGeminiKey is returned when GEMINI_API_KEY / GOOGLE_API_KEY is unset.
+var ErrMissingGeminiKey = errors.New("GEMINI_API_KEY or GOOGLE_API_KEY is not set")
+
 // Client wraps the OpenAI-compatible HTTP client.
 type Client struct {
 	inner  *sdk.Client
 	model  string
 	apiKey string
 	base   string
-	kind   string // "openai" | "ollama"
+	kind   string // "openai" | "ollama" | "gemini"
 }
 
 // New builds an OpenAI or OpenAI-compatible remote client (requires OPENAI_API_KEY).
@@ -53,7 +56,25 @@ func NewOllama() (*Client, error) {
 	}, nil
 }
 
-// ProviderKind returns "openai" or "ollama".
+// NewGemini uses Google's OpenAI-compatible Gemini endpoint.
+func NewGemini() (*Client, error) {
+	key := config.GeminiAPIKey()
+	if key == "" {
+		return nil, ErrMissingGeminiKey
+	}
+	base := config.GeminiBaseURL()
+	cfg := sdk.DefaultConfig(key)
+	cfg.BaseURL = base
+	return &Client{
+		inner:  sdk.NewClientWithConfig(cfg),
+		model:  config.GeminiModel(),
+		apiKey: key,
+		base:   base,
+		kind:   "gemini",
+	}, nil
+}
+
+// ProviderKind returns "openai", "ollama", or "gemini".
 func (c *Client) ProviderKind() string {
 	if c.kind != "" {
 		return c.kind
@@ -88,8 +109,14 @@ func (c *Client) BaseURL() string { return c.base }
 
 // RedactedAPIKeySummary returns a short redacted form for display (never the full secret).
 func (c *Client) RedactedAPIKeySummary() string {
-	if c.ProviderKind() == "ollama" {
+	switch c.ProviderKind() {
+	case "ollama":
 		return "(local Ollama — no API key)"
+	case "gemini":
+		if len(c.apiKey) <= 8 {
+			return "(set)"
+		}
+		return c.apiKey[:4] + "…" + c.apiKey[len(c.apiKey)-4:]
 	}
 	k := c.apiKey
 	if len(k) <= 8 {

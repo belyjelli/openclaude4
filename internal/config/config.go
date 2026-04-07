@@ -10,13 +10,18 @@ const defaultModel = "gpt-4o-mini"
 
 const defaultOllamaModel = "llama3.2"
 
-// ProviderName returns active backend: "openai" (default) or "ollama".
+const defaultGeminiModel = "gemini-2.0-flash"
+
+// DefaultGeminiOpenAIBase is Google's OpenAI-compatible Gemini endpoint (v3 parity).
+const DefaultGeminiOpenAIBase = "https://generativelanguage.googleapis.com/v1beta/openai"
+
+// ProviderName returns the active backend.
 func ProviderName() string {
 	v := strings.ToLower(strings.TrimSpace(viper.GetString("provider.name")))
 	switch v {
-	case "ollama":
-		return "ollama"
-	case "openai", "":
+	case "ollama", "gemini", "openai", "codex":
+		return v
+	case "":
 		return "openai"
 	default:
 		return v
@@ -44,10 +49,14 @@ func BaseURL() string {
 
 // Model returns the chat model for the active provider.
 func Model() string {
-	if ProviderName() == "ollama" {
+	switch ProviderName() {
+	case "ollama":
 		return OllamaModel()
+	case "gemini":
+		return GeminiModel()
+	default:
+		return openAIModel()
 	}
-	return openAIModel()
 }
 
 func openAIModel() string {
@@ -79,4 +88,31 @@ func OllamaChatBase() string {
 		return raw
 	}
 	return raw + "/v1"
+}
+
+// GeminiAPIKey returns GEMINI_API_KEY or GOOGLE_API_KEY (merged via viper).
+func GeminiAPIKey() string {
+	if v := viper.GetString("gemini.api_key"); v != "" {
+		return v
+	}
+	return ""
+}
+
+// GeminiBaseURL returns the OpenAI-compatible base URL for Gemini (no trailing slash).
+func GeminiBaseURL() string {
+	if v := strings.TrimSpace(viper.GetString("gemini.base_url")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	return strings.TrimRight(DefaultGeminiOpenAIBase, "/")
+}
+
+// GeminiModel returns the Gemini model id.
+func GeminiModel() string {
+	if v := viper.GetString("gemini.model"); v != "" {
+		return v
+	}
+	if v := viper.GetString("provider.model"); v != "" {
+		return v
+	}
+	return defaultGeminiModel
 }

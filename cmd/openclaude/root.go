@@ -14,15 +14,15 @@ var rootCmd = &cobra.Command{
 	Short: "OpenClaude v4 — terminal coding agent (Go rewrite)",
 	Long: `OpenClaude v4 is a native Go implementation: multi-provider chat with tools.
 
-Config: env vars, optional openclaude.yaml (see docs/CONFIG.md). Examples:
+Config: env vars, optional openclaude.yaml, optional v3 .openclaude-profile.json (see docs/CONFIG.md). Examples:
   OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL
-  OPENCLAUDE_PROVIDER=ollama, OLLAMA_HOST, OLLAMA_MODEL`,
+  OPENCLAUDE_PROVIDER=ollama|gemini, OLLAMA_*, GEMINI_API_KEY / GOOGLE_API_KEY`,
 	RunE: runChat,
 }
 
 func init() {
 	rootCmd.PersistentFlags().String("config", "", "Path to config file (yaml/json); overrides default search paths")
-	rootCmd.PersistentFlags().String("provider", "", "Provider: openai or ollama (overrides OPENCLAUDE_PROVIDER)")
+	rootCmd.PersistentFlags().String("provider", "", "Provider: openai, ollama, or gemini (overrides OPENCLAUDE_PROVIDER)")
 	rootCmd.PersistentFlags().String("model", "", "Chat model (provider-specific default if empty)")
 	rootCmd.PersistentFlags().String("base-url", "", "OpenAI-compatible API base URL (OpenAI provider only)")
 

@@ -4,9 +4,21 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
+
+	"github.com/gitlawb/openclaude4/internal/config"
 )
+
+func pingGemini() string {
+	key := config.GeminiAPIKey()
+	if key == "" {
+		return "Gemini: no API key configured"
+	}
+	u := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models?key=%s", url.QueryEscape(key))
+	return pingHTTP(u)
+}
 
 func pingHTTP(url string) string {
 	client := &http.Client{Timeout: 3 * time.Second}

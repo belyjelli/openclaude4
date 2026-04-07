@@ -1,13 +1,18 @@
-# Copy to openclaude.yaml or place under ~/.config/openclaude/openclaude.yaml
-# Do not commit real API keys.
+# Copy to openclaude.yaml or ~/.config/openclaude/openclaude.yaml
+# Do not commit real API keys. v3 .openclaude-profile.json is merged first, then this file.
 
 provider:
-  name: openai # or ollama
+  name: openai # openai | ollama | gemini
   model: gpt-4o-mini
 
 openai:
-  api_key: "" # set via OPENAI_API_KEY in practice
+  api_key: "" # OPENAI_API_KEY
 
 ollama:
   host: http://127.0.0.1:11434
   model: llama3.2
+
+gemini:
+  api_key: "" # GEMINI_API_KEY or GOOGLE_API_KEY
+  model: gemini-2.0-flash
+  # base_url: https://generativelanguage.googleapis.com/v1beta/openai

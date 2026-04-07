@@ -9,10 +9,18 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Load merges (lowest → highest priority for overlapping keys):
-// 1) v3 .openclaude-profile.json (cwd, then $HOME)
-// 2) openclaude.yaml / json (unless --config)
-// 3) environment variables and cobra flags (via viper).
+// Load merges configuration sources into viper in this call order:
+//  1. v3 [.openclaude-profile.json](profile_v3.go) (cwd, then $HOME) — merged first (weakest)
+//  2. openclaude.{yaml,yml,json} or --config file — merged next; overrides v3 for the same keys
+//
+// After that, spf13/viper resolution applies on each Get* (highest wins):
+//  1. explicit viper.Set (rare)
+//  2. cobra flags bound with BindPFlag (e.g. --provider, --model, --base-url)
+//  3. environment variables (see bindViperEnv)
+//  4. keys from merged config (v3 + file)
+//  5. defaults implied by getters in config.go
+//
+// So in practice: flags beat env beat config file beat v3 profile (for the same logical key).
 func Load(explicitPath string) {
 	bindViperEnv()
 

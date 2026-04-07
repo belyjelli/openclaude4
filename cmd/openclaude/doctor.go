@@ -21,6 +21,10 @@ func runDoctor(_ *cobra.Command, _ []string) {
 	_, _ = fmt.Fprintf(os.Stdout, "openclaude %s (%s)\n", version, commit)
 	_, _ = fmt.Fprintf(os.Stdout, "Go runtime: %s\n", runtime.Version())
 
+	if err := config.Validate(); err != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "Config validation: %v\n", err)
+	}
+
 	if _, err := exec.LookPath("rg"); err != nil {
 		_, _ = fmt.Fprintf(os.Stdout, "ripgrep (rg): not found on PATH (Grep tool uses Go regexp only)\n")
 	} else {
@@ -30,9 +34,12 @@ func runDoctor(_ *cobra.Command, _ []string) {
 	_, _ = fmt.Fprintf(os.Stdout, "Active provider: %s\n", config.ProviderName())
 	_, _ = fmt.Fprintf(os.Stdout, "Model: %s\n", config.Model())
 
-	if config.ProviderName() == "ollama" {
+	switch config.ProviderName() {
+	case "ollama":
 		_, _ = fmt.Fprintf(os.Stdout, "Ollama API base: %s\n", config.OllamaChatBase())
-	} else {
+	case "gemini":
+		_, _ = fmt.Fprintf(os.Stdout, "Gemini OpenAI-compat base: %s\n", config.GeminiBaseURL())
+	default:
 		if b := config.BaseURL(); b != "" {
 			_, _ = fmt.Fprintf(os.Stdout, "OpenAI base URL: %s\n", b)
 		}
