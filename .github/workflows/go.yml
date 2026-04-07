@@ -1,0 +1,29 @@
+name: Go
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Verify module
+        run: go mod verify
+
+      - name: Build
+        run: go build -ldflags "-X main.version=ci -X main.commit=$GITHUB_SHA" -o openclaude ./cmd/openclaude
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...

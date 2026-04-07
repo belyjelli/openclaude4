@@ -1,0 +1,5 @@
+{
+  "comment": "v4 will merge file-based settings with env; this is a placeholder shape for parity work.",
+  "defaultProvider": "openai-compatible",
+  "model": "gpt-4o-mini"
+}
