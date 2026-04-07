@@ -17,6 +17,11 @@ import (
 	sdk "github.com/sashabaranov/go-openai"
 )
 
+// testChatReq is the subset of the OpenAI chat completion request we assert in tests.
+type testChatReq struct {
+	Model string `json:"model"`
+}
+
 // streamSDKClient adapts go-openai's Client to [StreamClient] for tests.
 type streamSDKClient struct {
 	inner *sdk.Client
@@ -34,11 +39,16 @@ func (c *streamSDKClient) StreamChatWithTools(ctx context.Context, messages []sd
 
 func newTestStreamClient(t *testing.T, server *httptest.Server) *streamSDKClient {
 	t.Helper()
-	cfg := sdk.DefaultConfig("sk-test")
+	return newTestStreamClientWithAuth(t, server, sdk.GPT4oMini, "sk-test")
+}
+
+func newTestStreamClientWithAuth(t *testing.T, server *httptest.Server, model, apiKey string) *streamSDKClient {
+	t.Helper()
+	cfg := sdk.DefaultConfig(apiKey)
 	cfg.BaseURL = strings.TrimSuffix(server.URL, "/") + "/v1"
 	return &streamSDKClient{
 		inner: sdk.NewClientWithConfig(cfg),
-		model: sdk.GPT4oMini,
+		model: model,
 	}
 }
 
@@ -59,6 +69,75 @@ func sseBody(chunks ...sdk.ChatCompletionStreamResponse) []byte {
 }
 
 func ptrIdx(i int) *int { return &i }
+
+// Ollama and Gemini use the same OpenAI-compatible /v1/chat/completions + SSE shape as remote OpenAI.
+func TestRunUserTurn_OpenAICompatiblePerProviderModel(t *testing.T) {
+	cases := []struct {
+		name   string
+		model  string
+		apiKey string
+	}{
+		{"openai_default", sdk.GPT4oMini, "sk-test"},
+		{"ollama_tag", "llama3.2", "ollama"},
+		{"gemini_openai_compat", "gemini-2.0-flash", "AIza-fake-test-key"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := sseBody(
+				sdk.ChatCompletionStreamResponse{
+					Choices: []sdk.ChatCompletionStreamChoice{
+						{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{Content: "pong"}},
+					},
+				},
+				sdk.ChatCompletionStreamResponse{
+					Choices: []sdk.ChatCompletionStreamChoice{
+						{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{}, FinishReason: sdk.FinishReasonStop},
+					},
+				},
+			)
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/v1/chat/completions" {
+					http.NotFound(w, r)
+					return
+				}
+				payload, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Errorf("read body: %v", err)
+					http.Error(w, "bad", http.StatusBadRequest)
+					return
+				}
+				var parsed testChatReq
+				if err := json.Unmarshal(payload, &parsed); err != nil {
+					t.Errorf("json: %v", err)
+					http.Error(w, "bad", http.StatusBadRequest)
+					return
+				}
+				if parsed.Model != tc.model {
+					t.Errorf("request model = %q, want %q", parsed.Model, tc.model)
+				}
+				w.Header().Set("Content-Type", "text/event-stream")
+				_, _ = w.Write(body)
+			}))
+			t.Cleanup(srv.Close)
+
+			var out bytes.Buffer
+			agent := &Agent{
+				Client:   newTestStreamClientWithAuth(t, srv, tc.model, tc.apiKey),
+				Registry: tools.NewRegistry(),
+				Out:      &out,
+			}
+			var messages []sdk.ChatCompletionMessage
+			if err := agent.RunUserTurn(context.Background(), &messages, "ping"); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out.String(), "pong") {
+				t.Fatalf("stdout = %q", out.String())
+			}
+		})
+	}
+}
 
 func TestRunUserTurn_TextOnly(t *testing.T) {
 	body := sseBody(
