@@ -31,7 +31,7 @@ export OLLAMA_MODEL=llama3.2   # optional
 
 **Config file:** optional `openclaude.yaml` in the current directory or `~/.config/openclaude/` — see [docs/CONFIG.md](./docs/CONFIG.md) and [openclaude.example.yaml](./openclaude.example.yaml).
 
-**Tools:** `FileRead`, `FileWrite`, `FileEdit`, `Bash`, `Grep`, `Glob`, `WebSearch`. Workspace = process working directory (paths cannot escape it).
+**Tools:** `FileRead`, `FileWrite`, `FileEdit`, `Bash`, `Grep`, `Glob`, `WebSearch`. Workspace = process working directory (paths cannot escape it). Details: [docs/SECURITY.md](./docs/SECURITY.md).
 
 **Dangerous tools** prompt on stderr unless `OPENCLAUDE_AUTO_APPROVE_TOOLS=1` or `true`.
 
@@ -40,6 +40,7 @@ export OLLAMA_MODEL=llama3.2   # optional
 | Doc | Purpose |
 |-----|---------|
 | [docs/CONFIG.md](./docs/CONFIG.md) | Env, YAML, flags, v3 migration hints |
+| [docs/SECURITY.md](./docs/SECURITY.md) | Workspace boundary, dangerous tools, caveats |
 | [docs/OPENCLAUDE3_ARCHITECTURE_SUMMARY.md](./docs/OPENCLAUDE3_ARCHITECTURE_SUMMARY.md) | What v3 does today (baseline) |
 | [docs/DESIGN.md](./docs/DESIGN.md) | Target architecture and principles for v4 |
 | [docs/ROADMAP.md](./docs/ROADMAP.md) | Phased delivery plan |

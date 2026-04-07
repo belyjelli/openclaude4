@@ -70,7 +70,7 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 ## Security & quality (continuous)
 
-- [ ] Path traversal tests for all file tools
+- [x] Path traversal / workspace boundary tests — [`internal/tools/workspace_boundary_test.go`](./internal/tools/workspace_boundary_test.go), [`paths_test.go`](./internal/tools/paths_test.go); notes in [`docs/SECURITY.md`](./docs/SECURITY.md)
 - [ ] Secret scanning / redaction in transcripts
 - [ ] Rate limit and timeout defaults documented (bash/tool HTTP clients)
 - [ ] Dependency update policy (Dependabot/Renovate for Go modules)

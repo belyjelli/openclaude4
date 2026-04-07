@@ -24,4 +24,4 @@ Shell commands run with a timeout and workspace-oriented working directory; they
 
 ## Ongoing work
 
-See [TODO.md](../TODO.md) (path traversal tests ✅, secret redaction, transcript policy, dependency updates).
+See [TODO.md](../TODO.md): secret redaction in transcripts, dependency update policy, and other quality items.

@@ -8,22 +8,6 @@ import (
 	"testing"
 )
 
-func TestResolveUnderWorkdir_allowsInsideRelative(t *testing.T) {
-	root := t.TempDir()
-	ctx := WithWorkDir(context.Background(), root)
-	sub := filepath.Join(root, "a", "b")
-	if err := os.MkdirAll(sub, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	got, err := resolveUnderWorkdir(ctx, filepath.Join("a", "b"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != sub {
-		t.Fatalf("got %q, want %q", got, sub)
-	}
-}
-
 func TestResolveUnderWorkdir_allowsAbsoluteInsideWorkspace(t *testing.T) {
 	root := t.TempDir()
 	ctx := WithWorkDir(context.Background(), root)

@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -25,5 +26,8 @@ func TestResolveUnderWorkdir_RejectsEscape(t *testing.T) {
 	_, err := resolveUnderWorkdir(ctx, "..")
 	if err == nil {
 		t.Fatal("expected error for ..")
+	}
+	if !strings.Contains(err.Error(), "escapes workspace") {
+		t.Fatalf("expected escape error, got %v", err)
 	}
 }
