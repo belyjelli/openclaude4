@@ -62,7 +62,7 @@ mcp:
       #   FOO: bar
 ```
 
-### MCP (`mcp.servers`)
+### MCP servers
 
 Each entry runs **`command`** as a subprocess; OpenClaude talks to it over **stdin/stdout** (MCP JSON-RPC). **`name`** must be unique; it appears in tool names as `mcp_<name>__<tool>`.
 
