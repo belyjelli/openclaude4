@@ -29,12 +29,9 @@ func (WebFetch) Name() string      { return "WebFetch" }
 func (WebFetch) IsDangerous() bool { return false }
 
 func (WebFetch) Description() string {
-	s := "Fetch a web page or text/json document over HTTP(S). Returns plain text (HTML tags stripped). " +
-		"Only public URLs; localhost and private IPs are blocked. Body and output size are capped."
-	if FirecrawlEnabled() {
-		s += " With FIRECRAWL_API_KEY, tries Firecrawl scrape first (better for JS-heavy pages), then falls back to direct HTTP."
-	}
-	return s
+	return "Fetch a web page or text/json document over HTTP(S). Returns plain text (HTML tags stripped). " +
+		"Only public URLs; localhost and private IPs are blocked. Body and output size are capped. " +
+		"For JS-heavy or markdown-oriented scrape via the local spider CLI, use SpiderScrape when it is registered (spider on PATH)."
 }
 
 func (WebFetch) Parameters() map[string]any {
@@ -78,15 +75,6 @@ func (WebFetch) Execute(ctx context.Context, args map[string]any) (string, error
 	}
 	if maxChars > webFetchMaxCharsLimit {
 		maxChars = webFetchMaxCharsLimit
-	}
-
-	if key := firecrawlAPIKey(); key != "" {
-		if md, err := firecrawlScrapeMarkdown(ctx, key, raw); err == nil {
-			text, truncNote := truncateRunesWeb(md, maxChars)
-			if text != "" {
-				return text + truncNote, nil
-			}
-		}
 	}
 
 	client := &http.Client{

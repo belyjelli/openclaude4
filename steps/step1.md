@@ -97,7 +97,7 @@ openclaude-go/
 - Simple prompt → streaming response (no tools yet)
 
 **Phase 1 – Tools & Agent Loop**
-- Implement core tools: `read`, `write`, `bash`, `grep`, `glob`, `web_search` (DuckDuckGo or Firecrawl)
+- Implement core tools: `read`, `write`, `bash`, `grep`, `glob`, `web_search` (DuckDuckGo); optional richer scrape via `spider` CLI → `SpiderScrape` (not Firecrawl)
 - Tool-calling loop (exactly like original)
 - Sandboxing (use `os/exec` with strict limits or `secure-exec` style)
 

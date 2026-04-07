@@ -22,7 +22,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 ### Tools and agent behavior
 
 - [x] **WebFetch** tool — [`internal/tools/web_fetch.go`](./internal/tools/web_fetch.go): HTTP(S) GET, HTML→text, SSRF-minded host/IP checks, caps documented in [SECURITY.md](./docs/SECURITY.md)
-- [x] Optional **spider_cli** — when `spider` is on `PATH`, **[`SpiderScrape`](./internal/tools/spider_scrape.go)** is registered (single-URL scrape; no Firecrawl)
+- [x] Optional **spider_cli** — when `spider` is on `PATH`, **[`SpiderScrape`](./internal/tools/spider_scrape.go)** is registered (single-URL scrape). **No Firecrawl** — v3’s `FIRECRAWL_API_KEY` path is intentionally omitted; use **SpiderScrape** for richer local scrape.
 - [ ] **Skills** / **SkillTool** and user slash-command skill loading; **plugin directories** and plugin CLI (v3 `main.tsx` / `src/tools/SkillTool`)
 - [ ] **LSP** integration ([`src/services/lsp`](https://github.com/Gitlawb/openclaude/tree/main/src/services/lsp) in v3)
 - [ ] **Multimodal / vision** inputs (image URL or base64) on the chat path for models that support it

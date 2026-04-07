@@ -26,15 +26,13 @@ The **`Task`** tool starts a **nested agent loop** with the same provider and to
 
 ## Network
 
-`WebSearch`, `WebFetch`, optional `SpiderScrape` (external `spider` CLI), and LLM providers perform outbound HTTP(S). Use API keys and base URLs you trust.
+`WebSearch`, `WebFetch`, optional **`SpiderScrape`** (external [`spider` CLI](https://github.com/spider-rs/spider) on `PATH` — **not** Firecrawl), and LLM providers perform outbound HTTP(S). Use API keys and base URLs you trust.
 
 ### Built-in HTTP tool (`WebSearch`)
 
 Implemented in `internal/tools/web_search.go`:
 
-- **HTTP client timeout:** **15 seconds** per request (`http.Client{Timeout: 15 * time.Second}`) to DuckDuckGo’s JSON API (`https://api.duckduckgo.com/`).
-- **Response body read cap:** **1 MiB** (`io.LimitReader` on the response body).
-- **Output size:** related-topic lines stop once the built summary reaches about **8000** bytes (loop break on `b.Len() > 8000`).
+- **DuckDuckGo instant answers:** **15 seconds** per request to `https://api.duckduckgo.com/`; **1 MiB** body cap; related-topic lines stop around **8000** bytes.
 
 OpenClaude does **not** add an application-level request rate limit for `WebSearch`; remote services may still throttle by IP or policy.
 
@@ -51,6 +49,8 @@ Implemented in `internal/tools/web_fetch.go`:
 - **Output cap:** extracted text is truncated to **`max_chars`** (default **80000**, maximum **200000**) with a trailing notice.
 
 OpenClaude does **not** add an application-level request rate limit for `WebFetch`.
+
+OpenClaude v4 does **not** integrate **Firecrawl** (no `FIRECRAWL_API_KEY`). For richer scrape than this direct-HTTP path, use optional **`SpiderScrape`** with a local **`spider`** binary.
 
 ### Optional subprocess tool (`SpiderScrape`)
 

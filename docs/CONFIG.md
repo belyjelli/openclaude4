@@ -87,6 +87,8 @@ Failed servers are skipped with a message on stderr; chat still starts if built-
 | `GEMINI_BASE_URL` | Override Gemini OpenAI-compatible base URL |
 | `OPENCLAUDE_AUTO_APPROVE_TOOLS` | `1` / `true` to skip dangerous-tool prompts (dev only) |
 
+**Richer web scrape (no Firecrawl):** install [spider-rs `spider_cli`](https://github.com/spider-rs/spider) so `spider` is on `PATH`; the optional **`SpiderScrape`** tool is then registered (see [SECURITY.md](./SECURITY.md#optional-subprocess-tool-spiderscrape)).
+
 ### Sessions and compaction
 
 | Variable / flag | Purpose |
@@ -94,7 +96,6 @@ Failed servers are skipped with a message on stderr; chat still starts if built-
 | `--session` / `OPENCLAUDE_SESSION` | Fixed session id (file name base under the session directory) |
 | `--resume` / `OPENCLAUDE_RESUME` | Open the last saved session (`last_session_id` or newest `*.json`) |
 | `--list-sessions` | Print saved sessions and exit |
-| `--print` / `-p` | One-shot: single user message, final assistant reply on stdout (`-p -` reads prompt from stdin); incompatible with `--tui`; set `OPENCLAUDE_AUTO_APPROVE_TOOLS` when tools must run non-interactively |
 | `--print` / `-p` | **One-shot (non-interactive):** run a single user message and exit. The **final assistant text** is printed to stdout (streaming is discarded). Prompt is the flag value; use **`-p -`** to read the prompt from stdin. Incompatible with `--tui` / `OPENCLAUDE_TUI`. **Dangerous tools:** unless `OPENCLAUDE_AUTO_APPROVE_TOOLS` is set, each dangerous tool is **skipped** (stderr explains how to enable). Sessions apply like the REPL (`--session`, `--resume`, `--no-session`). |
 | `--no-session` / `OPENCLAUDE_NO_SESSION` | Do not read or write session files |
 | `OPENCLAUDE_SESSION_DIR` / `session.dir` | Override session directory (default `~/.local/share/openclaude/sessions`) |
@@ -129,7 +130,7 @@ Handled in the chat loop (not config keys): `/help`, `/provider` (and **`/provid
 openclaude doctor
 ```
 
-Reports Go version, `rg` on `PATH`, active provider/model, reachability hints, and whether a chat client can be constructed.
+Reports Go version, `rg` and `spider` on `PATH`, active provider/model, reachability hints, and whether a chat client can be constructed.
 
 ## gRPC (`openclaude serve`)
 
@@ -150,8 +151,8 @@ There are **no** YAML/env knobs for these today; values are fixed in Go code. Ra
 | Area | Behavior | Code |
 |------|----------|------|
 | **`Bash`** | Per invocation: default **120 s** wall clock; optional `timeout_seconds` on the tool args, max **600 s**. | `internal/tools/bash.go`, `internal/sandbox/sandbox.go` |
-| **`WebSearch`** | HTTP client timeout **15 s**; response body read cap **1 MiB**; output truncated once the text builder exceeds **~8000** bytes for related topics. No OpenClaude-side request rate limit. | `internal/tools/web_search.go` |
-| **`WebFetch`** | HTTP(S) GET with **20 s** timeout, **5** redirects, **2 MiB** body cap; localhost/private DNS results blocked; HTML to plain text; output truncated per `max_chars` (default **80000**). See [SECURITY.md](./SECURITY.md#built-in-http-tool-webfetch). | `internal/tools/web_fetch.go` |
+| **`WebSearch`** | DuckDuckGo instant-answer JSON API (**15 s**, **1 MiB** cap; related topics stop around **~8000** bytes). | `internal/tools/web_search.go` |
+| **`WebFetch`** | HTTP(S) GET **20 s**, **5** redirects, **2 MiB** body; SSRF-minded URL rules; HTML→text; `max_chars` truncation. See [SECURITY.md](./SECURITY.md#built-in-http-tool-webfetch). | `internal/tools/web_fetch.go` |
 | **`SpiderScrape`** | Optional: registered only if `spider` is on `PATH`. Runs `spider … scrape` (**60 s** timeout); same URL rules as WebFetch; output cap per `max_chars`. See [SECURITY.md](./SECURITY.md#optional-subprocess-tool-spiderscrape). | `internal/tools/spider_scrape.go` |
 | **Main chat agent** | Up to **24** model↔tool rounds per user line (unless code sets `Agent.MaxIterations` > 0). | `internal/core/agent.go` (`defaultMaxIterations`) |
 | **`Task` tool** | Sub-agent default **12** rounds; `max_iterations` only honored if **0 < value < 1000**, then capped at **24**. | `internal/core/task_tool.go` |

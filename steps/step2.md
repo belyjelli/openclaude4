@@ -203,7 +203,7 @@ func (WebSearch) Name() string { return "WebSearch" }
 func (WebSearch) Execute(ctx context.Context, args map[string]any) (string, error) {
 	query := args["query"].(string)
 	// Option 1: DuckDuckGo HTML scraper (no API key)
-	// Option 2: Use free tier of Serper.dev / Tavily / Firecrawl
+	// Option 2: Optional spider_cli on PATH for SpiderScrape (not Firecrawl)
 	results, err := duckduckgo.Search(ctx, query, 5)
 	return formatSearchResults(results), err
 }
