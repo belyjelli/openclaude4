@@ -105,7 +105,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 				_, _ = fmt.Fprintf(os.Stderr, "[auto-approved] %s\n", toolName)
 				return true
 			}
-			_, _ = fmt.Fprintf(os.Stderr, "Approve tool %q with args %v? [y/N]: ", toolName, args)
+			_, _ = fmt.Fprintf(os.Stderr, "Approve tool %q with args %s? [y/N]: ", toolName, core.FormatToolArgsForLog(args))
 			line, err := reader.ReadString('\n')
 			if err != nil {
 				return false

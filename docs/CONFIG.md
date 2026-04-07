@@ -114,8 +114,22 @@ openclaude doctor
 
 Reports Go version, `rg` on `PATH`, active provider/model, reachability hints, and whether a chat client can be constructed.
 
+## Timeouts, iteration limits, and HTTP behavior
+
+There are **no** YAML/env knobs for these today; values are fixed in Go code. Rationale and security notes live in [SECURITY.md](./SECURITY.md#network).
+
+| Area | Behavior | Code |
+|------|----------|------|
+| **`Bash`** | Per invocation: default **120 s** wall clock; optional `timeout_seconds` on the tool args, max **600 s**. | `internal/tools/bash.go`, `internal/sandbox/sandbox.go` |
+| **`WebSearch`** | HTTP client timeout **15 s**; response body read cap **1 MiB**; output truncated once the text builder exceeds **~8000** bytes for related topics. No OpenClaude-side request rate limit. | `internal/tools/web_search.go` |
+| **Main chat agent** | Up to **24** model↔tool rounds per user line (unless code sets `Agent.MaxIterations` > 0). | `internal/core/agent.go` (`defaultMaxIterations`) |
+| **`Task` tool** | Sub-agent default **12** rounds; `max_iterations` only honored if **0 < value < 1000**, then capped at **24**. | `internal/core/task_tool.go` |
+| **LLM HTTP** | Uses `go-openai` `DefaultConfig` with default `http.Client{}` (**no** `Timeout` in our wiring). Streams end on completion, error, or process exit—not on a fixed OpenClaude HTTP deadline. | `internal/providers/openaicomp/client.go` |
+| **`openclaude doctor` ping** | Reachability GETs use **3 s** HTTP client timeout. | `internal/providers/ping.go` |
+| **MCP `CallTool`** | Uses the chat command `context`; no separate OpenClaude timeout or rate limit. | `internal/mcpclient/manager.go` |
+
 ## Further reading
 
 - [PROVIDERS.md](./PROVIDERS.md) — OpenAI / Ollama / Gemini matrix and code pointers
 - [ADR 0001: Go tooling and config compatibility](./adr/0001-go-tooling-and-config.md)
-- [SECURITY.md](./SECURITY.md) — workspace and dangerous tools
+- [SECURITY.md](./SECURITY.md) — workspace, dangerous tools, and [network/timeouts](./SECURITY.md#network)

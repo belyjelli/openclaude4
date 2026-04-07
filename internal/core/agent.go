@@ -37,7 +37,7 @@ type Agent struct {
 
 func (a *Agent) emit(e Event) {
 	if a != nil && a.OnEvent != nil {
-		a.OnEvent(e)
+		a.OnEvent(RedactEventForLog(e))
 	}
 }
 

@@ -71,7 +71,7 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 ## Security & quality (continuous)
 
 - [x] Path traversal / workspace boundary tests — [`internal/tools/workspace_boundary_test.go`](./internal/tools/workspace_boundary_test.go), [`paths_test.go`](./internal/tools/paths_test.go); notes in [`docs/SECURITY.md`](./docs/SECURITY.md)
-- [ ] Secret scanning / redaction in transcripts
+- [x] Secret scanning / redaction in transcripts — [`internal/core/redact.go`](./internal/core/redact.go), [`docs/SECURITY.md`](./docs/SECURITY.md#transcript-and-log-redaction)
 - [ ] Rate limit and timeout defaults documented (bash/tool HTTP clients)
 - [x] Dependabot for Go modules — [`.github/dependabot.yml`](./.github/dependabot.yml)
 
