@@ -31,6 +31,9 @@ message ChatRequest {
   string working_directory = 2;
   // Reserved for future routing; kernel client is supplied by the server process today.
   optional string model = 3;
+  // When server session persistence is enabled: load/save this on-disk session (v3-style).
+  // Empty: use a new random id for the first turn on this stream, then keep it for later empty requests.
+  optional string session_id = 4;
 }
 
 // Reply to PermissionRequired (yes/no or free text, same semantics as CLI confirm).

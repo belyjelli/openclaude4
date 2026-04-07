@@ -6,13 +6,19 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 
+	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/grpc/openclaudev4"
+	"github.com/gitlawb/openclaude4/internal/session"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
 	"google.golang.org/grpc"
@@ -25,17 +31,62 @@ type Kernel struct {
 	Client      core.StreamClient
 	Registry    *tools.Registry
 	AutoApprove bool
+	// TaskParent, when non-nil, is set to the active [core.Agent] for each RunUserTurn so the Task tool resolves the correct parent (serialized by [AgentService.serveTurnMu]).
+	TaskParent *atomic.Pointer[core.Agent]
+	// Session enables on-disk transcript load/save per stream when Disabled is false and Dir is non-empty.
+	Session SessionOpts
+}
+
+// SessionOpts configures optional gRPC session_id binding to [session.Store] files.
+type SessionOpts struct {
+	Disabled bool
+	Dir      string
 }
 
 // AgentService implements [openclaudev4.AgentServiceServer].
 type AgentService struct {
 	openclaudev4.UnimplementedAgentServiceServer
-	Kernel Kernel
+	Kernel      Kernel
+	serveTurnMu sync.Mutex // one RunUserTurn at a time across streams (Task tool + session consistency)
 }
 
 // Register mounts AgentService on the given gRPC registrar (typically [*grpc.Server]).
 func Register(s grpc.ServiceRegistrar, k Kernel) {
 	openclaudev4.RegisterAgentServiceServer(s, &AgentService{Kernel: k})
+}
+
+func bindChatRequestSession(req *openclaudev4.ChatRequest, dir string, streamID *string, store **session.Store, messages *[]sdk.ChatCompletionMessage, wdSave string) error {
+	reqSID := strings.TrimSpace(req.GetSessionId())
+	target := reqSID
+	if target == "" {
+		if *streamID == "" {
+			*streamID = session.NewRandomID()
+		}
+		target = *streamID
+	} else {
+		*streamID = target
+	}
+
+	if *store != nil && (*store).ID == target {
+		return nil
+	}
+
+	if *store != nil {
+		_ = (*store).Save(session.RepairTranscript(*messages), wdSave)
+	}
+
+	*store = &session.Store{Dir: dir, ID: target}
+	data, err := (*store).Load()
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		*messages = nil
+		return fmt.Errorf("session load %q: %w", target, err)
+	}
+	if err == nil {
+		*messages = session.RepairTranscript(data.Messages)
+	} else {
+		*messages = nil
+	}
+	return nil
 }
 
 // Chat implements the bidirectional chat stream.
@@ -80,7 +131,8 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 	}
 
 	var messages []sdk.ChatCompletionMessage
-	var turnMu sync.Mutex
+	var streamSessionID string
+	var activeStore *session.Store
 	var turnWG sync.WaitGroup
 	pgate := new(permGate)
 
@@ -119,12 +171,41 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 				turnWG.Add(1)
 				go func(req *openclaudev4.ChatRequest) {
 					defer turnWG.Done()
-					turnMu.Lock()
-					defer turnMu.Unlock()
+					s.serveTurnMu.Lock()
+					defer s.serveTurnMu.Unlock()
+
 					turnCtx := ctx
-					if wd := strings.TrimSpace(req.GetWorkingDirectory()); wd != "" {
-						turnCtx = tools.WithWorkDir(turnCtx, wd)
+					wdRel := strings.TrimSpace(req.GetWorkingDirectory())
+					if wdRel != "" {
+						turnCtx = tools.WithWorkDir(turnCtx, wdRel)
 					}
+					wdSave := wdRel
+					if wdSave == "" {
+						wdSave = "."
+					}
+					if awd, err := filepath.Abs(wdSave); err == nil {
+						wdSave = awd
+					}
+
+					sess := s.Kernel.Session
+					persist := !sess.Disabled && strings.TrimSpace(sess.Dir) != ""
+					if persist {
+						if err := bindChatRequestSession(req, sess.Dir, &streamSessionID, &activeStore, &messages, wdSave); err != nil {
+							_ = send(&openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_Error{Error: &openclaudev4.ErrorEvent{
+								Message: err.Error(),
+								Code:    "session",
+							}}})
+							return
+						}
+					}
+
+					_ = session.ApplyTokenThreshold(turnCtx, s.Kernel.Client, &messages,
+						config.SessionCompactTokenThreshold(),
+						config.SessionSummarizeOverThreshold(),
+						config.SessionCompactKeepMessages(),
+						core.DefaultSystemPrompt,
+					)
+
 					agent := &core.Agent{
 						Client:   s.Kernel.Client,
 						Registry: s.Kernel.Registry,
@@ -141,7 +222,15 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 							return pgate.wait(ctx, send, tl, toolName, args)
 						},
 					}
+					if s.Kernel.TaskParent != nil {
+						s.Kernel.TaskParent.Store(agent)
+						defer s.Kernel.TaskParent.Store(nil)
+					}
 					_ = agent.RunUserTurn(turnCtx, &messages, req.GetUserText())
+
+					if persist && activeStore != nil {
+						_ = activeStore.Save(session.RepairTranscript(messages), wdSave)
+					}
 				}(req)
 
 			case *openclaudev4.ClientMessage_UserInput:
