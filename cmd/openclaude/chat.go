@@ -14,6 +14,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/providers"
+	"github.com/gitlawb/openclaude4/internal/subtask"
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
@@ -56,6 +57,9 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	mcpMgr := mcpclient.ConnectAndRegister(ctx, reg, config.MCPServers(), os.Stderr)
 	defer mcpMgr.Close()
 
+	var agent *core.Agent
+	reg.Register(core.NewTaskTool(func() *core.Agent { return agent }))
+
 	printChatBanner(client, mcpMgr)
 
 	var messages []sdk.ChatCompletionMessage
@@ -64,7 +68,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	autoApprove := strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "1") ||
 		strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "true")
 
-	agent := &core.Agent{
+	agent = &core.Agent{
 		Client:   client,
 		Registry: reg,
 		Out:      os.Stdout,
@@ -98,24 +102,18 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			continue
 		}
 
-		switch {
-		case line == "/exit" || line == "/quit":
-			return nil
-		case line == "/help":
-			printChatHelp()
-			continue
-		case line == "/mcp" || line == "/mcp list":
-			_, _ = fmt.Fprintln(os.Stdout, mcpMgr.DescribeServers())
-			continue
-		case line == "/clear":
-			messages = nil
-			_, _ = fmt.Fprintln(os.Stdout, "(conversation cleared)")
-			continue
-		case line == "/provider":
-			printProviderInfo(client)
-			continue
-		case strings.HasPrefix(line, "/"):
-			_, _ = fmt.Fprintf(os.Stderr, "Unknown command %q. Try /help.\n", strings.Fields(line)[0])
+		if strings.HasPrefix(line, "/") {
+			err := handleSlashLine(line, chatState{
+				messages: &messages,
+				mcpMgr:   mcpMgr,
+				client:   client,
+			})
+			if errors.Is(err, errSlashExitChat) {
+				return nil
+			}
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			}
 			continue
 		}
 
@@ -160,12 +158,13 @@ func printChatHelp() {
 	const help = `Commands:
   /provider    Show active provider, model, base URL, credential hint
   /mcp list    List connected MCP servers and tool names (see openclaude.yaml mcp.servers)
+  /compact     Drop older messages (keeps system + last 24); lossy — use before long sessions
   /clear       Clear conversation history for this session
   /help        Show this help
   /exit        Exit (same as /quit)
   /quit        Exit
 
-Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch, plus MCP tools (mcp_<server>__<tool>).
+Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch, Task (sub-agent), plus MCP tools (mcp_<server>__<tool>).
 Workspace is the current working directory.
 
 Providers: openai (OPENAI_API_KEY), ollama (local), gemini (GEMINI_API_KEY or GOOGLE_API_KEY).
