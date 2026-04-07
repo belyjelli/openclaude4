@@ -13,7 +13,7 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 - [x] CI workflow: `go mod verify`, build, `go vet`, `go test` — [`.github/workflows/go.yml`](./.github/workflows/go.yml)
 - [x] Goreleaser scaffold — [`goreleaser.yml`](./goreleaser.yml)
 - [x] Stricter static analysis in CI — [`golangci-lint`](./.golangci.yml) in [`.github/workflows/go.yml`](./.github/workflows/go.yml)
-- [ ] ADR: Go version policy, release/goreleaser strategy, v3 config path compatibility
+- [x] ADR: Go version, release/goreleaser strategy, v3 config path compatibility — [`docs/adr/0001-go-tooling-and-config.md`](./docs/adr/0001-go-tooling-and-config.md)
 - [x] [`CONTRIBUTING.md`](./CONTRIBUTING.md) (build, test, lint, PR expectations)
 
 ## Phase 1 — Kernel vertical slice (Go)
@@ -31,8 +31,8 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 ## Phase 2 — Config & providers
 
 - [x] Partial: Viper + env keys + optional config file discovery — [`internal/config`](./internal/config/) ([`load.go`](./internal/config/load.go))
-- [ ] Config schema + load order: file → env → flags (and optional `settings.json` parity)
-- [ ] Document migration from v3 `.openclaude-profile.json` / `settings.json`
+- [x] Config load order + viper precedence documented; `config.Validate()` for `provider.name` — [`load.go`](./internal/config/load.go), [`validate.go`](./internal/config/validate.go), [`precedence_test.go`](./internal/config/precedence_test.go)
+- [x] Document migration from v3 (`.openclaude-profile.json` merged; `settings.json` manual) — [`docs/CONFIG.md`](./docs/CONFIG.md)
 - [x] Second provider: **Ollama** (OpenAI-compatible `/v1` chat) — see provider wiring in `cmd/openclaude`
 - [x] `openclaude doctor` — [`cmd/openclaude/doctor.go`](./cmd/openclaude/doctor.go)
 - [ ] Integration tests with HTTP mocking **per provider** (agent tests cover OpenAI-style SSE only)

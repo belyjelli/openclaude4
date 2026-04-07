@@ -10,7 +10,7 @@ import (
 )
 
 // Load merges configuration sources into viper in this call order:
-//  1. v3 [.openclaude-profile.json](profile_v3.go) (cwd, then $HOME) — merged first (weakest)
+//  1. v3 .openclaude-profile.json (cwd, then $HOME; see profile_v3.go) — merged first (weakest)
 //  2. openclaude.{yaml,yml,json} or --config file — merged next; overrides v3 for the same keys
 //
 // After that, spf13/viper resolution applies on each Get* (highest wins):

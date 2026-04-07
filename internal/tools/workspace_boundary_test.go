@@ -128,7 +128,7 @@ func TestFileEdit_rejectsTraversal(t *testing.T) {
 	ctx := WithWorkDir(context.Background(), inner)
 	tool := FileEdit{}
 	_, err := tool.Execute(ctx, map[string]any{
-		"file_path": filepath.Join("..", "victim.txt"),
+		"file_path":  filepath.Join("..", "victim.txt"),
 		"old_string": "ORIGINAL",
 		"new_string": "MODIFIED",
 	})

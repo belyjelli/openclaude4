@@ -166,4 +166,4 @@ The following items from **§1 Project Setup** and **Phase 0 – MVP** are imple
 
 **Run:** set `OPENAI_API_KEY`, then `go run ./cmd/openclaude` or build per [README.md](../README.md).
 
-**Next:** Phase 1 (tools + agent loop) is implemented; see [steps/step2.md](./step2.md) and [docs/ROADMAP.md](../docs/ROADMAP.md) for Phase 2 (config, more providers).
+**Next:** Phase 1–2 Go slices live in this repo (see [steps/step2.md](./step2.md), [docs/CONFIG.md](../docs/CONFIG.md)). Roadmap **Phase 3**: MCP, slash commands, deeper tool parity ([docs/ROADMAP.md](../docs/ROADMAP.md)).

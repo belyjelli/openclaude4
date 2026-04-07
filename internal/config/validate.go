@@ -9,11 +9,11 @@ import (
 
 // Known providers accepted by [ProviderName] / the CLI (codex is recognized but not wired yet).
 var knownProviders = map[string]struct{}{
-	"":        {},
-	"openai":  {},
-	"ollama":  {},
-	"gemini":  {},
-	"codex":   {},
+	"":       {},
+	"openai": {},
+	"ollama": {},
+	"gemini": {},
+	"codex":  {},
 }
 
 // Validate checks merged config for unsupported values. Call after [Load] (and after cobra has bound flags).
