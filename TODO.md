@@ -25,8 +25,8 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 - [x] Stdin/stdout REPL — [`cmd/openclaude/chat.go`](./cmd/openclaude/chat.go)
 - [x] Env: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`; flags `--model`, `--base-url`; `OPENCLAUDE_AUTO_APPROVE_TOOLS` — [README](./README.md), [`internal/config`](./internal/config/config.go)
 - [ ] Explicit kernel **event** union (text delta, tool call/result, errors) for transports — today output goes to `io.Writer` + SDK message types
-- [x] Agent loop tests with **local httptest** SSE + real `go-openai` stream reader (no external APIs) — [`internal/core/agent_test.go`](./internal/core/agent_test.go)
-- [ ] Deeper Phase 1 provider/env doc in `docs/` (beyond README)
+- [x] Agent loop tests with **local httptest** SSE + real `go-openai` stream reader (no external APIs) — [`internal/core/agent_test.go`](./internal/core/agent_test.go) (includes OpenAI / Ollama / Gemini **model id** cases on the same HTTP shape)
+- [x] Provider overview in [`docs/PROVIDERS.md`](./docs/PROVIDERS.md) (cross-linked from [CONFIG.md](./docs/CONFIG.md))
 
 ## Phase 2 — Config & providers
 
@@ -35,7 +35,7 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 - [x] Document migration from v3 (`.openclaude-profile.json` merged; `settings.json` manual) — [`docs/CONFIG.md`](./docs/CONFIG.md)
 - [x] Second provider: **Ollama** (OpenAI-compatible `/v1` chat) — see provider wiring in `cmd/openclaude`
 - [x] `openclaude doctor` — [`cmd/openclaude/doctor.go`](./cmd/openclaude/doctor.go)
-- [ ] Integration tests with HTTP mocking **per provider** (agent tests cover OpenAI-style SSE only)
+- [x] HTTP-mocked agent tests for each **OpenAI-compatible** provider model id (same SSE; asserts `model` in JSON body) — [`internal/core/agent_test.go`](./internal/core/agent_test.go)
 
 ## Phase 3 — Tools & MCP
 

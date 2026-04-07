@@ -95,5 +95,6 @@ Reports Go version, `rg` on `PATH`, active provider/model, reachability hints, a
 
 ## Further reading
 
+- [PROVIDERS.md](./PROVIDERS.md) — OpenAI / Ollama / Gemini matrix and code pointers
 - [ADR 0001: Go tooling and config compatibility](./adr/0001-go-tooling-and-config.md)
 - [SECURITY.md](./SECURITY.md) — workspace and dangerous tools

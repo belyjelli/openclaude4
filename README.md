@@ -48,6 +48,7 @@ export GEMINI_API_KEY=...   # or GOOGLE_API_KEY
 | Doc | Purpose |
 |-----|---------|
 | [docs/CONFIG.md](./docs/CONFIG.md) | Env, YAML, flags, precedence, v3 profile merge |
+| [docs/PROVIDERS.md](./docs/PROVIDERS.md) | OpenAI / Ollama / Gemini — APIs, env, defaults |
 | [docs/adr/0001-go-tooling-and-config.md](./docs/adr/0001-go-tooling-and-config.md) | ADR: Go version, releases, v3 config compatibility |
 | [docs/SECURITY.md](./docs/SECURITY.md) | Workspace boundary, dangerous tools, caveats |
 | [docs/OPENCLAUDE3_ARCHITECTURE_SUMMARY.md](./docs/OPENCLAUDE3_ARCHITECTURE_SUMMARY.md) | What v3 does today (baseline) |
