@@ -30,6 +30,8 @@ func init() {
 	_ = viper.BindPFlag("provider.base_url", rootCmd.PersistentFlags().Lookup("base-url"))
 	_ = viper.BindPFlag("provider.name", rootCmd.PersistentFlags().Lookup("provider"))
 
+	rootCmd.PersistentFlags().Bool("tui", false, "Full-screen Bubble Tea UI (kernel events: streaming, tools, permissions)")
+
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
 		path, _ := cmd.Flags().GetString("config")
 		config.Load(path)

@@ -34,8 +34,13 @@ export GEMINI_API_KEY=...   # or GOOGLE_API_KEY
 ```
 
 **CLI:** `./openclaude version`, `./openclaude doctor`, `./openclaude --help`  
-**Flags:** `--config`, `--provider`, `--model`, `--base-url`  
-**In-session:** `/help`, `/provider`, `/mcp list`, `/compact`, `/clear`, `/exit`
+**Flags:** `--config`, `--provider`, `--model`, `--base-url`, `--tui`  
+**In-session:** `/help`, `/provider`, `/mcp list`, `/compact`, `/clear`, `/exit`  
+**TUI:** `./openclaude --tui` or `OPENCLAUDE_TUI=1` — full-screen Bubble Tea UI (streaming transcript, tool call/result blocks, permission prompts). Kernel uses [`OnEvent`](./internal/core/event.go) only; model text is not duplicated to stdout.
+
+### Install (release binaries)
+
+Tagged releases (semver, e.g. `v0.1.0`) publish archives via [GoReleaser](./goreleaser.yml) to [GitHub Releases](https://github.com/gitlawb/openclaude4/releases). Download the archive for your OS/arch and verify `checksums.txt` when provided.
 
 **Config layers:** v3 `.openclaude-profile.json` (cwd, then `$HOME`), then `openclaude.yaml` — see [docs/CONFIG.md](./docs/CONFIG.md) and [openclaude.example.yaml](./openclaude.example.yaml).
 
@@ -60,6 +65,8 @@ export GEMINI_API_KEY=...   # or GOOGLE_API_KEY
 | [steps/step2.md](./steps/step2.md) | Phase 1 tools + agent loop notes + status |
 
 ## Status
+
+**Phase 4** — **TUI** ([`internal/tui`](./internal/tui/)): Bubble Tea + Lipgloss, streaming + tool panels + permission UI from kernel events; **`Task`** sub-agent streams through the same `OnEvent` path. **`--tui`** / **`OPENCLAUDE_TUI`**. Release install story: GoReleaser + GitHub Releases (see above).
 
 **Phase 3 (complete for Go CLI roadmap)** — **MCP** stdio client ([`github.com/modelcontextprotocol/go-sdk`](https://github.com/modelcontextprotocol/go-sdk)), **`Task`** sub-agent tool, slash router (`/compact`, `/mcp`, …). Code: `internal/mcpclient`, `internal/core/task_tool.go`, `cmd/openclaude/slash.go`.
 

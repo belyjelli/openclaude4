@@ -48,10 +48,10 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 ## Phase 4 — Terminal UI
 
-- [ ] `internal/tui` Bubble Tea / Lipgloss consuming kernel events only ([`internal/tui/README.md`](./internal/tui/README.md))
-- [ ] Rich streaming + tool call/result panels (vs plain stdout today)
-- [ ] Interactive permission prompts polished for TUI
-- [ ] Published `bin` / install story (goreleaser releases, semver)
+- [x] `internal/tui` Bubble Tea / Lipgloss consuming kernel events only ([`internal/tui/README.md`](./internal/tui/README.md))
+- [x] Rich streaming + tool call/result panels (vs plain stdout today)
+- [x] Interactive permission prompts polished for TUI
+- [x] Published `bin` / install story (goreleaser releases, semver)
 
 ## Phase 5 — Sessions & compaction
 

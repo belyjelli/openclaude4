@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/providers"
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
 	"github.com/gitlawb/openclaude4/internal/tools"
+	"github.com/gitlawb/openclaude4/internal/tui"
 	sdk "github.com/sashabaranov/go-openai"
 	"github.com/spf13/cobra"
 )
@@ -59,13 +61,40 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	var agent *core.Agent
 	reg.Register(core.NewTaskTool(func() *core.Agent { return agent }))
 
-	printChatBanner(client, mcpMgr)
-
 	var messages []sdk.ChatCompletionMessage
-	reader := bufio.NewReader(os.Stdin)
-
 	autoApprove := strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "1") ||
 		strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "true")
+
+	useTUI, _ := cmd.Flags().GetBool("tui")
+	if useTUI || envTruthy("OPENCLAUDE_TUI") {
+		var banner strings.Builder
+		writeChatBanner(&banner, client, mcpMgr)
+		bannerStr := strings.TrimSpace(banner.String()) + "\nTUI: Ctrl+C to quit · same /commands as plain REPL."
+		return tui.Run(tui.Config{
+			Ctx:         ctx,
+			Client:      client,
+			Registry:    reg,
+			Messages:    &messages,
+			AutoApprove: autoApprove,
+			Banner:      bannerStr,
+			Slash: func(line string) (string, bool, error) {
+				var out bytes.Buffer
+				err := handleSlashLine(line, chatState{
+					messages: &messages,
+					mcpMgr:   mcpMgr,
+					client:   client,
+				}, &out)
+				if errors.Is(err, errSlashExitChat) {
+					return out.String(), true, nil
+				}
+				return out.String(), false, err
+			},
+		})
+	}
+
+	printChatBanner(client, mcpMgr)
+
+	reader := bufio.NewReader(os.Stdin)
 
 	agent = &core.Agent{
 		Client:   client,
@@ -106,7 +135,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 				messages: &messages,
 				mcpMgr:   mcpMgr,
 				client:   client,
-			})
+			}, os.Stdout)
 			if errors.Is(err, errSlashExitChat) {
 				return nil
 			}
@@ -123,37 +152,60 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	}
 }
 
+func envTruthy(key string) bool {
+	v := strings.TrimSpace(os.Getenv(key))
+	return strings.EqualFold(v, "1") || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
+}
+
 func printChatBanner(c core.StreamClient, mcp *mcpclient.Manager) {
+	writeChatBanner(os.Stderr, c, mcp)
+}
+
+func writeChatBanner(w io.Writer, c core.StreamClient, mcp *mcpclient.Manager) {
 	if info, ok := providers.AsStreamClientInfo(c); ok {
-		_, _ = fmt.Fprintf(os.Stderr, "OpenClaude v4 (phase 3). Provider: %s. Model: %s. Type /help. Ctrl+D to exit.\n",
+		_, _ = fmt.Fprintf(w, "OpenClaude v4 (phase 3). Provider: %s. Model: %s. Type /help. Ctrl+D to exit.\n",
 			info.ProviderKind(), info.Model())
 	} else {
-		_, _ = fmt.Fprintln(os.Stderr, "OpenClaude v4 (phase 3). Type /help. Ctrl+D to exit.")
+		_, _ = fmt.Fprintln(w, "OpenClaude v4 (phase 3). Type /help. Ctrl+D to exit.")
 	}
 	if mcp != nil && len(mcp.Servers) > 0 {
 		toolsN := 0
 		for _, s := range mcp.Servers {
 			toolsN += len(s.OpenAINames)
 		}
-		_, _ = fmt.Fprintf(os.Stderr, "MCP: %d tool(s) from %d server(s) — /mcp list\n", toolsN, len(mcp.Servers))
+		_, _ = fmt.Fprintf(w, "MCP: %d tool(s) from %d server(s) — /mcp list\n", toolsN, len(mcp.Servers))
 	}
 }
 
 func printProviderInfo(c core.StreamClient) {
+	printProviderInfoTo(c, os.Stdout)
+}
+
+func printProviderInfoTo(c core.StreamClient, w io.Writer) {
+	if w == nil {
+		w = os.Stdout
+	}
 	info, ok := providers.AsStreamClientInfo(c)
 	if !ok {
-		_, _ = fmt.Fprintln(os.Stdout, "(provider details unavailable)")
+		_, _ = fmt.Fprintln(w, "(provider details unavailable)")
 		return
 	}
 	base := info.BaseURL()
 	if base == "" {
 		base = "(default OpenAI API URL)"
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "Kind:    %s\nModel:   %s\nBase:    %s\nAPI key: %s\n",
+	_, _ = fmt.Fprintf(w, "Kind:    %s\nModel:   %s\nBase:    %s\nAPI key: %s\n",
 		info.ProviderKind(), info.Model(), base, info.RedactedAPIKeySummary())
 }
 
 func printChatHelp() {
+	printChatHelpTo(os.Stdout)
+}
+
+func printChatHelpTo(w io.Writer) {
+	if w == nil {
+		w = os.Stdout
+	}
 	const help = `Commands:
   /provider    Show active provider, model, base URL, credential hint
   /mcp list    List connected MCP servers and tool names (see openclaude.yaml mcp.servers)
@@ -172,5 +224,5 @@ See docs/CONFIG.md and openclaude doctor.
 
 Dangerous tools (including MCP tools with approval: ask) prompt unless OPENCLAUDE_AUTO_APPROVE_TOOLS=1
 `
-	_, _ = fmt.Fprint(os.Stdout, help)
+	_, _ = fmt.Fprint(w, help)
 }

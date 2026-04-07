@@ -39,7 +39,7 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 	case "exit", "quit":
 		return errSlashExitChat
 	case "help":
-		printChatHelp(out)
+		printChatHelpTo(out)
 	case "mcp":
 		if len(args) == 0 || args[0] == "list" {
 			_, _ = fmt.Fprintln(out, st.mcpMgr.DescribeServers())

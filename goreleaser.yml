@@ -44,3 +44,9 @@ changelog:
       - "^docs:"
       - "^steps:"
       - "^test:"
+
+# Tag releases as v0.y.z (semver). GitHub Actions or local: goreleaser release --clean
+release:
+  github:
+    owner: gitlawb
+    name: openclaude4
