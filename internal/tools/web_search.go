@@ -17,7 +17,11 @@ type WebSearch struct{}
 func (WebSearch) Name() string      { return "WebSearch" }
 func (WebSearch) IsDangerous() bool { return false }
 func (WebSearch) Description() string {
-	return "Lightweight web lookup via DuckDuckGo instant answers (abstract + related topics, not full SERP)."
+	s := "Lightweight web lookup via DuckDuckGo instant answers (abstract + related topics, not full SERP)."
+	if FirecrawlEnabled() {
+		s += " With FIRECRAWL_API_KEY, uses Firecrawl search first (richer results), then falls back to DuckDuckGo."
+	}
+	return s
 }
 
 func (WebSearch) Parameters() map[string]any {
@@ -37,6 +41,12 @@ func (WebSearch) Execute(ctx context.Context, args map[string]any) (string, erro
 	q, _ := args["query"].(string)
 	if strings.TrimSpace(q) == "" {
 		return "", fmt.Errorf("query is required")
+	}
+
+	if key := firecrawlAPIKey(); key != "" {
+		if out, err := firecrawlSearchResults(ctx, key, q); err == nil && strings.TrimSpace(out) != "" {
+			return out, nil
+		}
 	}
 
 	u, err := url.Parse("https://api.duckduckgo.com/")

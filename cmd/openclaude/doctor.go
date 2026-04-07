@@ -31,6 +31,12 @@ func runDoctor(_ *cobra.Command, _ []string) {
 		_, _ = fmt.Fprintf(os.Stdout, "ripgrep (rg): found\n")
 	}
 
+	if p, err := exec.LookPath("spider"); err != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "spider (spider_cli): not found on PATH (optional SpiderScrape tool not registered; cargo install spider_cli)\n")
+	} else {
+		_, _ = fmt.Fprintf(os.Stdout, "spider (spider_cli): found at %s — SpiderScrape tool enabled\n", p)
+	}
+
 	_, _ = fmt.Fprintf(os.Stdout, "Active provider: %s\n", config.ProviderName())
 	_, _ = fmt.Fprintf(os.Stdout, "Model: %s\n", config.Model())
 

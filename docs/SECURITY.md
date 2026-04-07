@@ -26,7 +26,7 @@ The **`Task`** tool starts a **nested agent loop** with the same provider and to
 
 ## Network
 
-`WebSearch`, `WebFetch`, and LLM providers perform outbound HTTP(S). Use API keys and base URLs you trust.
+`WebSearch`, `WebFetch`, optional `SpiderScrape` (external `spider` CLI), and LLM providers perform outbound HTTP(S). Use API keys and base URLs you trust.
 
 ### Built-in HTTP tool (`WebSearch`)
 
@@ -51,6 +51,15 @@ Implemented in `internal/tools/web_fetch.go`:
 - **Output cap:** extracted text is truncated to **`max_chars`** (default **80000**, maximum **200000**) with a trailing notice.
 
 OpenClaude does **not** add an application-level request rate limit for `WebFetch`.
+
+### Optional subprocess tool (`SpiderScrape`)
+
+Implemented in `internal/tools/spider_scrape.go`. The tool is **registered only** when `spider` is found on `PATH` (typically [spider-rs `spider_cli`](https://github.com/spider-rs/spider): `cargo install spider_cli`).
+
+- **Invocation:** `spider --url <url> --return-format <fmt> scrape --output-html` with context timeout **60 seconds**.
+- **URL policy:** the same as `WebFetch` via shared [`ValidateFetchURL`](../internal/tools/web_fetch.go) (http/https, no userinfo, localhost / private / link-local / metadata IP rules and DNS checks).
+- **Output:** combined stdout must be valid UTF-8; truncated to **`max_chars`** (default **80000**, max **200000**).
+- **Trust:** the `spider` binary is a separate program; only use versions you trust. It performs its own HTTP(S) and may ignore OpenClaude’s limits beyond the wall-clock timeout above.
 
 ### LLM provider HTTP (`openaicomp` / go-openai)
 

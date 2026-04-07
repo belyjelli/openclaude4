@@ -11,5 +11,6 @@ func NewDefaultRegistry() *Registry {
 	r.Register(Glob{})
 	r.Register(WebSearch{})
 	r.Register(WebFetch{})
+	registerSpiderIfAvailable(r)
 	return r
 }
