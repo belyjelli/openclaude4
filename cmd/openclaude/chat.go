@@ -12,6 +12,7 @@ import (
 
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
+	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/providers"
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
 	"github.com/gitlawb/openclaude4/internal/tools"
@@ -57,6 +58,9 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	reader := bufio.NewReader(os.Stdin)
 	reg := tools.NewDefaultRegistry()
 
+	mcpMgr := mcpclient.ConnectAndRegister(ctx, reg, config.MCPServers(), os.Stderr)
+	defer mcpMgr.Close()
+
 	autoApprove := strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "1") ||
 		strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "true")
 
@@ -100,6 +104,9 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		case line == "/help":
 			printChatHelp()
 			continue
+		case line == "/mcp" || line == "/mcp list":
+			_, _ = fmt.Fprintln(os.Stdout, mcpMgr.DescribeServers())
+			continue
 		case line == "/clear":
 			messages = nil
 			_, _ = fmt.Fprintln(os.Stdout, "(conversation cleared)")
@@ -121,11 +128,11 @@ func runChat(cmd *cobra.Command, _ []string) error {
 
 func printChatBanner(c core.StreamClient) {
 	if info, ok := providers.AsStreamClientInfo(c); ok {
-		_, _ = fmt.Fprintf(os.Stderr, "OpenClaude v4 (phase 2). Provider: %s. Model: %s. Type /help. Ctrl+D to exit.\n",
+		_, _ = fmt.Fprintf(os.Stderr, "OpenClaude v4 (phase 3). Provider: %s. Model: %s. Type /help. Ctrl+D to exit.\n",
 			info.ProviderKind(), info.Model())
 		return
 	}
-	_, _ = fmt.Fprintln(os.Stderr, "OpenClaude v4 (phase 2). Type /help. Ctrl+D to exit.")
+	_, _ = fmt.Fprintln(os.Stderr, "OpenClaude v4 (phase 3). Type /help. Ctrl+D to exit.")
 }
 
 func printProviderInfo(c core.StreamClient) {
@@ -144,20 +151,21 @@ func printProviderInfo(c core.StreamClient) {
 
 func printChatHelp() {
 	const help = `Commands:
-  /provider  Show active provider, model, base URL, credential hint
-  /clear     Clear conversation history for this session
-  /help      Show this help
-  /exit      Exit (same as /quit)
-  /quit      Exit
+  /provider    Show active provider, model, base URL, credential hint
+  /mcp list    List connected MCP servers and tool names (see openclaude.yaml mcp.servers)
+  /clear       Clear conversation history for this session
+  /help        Show this help
+  /exit        Exit (same as /quit)
+  /quit        Exit
 
-Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch.
+Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch, plus MCP tools (mcp_<server>__<tool>).
 Workspace is the current working directory.
 
 Providers: openai (OPENAI_API_KEY), ollama (local), gemini (GEMINI_API_KEY or GOOGLE_API_KEY).
 v3 users: .openclaude-profile.json in cwd or $HOME is merged automatically (under openclaude.yaml).
 See docs/CONFIG.md and openclaude doctor.
 
-Dangerous tools prompt unless OPENCLAUDE_AUTO_APPROVE_TOOLS=1
+Dangerous tools (including MCP tools with approval: ask) prompt unless OPENCLAUDE_AUTO_APPROVE_TOOLS=1
 `
 	_, _ = fmt.Fprint(os.Stdout, help)
 }

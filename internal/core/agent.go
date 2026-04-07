@@ -30,6 +30,15 @@ type Agent struct {
 	Confirm       ConfirmTool
 	Out           io.Writer
 	MaxIterations int
+	// OnEvent receives structured kernel events (streaming text, tool calls, errors).
+	// Optional; TUI / headless transports use this instead of scraping stdout.
+	OnEvent EventHandler
+}
+
+func (a *Agent) emit(e Event) {
+	if a != nil && a.OnEvent != nil {
+		a.OnEvent(e)
+	}
 }
 
 // DefaultSystemPrompt is prepended once at the start of the transcript.
@@ -61,15 +70,20 @@ func (a *Agent) RunUserTurn(ctx context.Context, messages *[]sdk.ChatCompletionM
 		Role:    sdk.ChatMessageRoleUser,
 		Content: userText,
 	})
+	a.emit(Event{Kind: KindUserMessage, UserText: userText})
 
-	for range max {
+	emit := func(e Event) { a.emit(e) }
+
+	for i := range max {
+		modelRound := i + 1
 		stream, err := a.Client.StreamChatWithTools(ctx, *messages, oaiTools)
 		if err != nil {
+			a.emit(Event{Kind: KindError, Message: fmt.Sprintf("stream: %v", err)})
 			*messages = (*messages)[:len(*messages)-1]
 			return fmt.Errorf("stream: %w", err)
 		}
 
-		assistant, err := consumeAssistantStream(stream, a.Out)
+		assistant, err := consumeAssistantStream(stream, a.Out, emit, modelRound)
 		_ = stream.Close()
 		if err != nil {
 			*messages = (*messages)[:len(*messages)-1]
@@ -79,33 +93,79 @@ func (a *Agent) RunUserTurn(ctx context.Context, messages *[]sdk.ChatCompletionM
 		*messages = append(*messages, assistant)
 
 		if len(assistant.ToolCalls) == 0 {
+			a.emit(Event{Kind: KindTurnComplete})
 			return nil
 		}
 
 		for _, tc := range assistant.ToolCalls {
 			name := tc.Function.Name
 			args, err := parseToolArgs(tc.Function.Arguments)
+			a.emit(Event{
+				Kind:         KindToolCall,
+				ToolCallID:   tc.ID,
+				ToolName:     name,
+				ToolArgs:     args,
+				ToolArgsJSON: tc.Function.Arguments,
+			})
 			if err != nil {
 				*messages = append(*messages, toolResultMessage(tc.ID, name, "", err))
+				a.emit(Event{
+					Kind:           KindToolResult,
+					ToolCallID:     tc.ID,
+					ToolName:       name,
+					ToolExecError:  err.Error(),
+					ToolResultText: "",
+				})
 				continue
 			}
 
 			tool, ok := a.Registry.Get(name)
 			if !ok {
-				*messages = append(*messages, toolResultMessage(tc.ID, name, "", fmt.Errorf("unknown tool %q", name)))
+				e := fmt.Errorf("unknown tool %q", name)
+				*messages = append(*messages, toolResultMessage(tc.ID, name, "", e))
+				a.emit(Event{
+					Kind:           KindToolResult,
+					ToolCallID:     tc.ID,
+					ToolName:       name,
+					ToolExecError:  e.Error(),
+					ToolResultText: "",
+				})
 				continue
 			}
 
-			if tool.IsDangerous() && a.Confirm != nil && !a.Confirm(name, args) {
-				*messages = append(*messages, toolResultMessage(tc.ID, name, "User declined this tool execution.", nil))
-				continue
+			if tool.IsDangerous() && a.Confirm != nil {
+				a.emit(Event{Kind: KindPermissionPrompt, PermissionTool: name, ToolArgs: args})
+				ok := a.Confirm(name, args)
+				a.emit(Event{Kind: KindPermissionResult, PermissionTool: name, PermissionApproved: ok})
+				if !ok {
+					const declined = "User declined this tool execution."
+					*messages = append(*messages, toolResultMessage(tc.ID, name, declined, nil))
+					a.emit(Event{
+						Kind:           KindToolResult,
+						ToolCallID:     tc.ID,
+						ToolName:       name,
+						ToolResultText: declined,
+					})
+					continue
+				}
 			}
 
 			result, err := tool.Execute(ctx, args)
 			*messages = append(*messages, toolResultMessage(tc.ID, name, result, err))
+			ev := Event{
+				Kind:           KindToolResult,
+				ToolCallID:     tc.ID,
+				ToolName:       name,
+				ToolResultText: result,
+			}
+			if err != nil {
+				ev.ToolExecError = err.Error()
+			}
+			a.emit(ev)
 		}
 	}
 
+	a.emit(Event{Kind: KindError, Message: fmt.Sprintf("agent: exceeded %d tool iterations", max)})
 	*messages = (*messages)[:len(*messages)-1]
 	return fmt.Errorf("agent: exceeded %d tool iterations", max)
 }
@@ -145,7 +205,10 @@ type toolCallAcc struct {
 	args strings.Builder
 }
 
-func consumeAssistantStream(stream *sdk.ChatCompletionStream, out io.Writer) (sdk.ChatCompletionMessage, error) {
+func consumeAssistantStream(stream *sdk.ChatCompletionStream, out io.Writer, emit func(Event), modelRound int) (sdk.ChatCompletionMessage, error) {
+	if emit == nil {
+		emit = func(Event) {}
+	}
 	var content strings.Builder
 	acc := make(map[int]*toolCallAcc)
 	var finish sdk.FinishReason
@@ -156,6 +219,7 @@ func consumeAssistantStream(stream *sdk.ChatCompletionStream, out io.Writer) (sd
 			break
 		}
 		if err != nil {
+			emit(Event{Kind: KindError, Message: err.Error(), AssistantRounds: modelRound})
 			return sdk.ChatCompletionMessage{}, err
 		}
 		if len(resp.Choices) == 0 {
@@ -167,11 +231,17 @@ func consumeAssistantStream(stream *sdk.ChatCompletionStream, out io.Writer) (sd
 		}
 		delta := ch.Delta
 		if delta.Refusal != "" {
+			emit(Event{Kind: KindModelRefusal, Message: delta.Refusal, AssistantRounds: modelRound})
 			return sdk.ChatCompletionMessage{}, fmt.Errorf("model refusal: %s", delta.Refusal)
 		}
 		if delta.Content != "" {
 			_, _ = out.Write([]byte(delta.Content))
 			content.WriteString(delta.Content)
+			emit(Event{
+				Kind:              KindAssistantTextDelta,
+				TextChunk:         delta.Content,
+				AssistantRounds:   modelRound,
+			})
 		}
 		for _, tc := range delta.ToolCalls {
 			idx := 0
@@ -206,7 +276,13 @@ func consumeAssistantStream(stream *sdk.ChatCompletionStream, out io.Writer) (sd
 		Content:   content.String(),
 		ToolCalls: toolCalls,
 	}
-	_ = finish
+	emit(Event{
+		Kind:              KindAssistantFinished,
+		AssistantText:     content.String(),
+		ToolCallCount:     len(toolCalls),
+		FinishReason:      string(finish),
+		AssistantRounds:   modelRound,
+	})
 	return msg, nil
 }
 
