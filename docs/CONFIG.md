@@ -92,6 +92,8 @@ Failed servers are skipped with a message on stderr; chat still starts if built-
 | `--session` / `OPENCLAUDE_SESSION` | Fixed session id (file name base under the session directory) |
 | `--resume` / `OPENCLAUDE_RESUME` | Open the last saved session (`last_session_id` or newest `*.json`) |
 | `--list-sessions` | Print saved sessions and exit |
+| `--print` / `-p` | One-shot: single user message, final assistant reply on stdout (`-p -` reads prompt from stdin); incompatible with `--tui`; set `OPENCLAUDE_AUTO_APPROVE_TOOLS` when tools must run non-interactively |
+| `--print` / `-p` | **One-shot (non-interactive):** run a single user message and exit. The **final assistant text** is printed to stdout (streaming is discarded). Prompt is the flag value; use **`-p -`** to read the prompt from stdin. Incompatible with `--tui` / `OPENCLAUDE_TUI`. **Dangerous tools:** unless `OPENCLAUDE_AUTO_APPROVE_TOOLS` is set, each dangerous tool is **skipped** (stderr explains how to enable). Sessions apply like the REPL (`--session`, `--resume`, `--no-session`). |
 | `--no-session` / `OPENCLAUDE_NO_SESSION` | Do not read or write session files |
 | `OPENCLAUDE_SESSION_DIR` / `session.dir` | Override session directory (default `~/.local/share/openclaude/sessions`) |
 | `OPENCLAUDE_SESSION_COMPACT_TOKEN_THRESHOLD` / `session.compact_token_threshold` | Rough token estimate above which the next user turn auto-compacts (0 = off) |

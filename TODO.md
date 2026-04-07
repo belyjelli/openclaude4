@@ -31,7 +31,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 ### CLI / UX
 
 - [ ] **Interactive `/provider` wizard** (v4 [`/provider`](./cmd/openclaude/slash.go) prints config only)
-- [ ] **Headless one-shot** mode (v3 `-p` / print) for scripts and CI
+- [x] **Headless one-shot** mode (v3 `-p` / print) for scripts and CI — [`runPrintTurn`](./cmd/openclaude/chat.go); `--print` / `-p` (optional `-p -` stdin); incompatible with `--tui`; dangerous tools need `OPENCLAUDE_AUTO_APPROVE_TOOLS` or they are skipped (stderr)
 - [ ] Optional: **concurrent session registry** / `ps`-style listing (v3 PID files under a sessions dir)
 - [ ] Expand **slash commands** toward v3 surface where still relevant (`/onboard-github`, MCP management, etc.)
 

@@ -53,6 +53,12 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	printMode := cmd.Flags().Changed("print")
+	useTUIEarly, _ := cmd.Flags().GetBool("tui")
+	if printMode && (useTUIEarly || envTruthy("OPENCLAUDE_TUI")) {
+		return fmt.Errorf("openclaude: --print (-p) cannot be used with --tui or OPENCLAUDE_TUI=1")
+	}
+
 	client, err := providers.NewStreamClient()
 	if err != nil {
 		switch {
@@ -98,7 +104,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			_ = persist.Save()
 		}
 	}()
-	if persist != nil {
+	if persist != nil && !printMode {
 		_, _ = fmt.Fprintf(os.Stderr, "Session %q — %d message(s) in memory · %s\n",
 			persist.store.ID, len(messages), persist.store.SessionPath())
 	}
@@ -115,8 +121,15 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	autoApprove := strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "1") ||
 		strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "true")
 
-	useTUI, _ := cmd.Flags().GetBool("tui")
-	if useTUI || envTruthy("OPENCLAUDE_TUI") {
+	useTUI := useTUIEarly || envTruthy("OPENCLAUDE_TUI")
+	if printMode {
+		if err := runPrintTurn(ctx, cmd, client, reg, &messages, beforeUserTurn, autoApprove, &agent); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if useTUI {
 		var banner strings.Builder
 		writeChatBanner(&banner, client, mcpMgr)
 		bannerStr := strings.TrimSpace(banner.String()) + "\nTUI: Ctrl+C to quit · same /commands as plain REPL."
@@ -218,6 +231,67 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			}
 		}
 	}
+}
+
+func runPrintTurn(
+	ctx context.Context,
+	cmd *cobra.Command,
+	client core.StreamClient,
+	reg *tools.Registry,
+	messages *[]sdk.ChatCompletionMessage,
+	beforeUserTurn func() error,
+	autoApprove bool,
+	agent **core.Agent,
+) error {
+	printArg, _ := cmd.Flags().GetString("print")
+	var prompt string
+	if strings.TrimSpace(printArg) == "-" {
+		b, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("read stdin for -p -: %w", err)
+		}
+		prompt = strings.TrimSpace(string(b))
+	} else {
+		prompt = strings.TrimSpace(printArg)
+	}
+	if prompt == "" {
+		return fmt.Errorf(`print mode needs a non-empty prompt (example: -p "question" or pipe into -p -)`)
+	}
+
+	if err := beforeUserTurn(); err != nil {
+		return err
+	}
+
+	*agent = &core.Agent{
+		Client:   client,
+		Registry: reg,
+		Out:      io.Discard,
+		Confirm: func(toolName string, args map[string]any) bool {
+			if autoApprove {
+				_, _ = fmt.Fprintf(os.Stderr, "[auto-approved] %s\n", toolName)
+				return true
+			}
+			_, _ = fmt.Fprintf(os.Stderr, "[print mode] skipping tool %q (set OPENCLAUDE_AUTO_APPROVE_TOOLS=1 to allow)\n", toolName)
+			return false
+		},
+	}
+	if err := (*agent).RunUserTurn(ctx, messages, prompt); err != nil {
+		return err
+	}
+	reply := lastAssistantReply(*messages)
+	if reply != "" {
+		_, _ = fmt.Fprintln(os.Stdout, strings.TrimRight(reply, "\r\n"))
+	}
+	return nil
+}
+
+func lastAssistantReply(msgs []sdk.ChatCompletionMessage) string {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == sdk.ChatMessageRoleAssistant {
+			return msgs[i].Content
+		}
+	}
+	return ""
 }
 
 // chatPersist binds a [session.Store] to the in-memory transcript.
@@ -416,6 +490,9 @@ v3 users: .openclaude-profile.json in cwd or $HOME is merged automatically (unde
 See docs/CONFIG.md and openclaude doctor.
 
 Dangerous tools (including MCP tools with approval: ask) prompt unless OPENCLAUDE_AUTO_APPROVE_TOOLS=1
+
+One-shot (non-interactive): openclaude -p "your question" prints only the final assistant reply on stdout
+(streaming and tool traces go to stderr or are discarded). Use -p - to read the prompt from stdin.
 `
 	_, _ = fmt.Fprint(w, help)
 }

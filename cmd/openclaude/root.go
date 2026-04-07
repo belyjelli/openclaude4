@@ -41,6 +41,7 @@ func init() {
 	_ = viper.BindPFlag("session.disabled", rootCmd.PersistentFlags().Lookup("no-session"))
 
 	rootCmd.PersistentFlags().Bool("tui", false, "Full-screen Bubble Tea UI (kernel events: streaming, tools, permissions)")
+	rootCmd.PersistentFlags().StringP("print", "p", "", "One-shot: run a single user message, print only the final assistant reply to stdout (use -p - to read prompt from stdin). Incompatible with --tui; use OPENCLAUDE_AUTO_APPROVE_TOOLS for tools in CI")
 
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
 		path, _ := cmd.Flags().GetString("config")
