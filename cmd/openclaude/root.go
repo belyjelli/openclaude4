@@ -21,6 +21,8 @@ Config: env vars, optional openclaude.yaml, optional v3 .openclaude-profile.json
 }
 
 func init() {
+	config.InitSessionDefaults()
+
 	rootCmd.PersistentFlags().String("config", "", "Path to config file (yaml/json); overrides default search paths")
 	rootCmd.PersistentFlags().String("provider", "", "Provider: openai, ollama, or gemini (overrides OPENCLAUDE_PROVIDER)")
 	rootCmd.PersistentFlags().String("model", "", "Chat model (provider-specific default if empty)")
@@ -30,7 +32,18 @@ func init() {
 	_ = viper.BindPFlag("provider.base_url", rootCmd.PersistentFlags().Lookup("base-url"))
 	_ = viper.BindPFlag("provider.name", rootCmd.PersistentFlags().Lookup("provider"))
 
+	rootCmd.PersistentFlags().String("session", "", "Session id for on-disk transcript (default: new random id; env OPENCLAUDE_SESSION)")
+	_ = viper.BindPFlag("session.name", rootCmd.PersistentFlags().Lookup("session"))
+	rootCmd.PersistentFlags().Bool("resume-last", false, "Resume the last saved session (see ~/.local/share/openclaude/sessions)")
+	_ = viper.BindPFlag("session.resume_last", rootCmd.PersistentFlags().Lookup("resume-last"))
+	rootCmd.PersistentFlags().Bool("list-sessions", false, "List saved sessions on disk and exit")
+	rootCmd.PersistentFlags().Bool("no-session", false, "Disable on-disk session persistence")
+	_ = viper.BindPFlag("session.disabled", rootCmd.PersistentFlags().Lookup("no-session"))
+
 	rootCmd.PersistentFlags().Bool("tui", false, "Full-screen Bubble Tea UI (kernel events: streaming, tools, permissions)")
+	rootCmd.PersistentFlags().String("session", "", "Named saved transcript under ~/.openclaude/sessions (env OPENCLAUDE_SESSION); loads if file exists")
+	rootCmd.PersistentFlags().Bool("resume", false, "Load the most recently updated saved session (env OPENCLAUDE_RESUME=true)")
+	_ = viper.BindPFlag("session.name", rootCmd.PersistentFlags().Lookup("session"))
 
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
 		path, _ := cmd.Flags().GetString("config")

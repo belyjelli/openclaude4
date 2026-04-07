@@ -16,10 +16,12 @@ import (
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/providers"
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
+	"github.com/gitlawb/openclaude4/internal/session"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	"github.com/gitlawb/openclaude4/internal/tui"
 	sdk "github.com/sashabaranov/go-openai"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func runChat(cmd *cobra.Command, _ []string) error {
@@ -62,6 +64,21 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	reg.Register(core.NewTaskTool(func() *core.Agent { return agent }))
 
 	var messages []sdk.ChatCompletionMessage
+	persist, err := resolveChatPersistence(cmd, wd, &messages)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return err
+	}
+	defer func() {
+		if persist != nil {
+			_ = persist.Save()
+		}
+	}()
+	if persist != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Session %q — %d message(s) loaded · %s\n",
+			persist.handle.Name, len(messages), persist.handle.Path())
+	}
+
 	autoApprove := strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "1") ||
 		strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "true")
 
@@ -77,12 +94,19 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			Messages:    &messages,
 			AutoApprove: autoApprove,
 			Banner:      bannerStr,
+			AfterTurn: func() error {
+				if persist != nil {
+					return persist.Save()
+				}
+				return nil
+			},
 			Slash: func(line string) (string, bool, error) {
 				var out bytes.Buffer
 				err := handleSlashLine(line, chatState{
 					messages: &messages,
 					mcpMgr:   mcpMgr,
 					client:   client,
+					persist:  persist,
 				}, &out)
 				if errors.Is(err, errSlashExitChat) {
 					return out.String(), true, nil
@@ -135,6 +159,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 				messages: &messages,
 				mcpMgr:   mcpMgr,
 				client:   client,
+				persist:  persist,
 			}, os.Stdout)
 			if errors.Is(err, errSlashExitChat) {
 				return nil
@@ -149,7 +174,103 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
 		}
+		if persist != nil {
+			if err := persist.Save(); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "session save: %v\n", err)
+			}
+		}
 	}
+}
+
+// chatPersist binds a named session file to the in-memory transcript.
+type chatPersist struct {
+	dir      string
+	wd       string
+	handle   *session.Handle
+	messages *[]sdk.ChatCompletionMessage
+}
+
+func (p *chatPersist) Save() error {
+	if p == nil || p.handle == nil || p.messages == nil {
+		return nil
+	}
+	return p.handle.SaveFrom(*p.messages, p.wd)
+}
+
+func (p *chatPersist) SwitchTo(name string) error {
+	if p == nil {
+		return fmt.Errorf("sessions not enabled")
+	}
+	h, err := session.NewHandle(p.dir, name)
+	if err != nil {
+		return err
+	}
+	if p.handle != nil {
+		if err := p.Save(); err != nil {
+			return fmt.Errorf("save before switch: %w", err)
+		}
+	}
+	p.handle = h
+	*p.messages = nil
+	return h.LoadInto(p.messages)
+}
+
+func (p *chatPersist) BranchTo(name string) error {
+	if p == nil {
+		return fmt.Errorf("sessions not enabled")
+	}
+	h, err := session.NewHandle(p.dir, name)
+	if err != nil {
+		return err
+	}
+	if p.handle != nil {
+		if err := p.Save(); err != nil {
+			return fmt.Errorf("save before switch: %w", err)
+		}
+	}
+	p.handle = h
+	*p.messages = nil
+	return p.Save()
+}
+
+func resolveChatPersistence(cmd *cobra.Command, wd string, messages *[]sdk.ChatCompletionMessage) (*chatPersist, error) {
+	resume, _ := cmd.Flags().GetBool("resume")
+	if envTruthy("OPENCLAUDE_RESUME") {
+		resume = true
+	}
+	sFlag, _ := cmd.Flags().GetString("session")
+	name := strings.TrimSpace(sFlag)
+	if name == "" {
+		name = strings.TrimSpace(viper.GetString("session.name"))
+	}
+	if resume && name != "" {
+		return nil, fmt.Errorf("use either --resume (or OPENCLAUDE_RESUME) or --session / OPENCLAUDE_SESSION, not both")
+	}
+	dir, err := session.DefaultDir()
+	if err != nil {
+		return nil, err
+	}
+	var sessName string
+	if resume {
+		n, err := session.LatestName(dir)
+		if err != nil {
+			return nil, err
+		}
+		sessName = n
+	} else if name != "" {
+		sessName = name
+	} else {
+		return nil, nil
+	}
+	h, err := session.NewHandle(dir, sessName)
+	if err != nil {
+		return nil, err
+	}
+	p := &chatPersist{dir: dir, wd: wd, handle: h, messages: messages}
+	if err := h.LoadInto(messages); err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func envTruthy(key string) bool {

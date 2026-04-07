@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package openclaude.v4;
+
+option go_package = "github.com/gitlawb/openclaude4/internal/grpc/openclaudev4;openclaudev4";
+
+// AgentService exposes the same multi-turn tool loop as the CLI/TUI via gRPC.
+// See internal/grpc/README.md for versioning vs openclaude v3 (openclaude.v1).
+service AgentService {
+  // Bidirectional stream: client sends chat turns and permission replies;
+  // server streams kernel-aligned events (text deltas, tools, permission prompts).
+  rpc Chat(stream ClientMessage) returns (stream ServerMessage);
+}
+
+// ---------------------------------------------------------------------------
+// Client → server
+// ---------------------------------------------------------------------------
+
+message ClientMessage {
+  oneof payload {
+    ChatRequest chat_request = 1;
+    UserInput user_input = 2;
+    CancelSignal cancel = 3;
+  }
+}
+
+// Starts one user turn (append user message, run model↔tools until idle).
+message ChatRequest {
+  string user_text = 1;
+  // If non-empty, applied with tools.WithWorkDir for this turn.
+  string working_directory = 2;
+  // Reserved for future routing; kernel client is supplied by the server process today.
+  optional string model = 3;
+}
+
+// Reply to PermissionRequired (yes/no or free text, same semantics as CLI confirm).
+message UserInput {
+  string prompt_id = 1;
+  string reply = 2;
+}
+
+message CancelSignal {
+  string reason = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Server → client (maps to internal/core.Event kinds)
+// ---------------------------------------------------------------------------
+
+message ServerMessage {
+  oneof event {
+    TextChunk text_chunk = 1;
+    ToolCallStart tool_start = 2;
+    ToolCallResult tool_result = 3;
+    PermissionRequired permission_required = 4;
+    PermissionAck permission_ack = 5;
+    AssistantFinished assistant_finished = 6;
+    TurnComplete turn_complete = 7;
+    ErrorEvent error = 8;
+  }
+}
+
+message TextChunk {
+  string text = 1;
+}
+
+message ToolCallStart {
+  string tool_name = 1;
+  string arguments_json = 2;
+  string tool_use_id = 3;
+}
+
+message ToolCallResult {
+  string tool_name = 1;
+  string tool_use_id = 2;
+  string output = 3;
+  bool is_error = 4;
+  string error_message = 5;
+}
+
+// Server waits for UserInput with matching prompt_id before running the tool.
+message PermissionRequired {
+  string prompt_id = 1;
+  string tool_name = 2;
+  string arguments_json = 3;
+  string question = 4;
+}
+
+message PermissionAck {
+  string prompt_id = 1;
+  bool approved = 2;
+}
+
+message AssistantFinished {
+  string full_text = 1;
+  int32 tool_call_count = 2;
+  string finish_reason = 3;
+  int32 assistant_round = 4;
+}
+
+message TurnComplete {}
+
+message ErrorEvent {
+  string message = 1;
+  string code = 2;
+}

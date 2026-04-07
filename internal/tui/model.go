@@ -24,6 +24,8 @@ type Config struct {
 	AutoApprove bool
 	Banner      string
 	Slash       func(line string) (appendOut string, exitChat bool, err error)
+	// AfterTurn runs after a successful model turn (optional; e.g. persist session).
+	AfterTurn func() error
 }
 
 type model struct {
@@ -143,6 +145,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case runTurnDoneMsg:
 		m.busy = false
+		if m.cfg.AfterTurn != nil {
+			if err := m.cfg.AfterTurn(); err != nil {
+				m.commitLine(errStyle.Render("session save: ") + err.Error())
+			}
+		}
 		return m, textinput.Blink
 
 	case runTurnErrMsg:

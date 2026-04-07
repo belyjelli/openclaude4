@@ -72,4 +72,10 @@ func bindViperEnv() {
 	_ = viper.BindEnv("gemini.api_key", "GEMINI_API_KEY", "GOOGLE_API_KEY")
 	_ = viper.BindEnv("gemini.model", "GEMINI_MODEL")
 	_ = viper.BindEnv("gemini.base_url", "GEMINI_BASE_URL")
+	_ = viper.BindEnv("session.name", "OPENCLAUDE_SESSION")
+	_ = viper.BindEnv("session.dir", "OPENCLAUDE_SESSION_DIR")
+	_ = viper.BindEnv("session.disabled", "OPENCLAUDE_NO_SESSION")
+	_ = viper.BindEnv("session.compact_token_threshold", "OPENCLAUDE_SESSION_COMPACT_TOKEN_THRESHOLD")
+	_ = viper.BindEnv("session.summarize_over_threshold", "OPENCLAUDE_SESSION_SUMMARIZE_OVER_THRESHOLD")
+	_ = viper.BindEnv("session.compact_keep_messages", "OPENCLAUDE_SESSION_COMPACT_KEEP_MESSAGES")
 }
