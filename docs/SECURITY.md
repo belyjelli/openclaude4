@@ -26,7 +26,7 @@ The **`Task`** tool starts a **nested agent loop** with the same provider and to
 
 ## Network
 
-`WebSearch` and LLM providers perform outbound HTTP(S). Use API keys and base URLs you trust.
+`WebSearch`, `WebFetch`, and LLM providers perform outbound HTTP(S). Use API keys and base URLs you trust.
 
 ### Built-in HTTP tool (`WebSearch`)
 
@@ -37,6 +37,20 @@ Implemented in `internal/tools/web_search.go`:
 - **Output size:** related-topic lines stop once the built summary reaches about **8000** bytes (loop break on `b.Len() > 8000`).
 
 OpenClaude does **not** add an application-level request rate limit for `WebSearch`; remote services may still throttle by IP or policy.
+
+### Built-in HTTP tool (`WebFetch`)
+
+Implemented in `internal/tools/web_fetch.go`:
+
+- **HTTP client timeout:** **20 seconds** per request (including redirects).
+- **Redirects:** at most **5**; each redirect target is validated the same way as the original URL.
+- **Allowed URLs:** **http** and **https** only; URLs with embedded **userinfo** (credentials) are rejected.
+- **SSRF mitigation:** **localhost** hostnames and **loopback / private / link-local** IP addresses are rejected, including when returned from **DNS** resolution for a hostname (if any resolved address is disallowed, the fetch fails). This reduces casual misuse but is **not** a complete SSRF barrier (DNS rebinding, exotic encodings, and future address semantics may still warrant caution).
+- **Response body read cap:** **2 MiB** (`io.LimitReader`); larger bodies return an error.
+- **Text extraction:** **HTML** (and XHTML content types, or HTML-like sniff) is parsed with `golang.org/x/net/html` and reduced to plain text (script/style/svg/template subtrees skipped). Non-HTML bodies must be **valid UTF-8** (JSON, plain text, etc.).
+- **Output cap:** extracted text is truncated to **`max_chars`** (default **80000**, maximum **200000**) with a trailing notice.
+
+OpenClaude does **not** add an application-level request rate limit for `WebFetch`.
 
 ### LLM provider HTTP (`openaicomp` / go-openai)
 

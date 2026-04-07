@@ -471,6 +471,7 @@ func printChatHelpTo(w io.Writer) {
 	const help = `Commands:
   /provider    Show active provider, model, base URL, credential hint
   /mcp list    List connected MCP servers and tool names (see openclaude.yaml mcp.servers)
+  /mcp doctor  Show same as list + tip to run openclaude mcp doctor for a fresh check
   /session     Show active session file path (when sessions enabled)
   /session list    List saved session files on disk
   /session load <id>   Switch to another session (saves current first)
@@ -482,7 +483,7 @@ func printChatHelpTo(w io.Writer) {
   /exit        Exit (same as /quit)
   /quit        Exit
 
-Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch, Task (sub-agent), plus MCP tools (mcp_<server>__<tool>).
+Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch, WebFetch, Task (sub-agent), plus MCP tools (mcp_<server>__<tool>).
 Workspace is the current working directory.
 
 Providers: openai (OPENAI_API_KEY), ollama (local), gemini (GEMINI_API_KEY or GOOGLE_API_KEY).

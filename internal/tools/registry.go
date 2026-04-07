@@ -10,5 +10,6 @@ func NewDefaultRegistry() *Registry {
 	r.Register(Grep{})
 	r.Register(Glob{})
 	r.Register(WebSearch{})
+	r.Register(WebFetch{})
 	return r
 }

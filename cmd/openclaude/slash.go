@@ -47,7 +47,12 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 			_, _ = fmt.Fprintln(out, st.mcpMgr.DescribeServers())
 			return nil
 		}
-		return fmt.Errorf("unknown /mcp subcommand %q (try /mcp list)", args[0])
+		if args[0] == "doctor" {
+			_, _ = fmt.Fprintln(out, st.mcpMgr.DescribeServers())
+			_, _ = fmt.Fprintln(out, "\nTip: for a fresh connect test from config (new processes), run: openclaude mcp doctor")
+			return nil
+		}
+		return fmt.Errorf("unknown /mcp subcommand %q (try /mcp list, /mcp doctor)", args[0])
 	case "clear":
 		*st.messages = nil
 		if st.persist != nil {

@@ -45,7 +45,7 @@ Tagged releases (semver, e.g. `v0.1.0`) publish archives via [GoReleaser](./gore
 
 **Config layers:** v3 `.openclaude-profile.json` (cwd, then `$HOME`), then `openclaude.yaml` — see [docs/CONFIG.md](./docs/CONFIG.md) and [openclaude.example.yaml](./openclaude.example.yaml).
 
-**Tools:** `FileRead`, `FileWrite`, `FileEdit`, `Bash`, `Grep`, `Glob`, `WebSearch`, **`Task`** (nested sub-agent loop), plus optional **MCP** tools from `mcp.servers` in config (`mcp_<server>__<tool>`). Workspace = process working directory (paths cannot escape it). Details: [docs/SECURITY.md](./docs/SECURITY.md) and [docs/CONFIG.md](./docs/CONFIG.md#mcp-servers).
+**Tools:** `FileRead`, `FileWrite`, `FileEdit`, `Bash`, `Grep`, `Glob`, `WebSearch`, `WebFetch`, **`Task`** (nested sub-agent loop), plus optional **MCP** tools from `mcp.servers` in config (`mcp_<server>__<tool>`). Workspace = process working directory (paths cannot escape it). Details: [docs/SECURITY.md](./docs/SECURITY.md) and [docs/CONFIG.md](./docs/CONFIG.md#mcp-servers).
 
 **Dangerous tools** prompt on stderr unless `OPENCLAUDE_AUTO_APPROVE_TOOLS=1` or `true`.
 

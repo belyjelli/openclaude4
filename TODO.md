@@ -21,7 +21,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 
 ### Tools and agent behavior
 
-- [ ] **WebFetch** tool (v4 has [`WebSearch`](./internal/tools/web_search.go) only — DDG instant-answer style)
+- [x] **WebFetch** tool — [`internal/tools/web_fetch.go`](./internal/tools/web_fetch.go): HTTP(S) GET, HTML→text, SSRF-minded host/IP checks, caps documented in [SECURITY.md](./docs/SECURITY.md)
 - [ ] Optional **Firecrawl** (or similar) for richer search + scrape when `FIRECRAWL_API_KEY` is set (v3 README behavior)
 - [ ] **Skills** / **SkillTool** and user slash-command skill loading; **plugin directories** and plugin CLI (v3 `main.tsx` / `src/tools/SkillTool`)
 - [ ] **LSP** integration ([`src/services/lsp`](https://github.com/Gitlawb/openclaude/tree/main/src/services/lsp) in v3)
@@ -67,7 +67,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 - [x] Multi-turn agent loop with streaming assistant text — [`internal/core/agent.go`](./internal/core/agent.go)
 - [x] OpenAI-compatible streaming client with tools — [`internal/providers/openaicomp`](./internal/providers/openaicomp/)
 - [x] Tool registry + JSON schemas for the API — [`internal/tools`](./internal/tools/)
-- [x] `read_file` / write / edit tools, `bash` (dangerous; confirm hook in REPL), `grep`, `glob`, `web_search` — [`NewDefaultRegistry`](./internal/tools/registry.go)
+- [x] `read_file` / write / edit tools, `bash` (dangerous; confirm hook in REPL), `grep`, `glob`, `web_search`, `web_fetch` — [`NewDefaultRegistry`](./internal/tools/registry.go)
 - [x] Stdin/stdout REPL — [`cmd/openclaude/chat.go`](./cmd/openclaude/chat.go)
 - [x] Env: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`; flags `--model`, `--base-url`; `OPENCLAUDE_AUTO_APPROVE_TOOLS` — [README](./README.md), [`internal/config`](./internal/config/config.go)
 - [x] Kernel **event harness** — [`internal/core/event.go`](./internal/core/event.go) (`Event`, `EventKind`) + [`Agent.OnEvent`](./internal/core/agent.go); REPL still uses `Out` only
