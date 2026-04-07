@@ -28,19 +28,27 @@ type Config struct {
 	BeforeUserTurn func() error
 	// AfterTurn runs after a successful model turn (optional; e.g. persist session).
 	AfterTurn func() error
+	// StatusLine is shown under the title (provider · model · session).
+	StatusLine string
+	// ToolPreviewMax is the max UTF-8 runes of tool stdout in the transcript (0 = default 4000).
+	ToolPreviewMax int
+	// MarkdownAssist renders finished assistant turns with glamour (disable with OPENCLAUDE_TUI_MARKDOWN=0).
+	MarkdownAssist bool
 }
 
 type model struct {
-	cfg      Config
-	send     func(tea.Msg)
-	vp       viewport.Model
-	ti       textinput.Model
-	busy     bool
-	perm     *permState
-	width    int
-	height   int
-	permBr   *permBridge
-	getAgent func() *core.Agent
+	cfg         Config
+	send        func(tea.Msg)
+	vp          viewport.Model
+	ti          textinput.Model
+	busy        bool
+	perm        *permState
+	width       int
+	height      int
+	permBr      *permBridge
+	getAgent    func() *core.Agent
+	stickBottom bool
+	runningTool string
 	// transcript
 	committed strings.Builder
 	liveAsst  strings.Builder
@@ -64,7 +72,7 @@ type runTurnErrMsg struct {
 
 func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *permBridge) *model {
 	ti := textinput.New()
-	ti.Placeholder = "Message… (Enter to send, /help, Ctrl+C quit)"
+	ti.Placeholder = "Message… (Enter · PgUp/PgDn scroll transcript · /help)"
 	ti.Focus()
 	ti.CharLimit = 0
 	ti.Width = 72
@@ -73,12 +81,13 @@ func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *p
 	vp.MouseWheelEnabled = true
 
 	m := &model{
-		cfg:      cfg,
-		send:     send,
-		vp:       vp,
-		ti:       ti,
-		permBr:   pb,
-		getAgent: getAgent,
+		cfg:         cfg,
+		send:        send,
+		vp:          vp,
+		ti:          ti,
+		permBr:      pb,
+		getAgent:    getAgent,
+		stickBottom: true,
 	}
 	if cfg.Banner != "" {
 		m.committed.WriteString(dimStyle.Render(cfg.Banner))
@@ -86,6 +95,13 @@ func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *p
 	}
 	m.syncVP()
 	return m
+}
+
+func (m *model) toolPreviewLimit() int {
+	if m.cfg.ToolPreviewMax > 0 {
+		return m.cfg.ToolPreviewMax
+	}
+	return 4000
 }
 
 func (m *model) Init() tea.Cmd {
@@ -97,7 +113,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		headerH := 2
+		subLines := 1
+		if m.busy || m.runningTool != "" {
+			subLines = 2
+		}
+		headerH := 1 + subLines
 		footerH := 4
 		vpH := msg.Height - headerH - footerH
 		if vpH < 6 {
@@ -113,6 +133,23 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.syncVP()
 		return m, nil
 
+	case tea.MouseMsg:
+		if m.perm == nil {
+			if msg.Action == tea.MouseActionPress {
+				switch msg.Button { //nolint:exhaustive
+				case tea.MouseButtonWheelUp:
+					m.stickBottom = false
+				}
+			}
+			var cmd tea.Cmd
+			m.vp, cmd = m.vp.Update(msg)
+			if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelDown && m.vp.AtBottom() {
+				m.stickBottom = true
+			}
+			m.ti, cmd = m.ti.Update(msg)
+			return m, cmd
+		}
+
 	case tea.KeyMsg:
 		if m.perm != nil {
 			switch strings.ToLower(msg.String()) {
@@ -126,6 +163,28 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.answerPerm(false)
 				return m, nil
 			}
+			return m, nil
+		}
+		switch msg.Type {
+		case tea.KeyPgUp:
+			m.stickBottom = false
+			var cmd tea.Cmd
+			m.vp, cmd = m.vp.Update(msg)
+			return m, cmd
+		case tea.KeyPgDown:
+			var cmd tea.Cmd
+			m.vp, cmd = m.vp.Update(msg)
+			if m.vp.AtBottom() {
+				m.stickBottom = true
+			}
+			return m, cmd
+		case tea.KeyHome:
+			m.stickBottom = false
+			m.vp.GotoTop()
+			return m, nil
+		case tea.KeyEnd:
+			m.stickBottom = true
+			m.vp.GotoBottom()
 			return m, nil
 		}
 		if msg.Type == tea.KeyCtrlC {
@@ -147,6 +206,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case runTurnDoneMsg:
 		m.busy = false
+		m.runningTool = ""
 		if m.cfg.AfterTurn != nil {
 			if err := m.cfg.AfterTurn(); err != nil {
 				m.commitLine(errStyle.Render("session save: ") + err.Error())
@@ -156,6 +216,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case runTurnErrMsg:
 		m.busy = false
+		m.runningTool = ""
 		return m, textinput.Blink
 	}
 
@@ -202,6 +263,7 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	m.stickBottom = true
 	m.busy = true
 	ag := m.getAgent()
 	if ag == nil {
@@ -243,20 +305,32 @@ func (m *model) applyKernel(e core.Event) {
 	case core.KindUserMessage:
 		m.commitLine(userStyle.Render("You") + ": " + e.UserText)
 	case core.KindAssistantTextDelta:
+		m.stickBottom = true
 		m.liveAsst.WriteString(e.TextChunk)
 		m.syncVP()
 	case core.KindAssistantFinished:
-		if m.liveAsst.Len() > 0 {
-			txt := m.liveAsst.String()
-			m.liveAsst.Reset()
-			wrapped := lipgloss.NewStyle().Width(max(40, m.vp.Width)).Render(asstStyle.Render("Assistant") + ": " + txt)
-			m.committed.WriteString(wrapped)
-			if !strings.HasSuffix(wrapped, "\n") {
-				m.committed.WriteByte('\n')
-			}
-			m.syncVP()
+		txt := strings.TrimSpace(m.liveAsst.String())
+		if txt == "" {
+			txt = strings.TrimSpace(e.AssistantText)
 		}
+		m.liveAsst.Reset()
+		if txt == "" {
+			m.syncVP()
+			break
+		}
+		m.stickBottom = true
+		label := asstStyle.Render("Assistant") + ":"
+		md := renderAssistantMarkdown(m.vp.Width, txt, m.cfg.MarkdownAssist)
+		if md != "" {
+			m.committed.WriteString(lipgloss.JoinVertical(lipgloss.Left, label, md))
+		} else {
+			body := lipgloss.NewStyle().Width(max(40, m.vp.Width)).Render(txt)
+			m.committed.WriteString(lipgloss.JoinVertical(lipgloss.Left, label, body))
+		}
+		m.committed.WriteByte('\n')
+		m.syncVP()
 	case core.KindToolCall:
+		m.runningTool = e.ToolName
 		args := formatToolArgs(e.ToolArgsJSON, e.ToolArgs)
 		hdr := toolStyle.Render("Tool") + ": " + e.ToolName
 		m.commitLine(hdr + "\n" + dimStyle.Render(args))
@@ -272,24 +346,22 @@ func (m *model) applyKernel(e core.Event) {
 			m.commitLine(errStyle.Render("Declined: ") + e.PermissionTool)
 		}
 	case core.KindToolResult:
+		m.runningTool = ""
 		var b strings.Builder
 		b.WriteString(dimStyle.Render("Result (" + e.ToolName + "): "))
 		if e.ToolExecError != "" {
 			b.WriteString(errStyle.Render(e.ToolExecError))
 		} else {
-			out := strings.TrimSpace(e.ToolResultText)
-			if len(out) > 400 {
-				out = out[:397] + "..."
-			}
-			b.WriteString(out)
+			b.WriteString(formatToolResultBody(m.toolPreviewLimit(), e.ToolResultText, m.vp.Width))
 		}
 		m.commitLine(b.String())
 	case core.KindError:
+		m.runningTool = ""
 		m.commitLine(errStyle.Render("Error: ") + e.Message)
 	case core.KindModelRefusal:
 		m.commitLine(errStyle.Render("Refused: ") + e.Message)
 	case core.KindTurnComplete:
-		// end of turn; optional visual break
+		m.runningTool = ""
 	}
 }
 
@@ -323,6 +395,7 @@ func max(a, b int) int {
 }
 
 func (m *model) commitLine(s string) {
+	m.stickBottom = true
 	m.committed.WriteString(s)
 	m.committed.WriteByte('\n')
 	m.syncVP()
@@ -330,7 +403,9 @@ func (m *model) commitLine(s string) {
 
 func (m *model) syncVP() {
 	m.vp.SetContent(m.committed.String() + m.liveAsst.String())
-	m.vp.GotoBottom()
+	if m.stickBottom {
+		m.vp.GotoBottom()
+	}
 }
 
 func (m *model) View() string {
@@ -338,9 +413,21 @@ func (m *model) View() string {
 		m.width = 80
 	}
 	header := titleStyle.Width(m.width).Render("OpenClaude v4 — TUI")
-	sub := dimStyle.Width(m.width).Render("Ctrl+C quit · /help")
-	if m.busy {
-		sub = lipgloss.JoinHorizontal(lipgloss.Left, sub, "  ", dimStyle.Render("working…"))
+	status := strings.TrimSpace(m.cfg.StatusLine)
+	if status == "" {
+		status = "Ctrl+C quit · PgUp/PgDn Home/End scroll · /help"
+	} else {
+		status = status + "    PgUp/PgDn Home/End · /help"
+	}
+	sub := dimStyle.Width(m.width).Render(status)
+	if m.busy || m.runningTool != "" {
+		var w strings.Builder
+		w.WriteString("working…")
+		if m.runningTool != "" {
+			w.WriteString(" · ")
+			w.WriteString(m.runningTool)
+		}
+		sub = lipgloss.JoinVertical(lipgloss.Left, sub, dimStyle.Width(m.width).Render(w.String()))
 	}
 	body := border.Width(m.width - 2).Render(m.vp.View())
 

@@ -32,8 +32,8 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 
 - [x] **Interactive `/provider` wizard** — [`/provider wizard`](./cmd/openclaude/slash.go) + [`slash_provider_wizard.go`](./cmd/openclaude/slash_provider_wizard.go); TUI falls back to static copy-paste guide
 - [x] **Headless one-shot** mode (v3 `-p` / print) for scripts and CI — [`runPrintTurn`](./cmd/openclaude/chat.go); `--print` / `-p` (optional `-p -` stdin); incompatible with `--tui`; dangerous tools need `OPENCLAUDE_AUTO_APPROVE_TOOLS` or they are skipped (stderr)
-- [ ] Optional: **concurrent session registry** / `ps`-style listing (v3 PID files under a sessions dir)
-- [ ] Expand **slash commands** toward v3 surface where still relevant (`/onboard-github`, MCP management, etc.)
+- [x] Optional: **concurrent session registry** / `ps`-style listing — [`<dir>/running/<pid>.json`](./internal/session/running.go) on chat/TUI start; [`openclaude sessions`](./cmd/openclaude/sessions.go); [`/session running`](./cmd/openclaude/slash.go) / `/session ps`
+- [x] Partial: **slash commands** — [`/onboard`](./cmd/openclaude/slash.go) / `/setup`, [`/mcp help`](./cmd/openclaude/slash.go); v3-deep items still open (e.g. `/onboard-github`, full MCP config from REPL)
 
 ### MCP
 
@@ -98,6 +98,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 - [x] Rich streaming + tool call/result panels (vs plain stdout today)
 - [x] Interactive permission prompts polished for TUI
 - [x] Published `bin` / install story (goreleaser releases, semver)
+- [x] TUI polish: status line (provider · model · session), **PgUp/PgDn/Home/End** transcript scroll with stick-to-bottom on new output ([`internal/tui/model.go`](./internal/tui/model.go)), **glamour** markdown on finished assistant turns ([`internal/tui/render.go`](./internal/tui/render.go); `OPENCLAUDE_TUI_MARKDOWN=0` to disable), diff-like **tool result** coloring, configurable tool preview (`OPENCLAUDE_TUI_TOOL_PREVIEW` rune cap, default 4000)
 
 ## Phase 5 — Sessions & compaction
 

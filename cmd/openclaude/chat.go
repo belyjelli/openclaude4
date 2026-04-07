@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -122,6 +123,25 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "true")
 
 	useTUI := useTUIEarly || envTruthy("OPENCLAUDE_TUI")
+
+	if !printMode {
+		meta := session.RunningMeta{
+			PID:      os.Getpid(),
+			CWD:      wd,
+			TUI:      useTUI,
+			Provider: config.ProviderName(),
+			Model:    config.Model(),
+		}
+		if persist != nil {
+			meta.SessionID = persist.store.ID
+		}
+		if cleanup, err := session.RegisterRunning(config.EffectiveSessionDir(), meta); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "openclaude: running registry: %v\n", err)
+		} else if cleanup != nil {
+			defer cleanup()
+		}
+	}
+
 	if printMode {
 		if err := runPrintTurn(ctx, cmd, client, reg, &messages, beforeUserTurn, autoApprove, &agent); err != nil {
 			return err
@@ -140,6 +160,9 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			Messages:       &messages,
 			AutoApprove:    autoApprove,
 			Banner:         bannerStr,
+			StatusLine:     buildTUIStatusLine(client, persist),
+			ToolPreviewMax: tuiToolPreviewMax(),
+			MarkdownAssist: tuiMarkdownEnabled(),
 			BeforeUserTurn: beforeUserTurn,
 			AfterTurn: func() error {
 				if persist != nil {
@@ -421,6 +444,49 @@ func envTruthy(key string) bool {
 	return strings.EqualFold(v, "1") || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 }
 
+func buildTUIStatusLine(client core.StreamClient, persist *chatPersist) string {
+	var b strings.Builder
+	if info, ok := providers.AsStreamClientInfo(client); ok {
+		b.WriteString(info.ProviderKind())
+		b.WriteString(" · ")
+		b.WriteString(info.Model())
+	} else {
+		b.WriteString("provider unknown")
+	}
+	if persist != nil {
+		b.WriteString(" · session ")
+		b.WriteString(persist.store.ID)
+	} else {
+		b.WriteString(" · no disk session")
+	}
+	return b.String()
+}
+
+func tuiToolPreviewMax() int {
+	const defaultMax = 4000
+	s := strings.TrimSpace(os.Getenv("OPENCLAUDE_TUI_TOOL_PREVIEW"))
+	if s == "" {
+		return defaultMax
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 {
+		return 400
+	}
+	if n == 0 {
+		return defaultMax
+	}
+	const capMax = 1 << 20
+	if n > capMax {
+		return capMax
+	}
+	return n
+}
+
+func tuiMarkdownEnabled() bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("OPENCLAUDE_TUI_MARKDOWN")))
+	return v != "0" && v != "false" && v != "no"
+}
+
 func printChatBanner(c core.StreamClient, mcp *mcpclient.Manager) {
 	writeChatBanner(os.Stderr, c, mcp)
 }
@@ -471,12 +537,15 @@ func printChatHelpTo(w io.Writer) {
 		w = os.Stdout
 	}
 	const help = `Commands:
+  /onboard, /setup Quick env hints (same themes as doctor)
   /provider         Show active provider, model, base URL, credential hint
   /provider wizard  Interactive setup (YAML/env hints; plain REPL only — use /provider help)
   /mcp list    List connected MCP servers and tool names (see openclaude.yaml mcp.servers)
   /mcp doctor  Show same as list + tip to run openclaude mcp doctor for a fresh check
+  /mcp help    Subcommands summary + shell equivalents
   /session     Show active session file path (when sessions enabled)
   /session list    List saved session files on disk
+  /session running, /session ps   List local openclaude PIDs (registry; works even if disk session off)
   /session load <id>   Switch to another session (saves current first)
   /session new <id>    New empty session under id (saves current first)
   /session save    Force write current transcript to disk

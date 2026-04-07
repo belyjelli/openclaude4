@@ -48,7 +48,7 @@ func init() {
 		config.Load(path)
 	}
 
-	rootCmd.AddCommand(versionCmd, doctorCmd)
+	rootCmd.AddCommand(versionCmd, doctorCmd, sessionsCmd)
 }
 
 var versionCmd = &cobra.Command{

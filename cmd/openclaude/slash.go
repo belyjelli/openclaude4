@@ -43,7 +43,13 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 		return errSlashExitChat
 	case "help":
 		printChatHelpTo(out)
+	case "onboard", "setup":
+		printOnboardHints(out)
 	case "mcp":
+		if len(args) > 0 && strings.EqualFold(args[0], "help") {
+			printMCPHelp(out)
+			return nil
+		}
 		if len(args) == 0 || args[0] == "list" {
 			_, _ = fmt.Fprintln(out, st.mcpMgr.DescribeServers())
 			return nil
@@ -53,7 +59,7 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 			_, _ = fmt.Fprintln(out, "\nTip: for a fresh connect test from config (new processes), run: openclaude mcp doctor")
 			return nil
 		}
-		return fmt.Errorf("unknown /mcp subcommand %q (try /mcp list, /mcp doctor)", args[0])
+		return fmt.Errorf("unknown /mcp subcommand %q (try /mcp list, /mcp doctor, /mcp help)", args[0])
 	case "clear":
 		*st.messages = nil
 		if st.persist != nil {
@@ -101,6 +107,12 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 }
 
 func handleSessionSlash(args []string, st chatState, out io.Writer) error {
+	if len(args) > 0 {
+		switch strings.ToLower(strings.TrimSpace(args[0])) {
+		case "running", "ps":
+			return writeRunningList(out, config.EffectiveSessionDir())
+		}
+	}
 	if st.persist == nil {
 		return fmt.Errorf("sessions disabled — omit --no-session to enable on-disk sessions")
 	}
@@ -155,6 +167,65 @@ func handleSessionSlash(args []string, st chatState, out io.Writer) error {
 		_, _ = fmt.Fprintf(out, "(new session %q — transcript cleared)\n", st.persist.store.ID)
 		return nil
 	default:
-		return fmt.Errorf("unknown /session %q — try /session list, load, new, save, show", args[0])
+		return fmt.Errorf("unknown /session %q — try /session list, running, load, new, save, show", args[0])
 	}
+}
+
+func writeRunningList(w io.Writer, dir string) error {
+	run, err := session.ListRunning(dir)
+	if err != nil {
+		return err
+	}
+	if len(run) == 0 {
+		_, _ = fmt.Fprintf(w, "(no running-registry entries under %s/running)\n", dir)
+		return nil
+	}
+	_, _ = fmt.Fprintf(w, "Running registry (%s/running):\n", dir)
+	for _, r := range run {
+		st := "stale"
+		if r.Alive {
+			st = "alive"
+		}
+		mode := "repl"
+		if r.Meta.TUI {
+			mode = "tui"
+		}
+		pm := r.Meta.Provider
+		if r.Meta.Model != "" {
+			if pm != "" {
+				pm = pm + "/" + r.Meta.Model
+			} else {
+				pm = r.Meta.Model
+			}
+		}
+		_, _ = fmt.Fprintf(w, "  pid %-6d  %-5s  %-4s  session=%q  cwd=%s  started=%s\n",
+			r.Meta.PID, st, mode, r.Meta.SessionID, r.Meta.CWD, r.Meta.Started)
+		if pm != "" {
+			_, _ = fmt.Fprintf(w, "            %s\n", pm)
+		}
+	}
+	return nil
+}
+
+func printMCPHelp(w io.Writer) {
+	const text = `/mcp list    Tools from MCP servers connected in this process
+/mcp doctor Same output plus a tip to run: openclaude mcp doctor
+/mcp help   This text
+
+Shell: openclaude mcp list | doctor | add
+`
+	_, _ = fmt.Fprint(w, text)
+}
+
+func printOnboardHints(w io.Writer) {
+	const text = `Onboarding (see docs/CONFIG.md):
+  openai   OPENAI_API_KEY  optional OPENAI_BASE_URL / OPENAI_MODEL
+  ollama   OPENCLAUDE_PROVIDER=ollama  optional OLLAMA_HOST / OLLAMA_MODEL
+  gemini   OPENCLAUDE_PROVIDER=gemini  GEMINI_API_KEY or GOOGLE_API_KEY
+
+Verify: openclaude doctor
+Saved + running processes: openclaude sessions
+Full-screen UI: openclaude --tui
+`
+	_, _ = fmt.Fprint(w, text)
 }

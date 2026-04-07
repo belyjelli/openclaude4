@@ -103,6 +103,15 @@ Failed servers are skipped with a message on stderr; chat still starts if built-
 | `OPENCLAUDE_SESSION_SUMMARIZE_OVER_THRESHOLD` / `session.summarize_over_threshold` | If threshold tripped, call the model for a summary instead of lossy tail trim (falls back to trim on failure) |
 | `OPENCLAUDE_SESSION_COMPACT_KEEP_MESSAGES` / `session.compact_keep_messages` | Tail size for `/compact` and lossy auto-compact (default 24 after system) |
 
+**TUI (`--tui` / `OPENCLAUDE_TUI=1`):**
+
+| Variable | Purpose |
+|----------|--------|
+| `OPENCLAUDE_TUI_TOOL_PREVIEW` | Max UTF-8 **runes** of each tool’s stdout shown in the transcript (default 4000; `0` = default; invalid = 400) |
+| `OPENCLAUDE_TUI_MARKDOWN` | Set `0` / `false` / `no` to render finished assistant text as plain (default: glamour markdown in the terminal) |
+
+**Running registry:** each interactive chat writes `<session-dir>/running/<pid>.json` (removed on clean exit). Inspect with **`openclaude sessions`** or **`/session running`** in the REPL/TUI.
+
 Ollama exposes an OpenAI-compatible chat API at `{OLLAMA_HOST}/v1` ([Ollama OpenAI docs](https://github.com/ollama/ollama/blob/main/docs/openai.md)).
 
 ## v3 migration notes
@@ -122,7 +131,7 @@ Invalid `provider.name` values are rejected at chat startup (`config.Validate()`
 
 ## In-session slash commands (REPL)
 
-Handled in the chat loop (not config keys): `/help`, `/provider` (and **`/provider wizard`** for interactive YAML/env setup in the plain REPL; in `--tui`, wizard prints a static copy-paste guide), `/mcp list`, `/mcp doctor`, `/session` (show, list, load, new, save), `/compact` (lossy transcript trim: keeps system + last N messages, default 24; override via `session.compact_keep_messages`), `/clear`, `/exit`, `/quit`. From the shell: **`openclaude mcp list`** (config only), **`openclaude mcp doctor`** (connect + list tools; exit 1 if any server fails), **`openclaude mcp add`** (append a `mcp.servers` entry — repeats `--exec` per argv token; **`--dry-run`** to preview; YAML comments are not preserved on rewrite).
+Handled in the chat loop (not config keys): `/help`, `/onboard` / `/setup`, `/provider` (and **`/provider wizard`** for interactive YAML/env setup in the plain REPL; in `--tui`, wizard prints a static copy-paste guide), `/mcp list`, `/mcp doctor`, `/mcp help`, `/session` (show, list, **running** / **ps**, load, new, save), `/compact` (lossy transcript trim: keeps system + last N messages, default 24; override via `session.compact_keep_messages`), `/clear`, `/exit`, `/quit`. From the shell: **`openclaude sessions`** (saved sessions + running registry), **`openclaude mcp list`** (config only), **`openclaude mcp doctor`** (connect + list tools; exit 1 if any server fails), **`openclaude mcp add`** (append a `mcp.servers` entry — repeats `--exec` per argv token; **`--dry-run`** to preview; YAML comments are not preserved on rewrite).
 
 ## Diagnostics
 
