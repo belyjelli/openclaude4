@@ -21,11 +21,11 @@ type Manager struct {
 
 // ServerTools summarizes one connected MCP server.
 type ServerTools struct {
-	Name         string
-	OpenAINames  []string
-	MCPNames     []string
-	Session      *mcp.ClientSession
-	approval     string
+	Name        string
+	OpenAINames []string
+	MCPNames    []string
+	Session     *mcp.ClientSession
+	approval    string
 }
 
 // ConnectAndRegister starts stdio MCP servers from cfg, lists tools (with pagination), and registers them on reg.
@@ -57,14 +57,14 @@ func ConnectAndRegister(ctx context.Context, reg *tools.Registry, servers []conf
 
 		sess, err := cli.Connect(ctx, &mcp.CommandTransport{Command: cmd}, nil)
 		if err != nil {
-			fmt.Fprintf(OrDiscard(log), "mcp: server %q: connect: %v\n", srv.Name, err)
+			_, _ = fmt.Fprintf(OrDiscard(log), "mcp: server %q: connect: %v\n", srv.Name, err)
 			continue
 		}
 
 		mcpTools, err := listAllTools(ctx, sess)
 		if err != nil {
 			_ = sess.Close()
-			fmt.Fprintf(OrDiscard(log), "mcp: server %q: list tools: %v\n", srv.Name, err)
+			_, _ = fmt.Fprintf(OrDiscard(log), "mcp: server %q: list tools: %v\n", srv.Name, err)
 			continue
 		}
 
@@ -158,13 +158,13 @@ func (m *Manager) DescribeServers() string {
 	}
 	var b strings.Builder
 	for _, s := range m.Servers {
-		fmt.Fprintf(&b, "- %s: %d tool(s), approval=%s\n", s.Name, len(s.OpenAINames), s.approval)
+		_, _ = fmt.Fprintf(&b, "- %s: %d tool(s), approval=%s\n", s.Name, len(s.OpenAINames), s.approval)
 		for i, oai := range s.OpenAINames {
 			mcpN := ""
 			if i < len(s.MCPNames) {
 				mcpN = s.MCPNames[i]
 			}
-			fmt.Fprintf(&b, "    %s (MCP %q)\n", oai, mcpN)
+			_, _ = fmt.Fprintf(&b, "    %s (MCP %q)\n", oai, mcpN)
 		}
 	}
 	return strings.TrimRight(b.String(), "\n")
@@ -217,17 +217,17 @@ func formatCallToolResult(res *mcp.CallToolResult) string {
 		case *mcp.TextContent:
 			b.WriteString(x.Text)
 		case *mcp.ImageContent:
-			fmt.Fprintf(&b, "[image %s, %d bytes]", x.MIMEType, len(x.Data))
+			_, _ = fmt.Fprintf(&b, "[image %s, %d bytes]", x.MIMEType, len(x.Data))
 		case *mcp.AudioContent:
-			fmt.Fprintf(&b, "[audio %s, %d bytes]", x.MIMEType, len(x.Data))
+			_, _ = fmt.Fprintf(&b, "[audio %s, %d bytes]", x.MIMEType, len(x.Data))
 		case *mcp.ResourceLink:
-			fmt.Fprintf(&b, "[resource_link uri=%s name=%s]", x.URI, x.Name)
+			_, _ = fmt.Fprintf(&b, "[resource_link uri=%s name=%s]", x.URI, x.Name)
 		case *mcp.EmbeddedResource:
 			if x.Resource != nil {
 				if x.Resource.Text != "" {
 					b.WriteString(x.Resource.Text)
 				} else if len(x.Resource.Blob) > 0 {
-					fmt.Fprintf(&b, "[blob %s, %d bytes]", x.Resource.MIMEType, len(x.Resource.Blob))
+					_, _ = fmt.Fprintf(&b, "[blob %s, %d bytes]", x.Resource.MIMEType, len(x.Resource.Blob))
 				} else {
 					b.WriteString("[embedded resource]")
 				}
@@ -237,7 +237,7 @@ func formatCallToolResult(res *mcp.CallToolResult) string {
 		default:
 			raw, err := json.Marshal(c)
 			if err != nil {
-				fmt.Fprintf(&b, "%T", c)
+				_, _ = fmt.Fprintf(&b, "%T", c)
 			} else {
 				b.Write(raw)
 			}

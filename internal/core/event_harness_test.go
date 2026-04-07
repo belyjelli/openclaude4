@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gitlawb/openclaude4/internal/tools"
@@ -69,7 +70,7 @@ func TestEventHarness_TextOnly(t *testing.T) {
 
 func TestEventHarness_ToolThenText(t *testing.T) {
 	tmp := t.TempDir()
-	if err := os.WriteFile(filepath.Join(tmp, "hello.txt"), []byte("inside"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmp, "hello.txt"), []byte("inside"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -111,10 +112,10 @@ func TestEventHarness_ToolThenText(t *testing.T) {
 		},
 	)
 
-	var n int32
+	var n atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
-		switch atomicAddInt(&n, 1) {
+		switch n.Add(1) {
 		case 1:
 			_, _ = w.Write(sseBody(toolChunk, finishTools))
 		case 2:
@@ -145,16 +146,9 @@ func TestEventHarness_ToolThenText(t *testing.T) {
 	for _, e := range evs {
 		kinds = append(kinds, e.Kind)
 	}
-	if !containsSeq(kinds, KindUserMessage, KindAssistantFinished, KindToolCall, KindToolResult, KindAssistantFinished, KindTurnComplete) {
+	if !containsSeq(kinds, KindUserMessage, KindAssistantFinished, KindToolCall, KindToolResult, KindAssistantTextDelta, KindAssistantFinished, KindTurnComplete) {
 		t.Fatalf("event sequence: %v", kinds)
 	}
-}
-
-func intPtr(i int) *int { return &i }
-
-func atomicAddInt(p *int32, d int32) int32 {
-	*p += d
-	return *p
 }
 
 func containsSeq(haystack []EventKind, needle ...EventKind) bool {

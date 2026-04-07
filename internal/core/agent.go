@@ -238,9 +238,9 @@ func consumeAssistantStream(stream *sdk.ChatCompletionStream, out io.Writer, emi
 			_, _ = out.Write([]byte(delta.Content))
 			content.WriteString(delta.Content)
 			emit(Event{
-				Kind:              KindAssistantTextDelta,
-				TextChunk:         delta.Content,
-				AssistantRounds:   modelRound,
+				Kind:            KindAssistantTextDelta,
+				TextChunk:       delta.Content,
+				AssistantRounds: modelRound,
 			})
 		}
 		for _, tc := range delta.ToolCalls {
@@ -277,11 +277,11 @@ func consumeAssistantStream(stream *sdk.ChatCompletionStream, out io.Writer, emi
 		ToolCalls: toolCalls,
 	}
 	emit(Event{
-		Kind:              KindAssistantFinished,
-		AssistantText:     content.String(),
-		ToolCallCount:     len(toolCalls),
-		FinishReason:      string(finish),
-		AssistantRounds:   modelRound,
+		Kind:            KindAssistantFinished,
+		AssistantText:   content.String(),
+		ToolCallCount:   len(toolCalls),
+		FinishReason:    string(finish),
+		AssistantRounds: modelRound,
 	})
 	return msg, nil
 }

@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.8.1
+	github.com/modelcontextprotocol/go-sdk v1.5.0
 	github.com/sashabaranov/go-openai v1.41.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
@@ -14,7 +15,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/modelcontextprotocol/go-sdk v1.5.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect

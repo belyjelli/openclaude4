@@ -24,7 +24,7 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 - [x] `read_file` / write / edit tools, `bash` (dangerous; confirm hook in REPL), `grep`, `glob`, `web_search` — [`NewDefaultRegistry`](./internal/tools/registry.go)
 - [x] Stdin/stdout REPL — [`cmd/openclaude/chat.go`](./cmd/openclaude/chat.go)
 - [x] Env: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`; flags `--model`, `--base-url`; `OPENCLAUDE_AUTO_APPROVE_TOOLS` — [README](./README.md), [`internal/config`](./internal/config/config.go)
-- [ ] Explicit kernel **event** union (text delta, tool call/result, errors) for transports — today output goes to `io.Writer` + SDK message types
+- [x] Kernel **event harness** — [`internal/core/event.go`](./internal/core/event.go) (`Event`, `EventKind`) + [`Agent.OnEvent`](./internal/core/agent.go); REPL still uses `Out` only
 - [x] Agent loop tests with **local httptest** SSE + real `go-openai` stream reader (no external APIs) — [`internal/core/agent_test.go`](./internal/core/agent_test.go) (includes OpenAI / Ollama / Gemini **model id** cases on the same HTTP shape)
 - [x] Provider overview in [`docs/PROVIDERS.md`](./docs/PROVIDERS.md) (cross-linked from [CONFIG.md](./docs/CONFIG.md))
 

@@ -19,6 +19,8 @@ All built-in backends speak the **OpenAI Chat Completions** HTTP API (`POST /v1/
 
 The agent loop is covered with **httptest** SSE mocks for multiple **model id** strings (OpenAI, Ollama tag, Gemini id) in [`internal/core/agent_test.go`](../internal/core/agent_test.go) (`TestRunUserTurn_OpenAICompatiblePerProviderModel`). The wire format is the same; only the configured model name and API key differ.
 
+Structured **kernel events** (streaming deltas, tool calls, errors) are emitted via [`Agent.OnEvent`](../internal/core/agent.go); see [`internal/core/event.go`](../internal/core/event.go) and [`event_harness_test.go`](../internal/core/event_harness_test.go).
+
 ## See also
 
 - [CONFIG.md](./CONFIG.md) — precedence, env vars, YAML, v3 profile merge
