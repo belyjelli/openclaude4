@@ -14,9 +14,11 @@ import (
 // WebSearch uses DuckDuckGo's instant-answer JSON API (no API key; limited results).
 type WebSearch struct{}
 
-func (WebSearch) Name() string        { return "WebSearch" }
-func (WebSearch) IsDangerous() bool   { return false }
-func (WebSearch) Description() string { return "Lightweight web lookup via DuckDuckGo instant answers (abstract + related topics, not full SERP)." }
+func (WebSearch) Name() string      { return "WebSearch" }
+func (WebSearch) IsDangerous() bool { return false }
+func (WebSearch) Description() string {
+	return "Lightweight web lookup via DuckDuckGo instant answers (abstract + related topics, not full SERP)."
+}
 
 func (WebSearch) Parameters() map[string]any {
 	return map[string]any{
@@ -59,7 +61,7 @@ func (WebSearch) Execute(ctx context.Context, args map[string]any) (string, erro
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return "", err
@@ -91,7 +93,7 @@ func (WebSearch) Execute(ctx context.Context, args map[string]any) (string, erro
 	}
 	// Flatten a few related links (structure varies).
 	for _, rt := range payload.RelatedTopics {
-		if len(b) > 8000 {
+		if b.Len() > 8000 {
 			break
 		}
 		if m, ok := rt.(map[string]any); ok {

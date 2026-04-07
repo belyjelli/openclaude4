@@ -1,5 +1,9 @@
 {
-  "comment": "v4 will merge file-based settings with env; this is a placeholder shape for parity work.",
+  "comment": "JSON settings parity with v3 is future work; v4 Go CLI prefers openclaude.yaml + env (see docs/CONFIG.md).",
   "defaultProvider": "openai-compatible",
-  "model": "gpt-4o-mini"
+  "model": "gpt-4o-mini",
+  "ollama": {
+    "host": "http://127.0.0.1:11434",
+    "model": "llama3.2"
+  }
 }

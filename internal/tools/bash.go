@@ -11,9 +11,11 @@ import (
 // Bash runs a shell command under the workspace with a timeout.
 type Bash struct{}
 
-func (Bash) Name() string        { return "Bash" }
-func (Bash) IsDangerous() bool   { return true }
-func (Bash) Description() string { return "Run a shell command (sh -c on Unix, cmd /C on Windows). Optional cwd relative to workspace. Output is merged stdout+stderr." }
+func (Bash) Name() string      { return "Bash" }
+func (Bash) IsDangerous() bool { return true }
+func (Bash) Description() string {
+	return "Run a shell command (sh -c on Unix, cmd /C on Windows). Optional cwd relative to workspace. Output is merged stdout+stderr."
+}
 
 func (Bash) Parameters() map[string]any {
 	return map[string]any{

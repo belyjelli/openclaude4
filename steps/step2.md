@@ -304,11 +304,36 @@ func (a *Agent) Run(ctx context.Context, userPrompt string) error {
 
 Once you have the above:
 - Hook it into your Bubble Tea TUI (streaming + confirmation dialogs)
-- Add the provider abstraction (`internal/providers/provider.go`) that supports `ChatWithTools`
+- Extend `internal/providers/provider.go` with a first-class `ChatWithTools` / stream interface shared by multiple providers
 - Test the full loop with a simple prompt like “create a hello.go file and run it”
 
-Would you like me to:
-1. Generate the **complete set of tool files** as copy-paste-ready code right now, or
-2. First give you the **provider interface + OpenAI implementation** so the loop actually runs?
+---
 
-Just say which one (or both) and I’ll drop the full code. This Phase 1 will already make your Go version more powerful than 90 % of existing agents.
+## Implementation status (this repository)
+
+| Item | Status |
+|------|--------|
+| `internal/tools` — interface, registry, OpenAI schema export | Done |
+| `FileRead`, `FileWrite`, `FileEdit`, `Bash`, `Grep`, `Glob`, `WebSearch` | Done |
+| `internal/sandbox` — shell runner + basic blocklist | Done |
+| `internal/core` — streaming accumulation + multi-turn tool loop | Done |
+| `openaicomp.StreamChatWithTools` | Done |
+| `cmd/openclaude` REPL wired to agent + workdir context | Done |
+| Bubble Tea TUI | Not started |
+| Dedicated `internal/sandbox/` syscall-level isolation | Not started (shell limits only) |
+
+Run: `go run ./cmd/openclaude` from the repo (set `OPENAI_API_KEY`). See [README.md](../README.md) for env vars.
+
+---
+
+## Phase 2 additions (this repository)
+
+| Item | Status |
+|------|--------|
+| Config file search (`openclaude.yaml` / json, `--config`) | Done — [docs/CONFIG.md](../docs/CONFIG.md) |
+| Env + flag merge via Viper | Done |
+| Second provider: **Ollama** (OpenAI-compatible `/v1` on host) | Done |
+| `openclaude doctor` | Done |
+| Gemini / Codex providers | Not started |
+| Import `.openclaude-profile.json` automatically | Not started |
+| CI tests with `httptest` mock API | Partial — `internal/core/agent_test.go` + `internal/providers/ping_test.go` |

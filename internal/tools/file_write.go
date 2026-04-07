@@ -10,9 +10,11 @@ import (
 // FileWrite overwrites or creates a file under the workspace.
 type FileWrite struct{}
 
-func (FileWrite) Name() string        { return "FileWrite" }
-func (FileWrite) IsDangerous() bool   { return true }
-func (FileWrite) Description() string { return "Write UTF-8 text to a file (creates parent directories). Overwrites existing files." }
+func (FileWrite) Name() string      { return "FileWrite" }
+func (FileWrite) IsDangerous() bool { return true }
+func (FileWrite) Description() string {
+	return "Write UTF-8 text to a file (creates parent directories). Overwrites existing files."
+}
 
 func (FileWrite) Parameters() map[string]any {
 	return map[string]any{

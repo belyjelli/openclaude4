@@ -3,10 +3,10 @@ package providers
 import (
 	"context"
 
-	"github.com/sashabaranov/go-openai"
+	sdk "github.com/sashabaranov/go-openai"
 )
 
-// ChatStreamer streams assistant tokens for a fixed message list (Phase 0: no tools).
+// ChatStreamer streams assistant text without tools (optional transports / tests).
 type ChatStreamer interface {
-	StreamChat(ctx context.Context, messages []openai.ChatCompletionMessage) (*openai.ChatCompletionStream, error)
+	StreamChat(ctx context.Context, messages []sdk.ChatCompletionMessage) (*sdk.ChatCompletionStream, error)
 }

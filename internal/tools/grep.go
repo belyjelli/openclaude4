@@ -19,9 +19,11 @@ const (
 // Grep searches file contents with a regular expression under a path.
 type Grep struct{}
 
-func (Grep) Name() string        { return "Grep" }
-func (Grep) IsDangerous() bool   { return false }
-func (Grep) Description() string { return "Search UTF-8 text files under a path using Go regexp syntax. Skips large/binary-looking files." }
+func (Grep) Name() string      { return "Grep" }
+func (Grep) IsDangerous() bool { return false }
+func (Grep) Description() string {
+	return "Search UTF-8 text files under a path using Go regexp syntax. Skips large/binary-looking files."
+}
 
 func (Grep) Parameters() map[string]any {
 	return map[string]any{

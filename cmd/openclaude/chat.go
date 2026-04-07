@@ -7,32 +7,65 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/gitlawb/openclaude4/internal/core"
+	"github.com/gitlawb/openclaude4/internal/providers"
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
+	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
 	"github.com/spf13/cobra"
 )
 
 func runChat(cmd *cobra.Command, _ []string) error {
-	client, err := openaicomp.New()
+	client, err := providers.NewStreamClient()
 	if err != nil {
 		if errors.Is(err, openaicomp.ErrMissingAPIKey) {
-			_, _ = fmt.Fprintln(os.Stderr, "Error: set OPENAI_API_KEY in your environment.")
+			_, _ = fmt.Fprintln(os.Stderr, "Error: set OPENAI_API_KEY (or use provider ollama with a local Ollama install).")
 			return err
 		}
 		return err
 	}
 
-	_, _ = fmt.Fprintf(os.Stderr, "OpenClaude v4 (phase 0). Model: %s. Type /help for commands. Ctrl+D to exit.\n", client.Model())
+	printChatBanner(client)
 
 	ctx := cmd.Context()
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
+	wd, err := filepath.Abs(".")
+	if err != nil {
+		return err
+	}
+	ctx = tools.WithWorkDir(ctx, wd)
+
 	var messages []sdk.ChatCompletionMessage
 	reader := bufio.NewReader(os.Stdin)
+	reg := tools.NewDefaultRegistry()
+
+	autoApprove := strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "1") ||
+		strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "true")
+
+	agent := &core.Agent{
+		Client:   client,
+		Registry: reg,
+		Out:      os.Stdout,
+		Confirm: func(toolName string, args map[string]any) bool {
+			if autoApprove {
+				_, _ = fmt.Fprintf(os.Stderr, "[auto-approved] %s\n", toolName)
+				return true
+			}
+			_, _ = fmt.Fprintf(os.Stderr, "Approve tool %q with args %v? [y/N]: ", toolName, args)
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				return false
+			}
+			line = strings.TrimSpace(strings.ToLower(line))
+			return line == "y" || line == "yes"
+		},
+	}
 
 	for {
 		_, _ = fmt.Fprint(os.Stdout, "> ")
@@ -67,65 +100,51 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			continue
 		}
 
-		messages = append(messages, sdk.ChatCompletionMessage{
-			Role:    sdk.ChatMessageRoleUser,
-			Content: line,
-		})
-
-		stream, err := client.StreamChat(ctx, messages)
-		if err != nil {
-			// Drop the last user message so the user can retry.
-			messages = messages[:len(messages)-1]
-			return fmt.Errorf("stream start: %w", err)
-		}
-
-		var assistant strings.Builder
-		for {
-			resp, err := stream.Recv()
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			if err != nil {
-				_ = stream.Close()
-				messages = messages[:len(messages)-1]
-				return fmt.Errorf("stream recv: %w", err)
-			}
-			if len(resp.Choices) == 0 {
-				continue
-			}
-			delta := resp.Choices[0].Delta.Content
-			_, _ = fmt.Fprint(os.Stdout, delta)
-			assistant.WriteString(delta)
-		}
-		_ = stream.Close()
-		_, _ = fmt.Fprintln(os.Stdout)
-
-		text := assistant.String()
-		if text != "" {
-			messages = append(messages, sdk.ChatCompletionMessage{
-				Role:    sdk.ChatMessageRoleAssistant,
-				Content: text,
-			})
+		if err := agent.RunUserTurn(ctx, &messages, line); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			continue
 		}
 	}
 }
 
-func printProviderInfo(c *openaicomp.Client) {
-	base := c.BaseURL()
+func printChatBanner(c core.StreamClient) {
+	if info, ok := providers.AsStreamClientInfo(c); ok {
+		_, _ = fmt.Fprintf(os.Stderr, "OpenClaude v4 (phase 2). Provider: %s. Model: %s. Type /help. Ctrl+D to exit.\n",
+			info.ProviderKind(), info.Model())
+		return
+	}
+	_, _ = fmt.Fprintln(os.Stderr, "OpenClaude v4 (phase 2). Type /help. Ctrl+D to exit.")
+}
+
+func printProviderInfo(c core.StreamClient) {
+	info, ok := providers.AsStreamClientInfo(c)
+	if !ok {
+		_, _ = fmt.Fprintln(os.Stdout, "(provider details unavailable)")
+		return
+	}
+	base := info.BaseURL()
 	if base == "" {
 		base = "(default OpenAI API URL)"
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "Provider: OpenAI-compatible (go-openai)\nModel:   %s\nBase:    %s\nAPI key: %s\n",
-		c.Model(), base, c.RedactedAPIKeySummary())
+	_, _ = fmt.Fprintf(os.Stdout, "Kind:    %s\nModel:   %s\nBase:    %s\nAPI key: %s\n",
+		info.ProviderKind(), info.Model(), base, info.RedactedAPIKeySummary())
 }
 
 func printChatHelp() {
 	const help = `Commands:
-  /provider  Show active model, base URL, and redacted API key hint
+  /provider  Show active provider, model, base URL, credential hint
   /clear     Clear conversation history for this session
   /help      Show this help
   /exit      Exit (same as /quit)
   /quit      Exit
+
+Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch.
+Workspace is the current working directory.
+
+Providers: openai (default, needs OPENAI_API_KEY) or ollama (local, OPENCLAUDE_PROVIDER=ollama).
+See docs/CONFIG.md and openclaude doctor.
+
+Dangerous tools prompt unless OPENCLAUDE_AUTO_APPROVE_TOOLS=1
 `
 	_, _ = fmt.Fprint(os.Stdout, help)
 }

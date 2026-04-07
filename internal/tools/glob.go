@@ -17,9 +17,11 @@ const globMaxMatches = 500
 // Glob lists files matching a glob pattern (supports **).
 type Glob struct{}
 
-func (Glob) Name() string        { return "Glob" }
-func (Glob) IsDangerous() bool   { return false }
-func (Glob) Description() string { return "List files under the workspace matching a glob (e.g. \"**/*.go\"). Uses doublestar semantics from the workspace root." }
+func (Glob) Name() string      { return "Glob" }
+func (Glob) IsDangerous() bool { return false }
+func (Glob) Description() string {
+	return "List files under the workspace matching a glob (e.g. \"**/*.go\"). Uses doublestar semantics from the workspace root."
+}
 
 func (Glob) Parameters() map[string]any {
 	return map[string]any{

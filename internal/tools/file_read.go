@@ -9,9 +9,11 @@ import (
 // FileRead reads a text file within the workspace (size-capped).
 type FileRead struct{}
 
-func (FileRead) Name() string        { return "FileRead" }
-func (FileRead) IsDangerous() bool   { return false }
-func (FileRead) Description() string { return "Read the full text of a file under the workspace (UTF-8, capped at 512KiB)." }
+func (FileRead) Name() string      { return "FileRead" }
+func (FileRead) IsDangerous() bool { return false }
+func (FileRead) Description() string {
+	return "Read the full text of a file under the workspace (UTF-8, capped at 512KiB)."
+}
 
 func (FileRead) Parameters() map[string]any {
 	return map[string]any{

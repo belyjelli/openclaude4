@@ -1,0 +1,13 @@
+# Copy to openclaude.yaml or place under ~/.config/openclaude/openclaude.yaml
+# Do not commit real API keys.
+
+provider:
+  name: openai # or ollama
+  model: gpt-4o-mini
+
+openai:
+  api_key: "" # set via OPENAI_API_KEY in practice
+
+ollama:
+  host: http://127.0.0.1:11434
+  model: llama3.2

@@ -10,9 +10,11 @@ import (
 // FileEdit replaces one unique occurrence of old_string with new_string in a file.
 type FileEdit struct{}
 
-func (FileEdit) Name() string        { return "FileEdit" }
-func (FileEdit) IsDangerous() bool   { return true }
-func (FileEdit) Description() string { return "Edit a file by replacing exactly one occurrence of old_string with new_string (plain text)." }
+func (FileEdit) Name() string      { return "FileEdit" }
+func (FileEdit) IsDangerous() bool { return true }
+func (FileEdit) Description() string {
+	return "Edit a file by replacing exactly one occurrence of old_string with new_string (plain text)."
+}
 
 func (FileEdit) Parameters() map[string]any {
 	return map[string]any{

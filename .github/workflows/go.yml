@@ -19,6 +19,11 @@ jobs:
       - name: Verify module
         run: go mod verify
 
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.9.0
+
       - name: Build
         run: go build -ldflags "-X main.version=ci -X main.commit=$GITHUB_SHA" -o openclaude ./cmd/openclaude
 
