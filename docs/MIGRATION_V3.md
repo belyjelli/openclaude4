@@ -9,8 +9,8 @@ OpenClaude **v4** (this repository) is a **single Go binary** with a smaller sur
 
 ## Commands
 
-- **v4 today:** default **chat** (stdin REPL or `--tui`), `openclaude version`, `openclaude doctor`. Session flags and `/session` are documented in [CONFIG.md](./CONFIG.md) and the README.
-- **v4 headless API:** gRPC service code lives under [`internal/grpc/`](../internal/grpc/README.md). There is **no** `openclaude serve` subcommand yet; wiring is tracked in [TODO.md](../TODO.md) Phase 6.
+- **v4 today:** default **chat** (stdin REPL or `--tui`), `openclaude version`, `openclaude doctor`, **`openclaude serve`** for gRPC (`openclaude.v4.AgentService`). Session flags and `/session` are documented in [CONFIG.md](./CONFIG.md) and the README.
+- **v4 headless API:** implementation and proto under [`internal/grpc/`](../internal/grpc/README.md); listen address via `--listen` or `OPENCLAUDE_GRPC_ADDR` (see [CONFIG.md](./CONFIG.md#grpc-openclaude-serve)).
 
 ## Configuration
 

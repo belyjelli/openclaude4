@@ -36,7 +36,7 @@ v4 intentionally uses **`package openclaude.v4`** and a distinct Go import path 
 | `ChatRequest.message` | `ChatRequest.user_text` |
 | `ChatRequest.working_directory` | same |
 | `ChatRequest.model` | same (optional; server process still owns the real client today) |
-| `ChatRequest.session_id` | *not in v4 slice* — Phase 5 session persistence is separate |
+| `ChatRequest.session_id` | `ChatRequest.session_id` (field 4) — on-disk binding when `openclaude serve` runs with sessions enabled (same dir as REPL) |
 | `UserInput` / `CancelSignal` | same roles |
 | `TextChunk` | same |
 | `ToolCallStart` | same field names (`tool_use_id`, …) |
@@ -45,14 +45,14 @@ v4 intentionally uses **`package openclaude.v4`** and a distinct Go import path 
 | `FinalResponse` | split: `AssistantFinished` per model round + `TurnComplete` when the user turn ends |
 | `ErrorResponse` | `ErrorEvent` |
 
-## Wiring `openclaude serve` (follow-up)
+## CLI: `openclaude serve`
 
-*Owned by CLI; not implemented in this package.*
+Implemented in [`cmd/openclaude/serve.go`](../../cmd/openclaude/serve.go): same bootstrap as chat (config, `NewStreamClient`, default registry, MCP, `Task` tool with an atomic parent slot), then [`ocrpc.Register`](server.go) and TCP listen.
 
-1. Add a subcommand under `cmd/openclaude` (e.g. `serve`) that does **not** duplicate agent setup from [`cmd/openclaude/chat.go`](../../cmd/openclaude/chat.go): load config, `providers.NewStreamClient()`, `tools.NewDefaultRegistry()`, MCP `ConnectAndRegister`, register `core.NewTaskTool` with a lazy agent pointer (same pattern as chat/TUI).
-2. Create a [`grpc.Server`](https://pkg.go.dev/google.golang.org/grpc#Server), call [`ocrpc.Register`](server.go) with [`Kernel`](server.go)`{Client, Registry, AutoApprove}` (derive `AutoApprove` from env/config).
-3. Listen on `--listen` / `OPENCLAUDE_GRPC_ADDR` (e.g. `:50051`), `Serve` with `stream.Context()` for cancellation.
-4. Optional: TLS / auth middleware; document in README.
+- **Address:** `--listen` or env **`OPENCLAUDE_GRPC_ADDR`** (default **`:50051`**).
+- **Sessions:** [`Kernel.Session`](server.go) uses `config.SessionDisabled()` and `config.EffectiveSessionDir()`. [`ChatRequest.session_id`](proto/openclaude.proto) selects the on-disk session; empty id on a stream uses a new random id for the first turn, then sticks for later empty requests on that stream.
+- **Concurrency:** one `RunUserTurn` at a time server-wide (`serveTurnMu`) so the `Task` tool always resolves the active agent.
+- **Future:** TLS / auth middleware; optional HTTP gateway.
 
 ## Tests
 

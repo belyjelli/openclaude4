@@ -127,6 +127,18 @@ openclaude doctor
 
 Reports Go version, `rg` on `PATH`, active provider/model, reachability hints, and whether a chat client can be constructed.
 
+## gRPC (`openclaude serve`)
+
+Headless **`openclaude.v4.AgentService`** (see [`internal/grpc/README.md`](../internal/grpc/README.md)):
+
+| Mechanism | Purpose |
+|-----------|---------|
+| **`openclaude serve`** | Start the gRPC server after the same config validation as chat. |
+| **`OPENCLAUDE_GRPC_ADDR`** | Listen address if `--listen` is not set (default `:50051`). |
+| **`--listen`** | Overrides `OPENCLAUDE_GRPC_ADDR`. |
+
+Session persistence for gRPC uses the same **`session.*` / `OPENCLAUDE_NO_SESSION`** rules as the REPL. Clients set **`ChatRequest.session_id`** to load/save a named session; see the proto and gRPC README.
+
 ## Timeouts, iteration limits, and HTTP behavior
 
 There are **no** YAML/env knobs for these today; values are fixed in Go code. Rationale and security notes live in [SECURITY.md](./SECURITY.md#network).

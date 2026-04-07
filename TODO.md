@@ -41,9 +41,9 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 
 ### Headless gRPC and extension
 
-- [ ] **CLI to start gRPC** — implementation + proto + tests live under [`internal/grpc`](./internal/grpc/server.go); **no** `serve` subcommand in `cmd/openclaude` yet (steps in [`internal/grpc/README.md`](./internal/grpc/README.md#wiring-openclaude-serve-follow-up))
-- [ ] **v3 proto parity** — v3 [`openclaude.v1`](https://github.com/Gitlawb/openclaude/blob/main/src/proto/openclaude.proto) uses `ChatRequest.session_id`, `ActionRequired` / `FinalResponse` / `ErrorResponse`; v4 uses `openclaude.v4` and different event names. Document migration or provide a **compatibility gateway** for existing clients
-- [ ] VS Code extension plan remains Phase 6 (v3 ships [`vscode-extension/openclaude-vscode`](https://github.com/Gitlawb/openclaude/tree/main/vscode-extension/openclaude-vscode))
+- [x] **CLI to start gRPC** — [`openclaude serve`](./cmd/openclaude/serve.go); kernel + tests under [`internal/grpc`](./internal/grpc/README.md)
+- [ ] **v3 proto parity** — v3 [`openclaude.v1`](https://github.com/Gitlawb/openclaude/blob/main/src/proto/openclaude.proto) uses `ActionRequired` / `FinalResponse` / `ErrorResponse`; v4 uses `openclaude.v4` and different event names; `session_id` is supported on v4 `ChatRequest` for on-disk sessions. Document migration or provide a **compatibility gateway** for existing wire-level clients
+- [ ] VS Code extension plan remains Phase 6 (v3 ships [`vscode-extension/openclaude-vscode`](https://github.com/Gitlawb/openclaude/tree/main/vscode-extension/openclaude-vscode)); planning doc: [docs/VSCODE_EXTENSION.md](./docs/VSCODE_EXTENSION.md)
 
 ### Engineering / correctness (session + CLI)
 
@@ -110,8 +110,8 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 ## Phase 6 — Headless & release
 
 - [x] Partial: gRPC **server + generated stubs + v3 mapping table** — [`internal/grpc/README.md`](./internal/grpc/README.md)
-- [ ] **`openclaude serve`** (shared bootstrap with chat: config, client, registry, MCP, Task tool) — see README § “Wiring `openclaude serve`”
-- [ ] Optional: **gRPC stream session binding** (`session_id`-style) aligned with on-disk sessions for multi-client reuse (v3 had `session_id` on `ChatRequest`)
+- [x] **`openclaude serve`** (shared bootstrap with chat: config, client, registry, MCP, Task tool) — [`cmd/openclaude/serve.go`](./cmd/openclaude/serve.go)
+- [x] Optional: **gRPC stream session binding** (`session_id` on [`ChatRequest`](./internal/grpc/proto/openclaude.proto), on-disk [`session.Store`](./internal/session/store.go) when sessions enabled)
 - [x] Release checklist: semver, changelog, security policy pointer — [docs/RELEASE_CHECKLIST.md](./docs/RELEASE_CHECKLIST.md)
 - [x] Migration guide from v3 CLI (config, flags, gRPC package / event names) — [docs/MIGRATION_V3.md](./docs/MIGRATION_V3.md), [docs/PROTO_VERSIONING.md](./docs/PROTO_VERSIONING.md)
 - [x] VS Code extension plan (separate milestone) — [docs/VSCODE_EXTENSION.md](./docs/VSCODE_EXTENSION.md)
