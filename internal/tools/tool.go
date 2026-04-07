@@ -1,0 +1,79 @@
+package tools
+
+import (
+	"context"
+	"encoding/json"
+
+	sdk "github.com/sashabaranov/go-openai"
+	"github.com/sashabaranov/go-openai/jsonschema"
+)
+
+// Tool is one model-callable capability.
+type Tool interface {
+	Name() string
+	Description() string
+	Parameters() map[string]any
+	Execute(ctx context.Context, args map[string]any) (string, error)
+	IsDangerous() bool
+}
+
+// Registry holds registered tools by function name.
+type Registry struct {
+	tools map[string]Tool
+}
+
+// NewRegistry returns an empty registry.
+func NewRegistry() *Registry {
+	return &Registry{tools: make(map[string]Tool)}
+}
+
+// Register adds a tool; panics if name collides (startup error).
+func (r *Registry) Register(t Tool) {
+	name := t.Name()
+	if _, ok := r.tools[name]; ok {
+		panic("duplicate tool: " + name)
+	}
+	r.tools[name] = t
+}
+
+// Get returns a tool by OpenAI function name.
+func (r *Registry) Get(name string) (Tool, bool) {
+	t, ok := r.tools[name]
+	return t, ok
+}
+
+// List returns all tools in arbitrary order.
+func (r *Registry) List() []Tool {
+	out := make([]Tool, 0, len(r.tools))
+	for _, t := range r.tools {
+		out = append(out, t)
+	}
+	return out
+}
+
+// OpenAITools converts registry tools to the SDK tool list.
+func OpenAITools(reg *Registry) ([]sdk.Tool, error) {
+	list := reg.List()
+	out := make([]sdk.Tool, 0, len(list))
+	for _, t := range list {
+		raw, err := json.Marshal(t.Parameters())
+		if err != nil {
+			return nil, err
+		}
+		var params jsonschema.Definition
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return nil, err
+		}
+		name := t.Name()
+		desc := t.Description()
+		out = append(out, sdk.Tool{
+			Type: sdk.ToolTypeFunction,
+			Function: &sdk.FunctionDefinition{
+				Name:        name,
+				Description: desc,
+				Parameters:  params,
+			},
+		})
+	}
+	return out, nil
+}
