@@ -41,7 +41,7 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 - [x] `grep` tool (uses `rg` when available — see tool implementation)
 - [x] `glob` tool
-- [x] **Task** tool — bounded sub-session, fresh system + user goal, same tools/client, stdout discarded for sub-run; nesting limited via context depth (default: no Task inside Task) — [`internal/core/task_tool.go`](./internal/core/task_tool.go)
+- [x] **Task** tool — bounded sub-session, fresh system + user goal, same tools/client, stdout discarded for sub-run; child registry omits `Task` (no recursion) — [`internal/core/task_tool.go`](./internal/core/task_tool.go)
 - [x] MCP: stdio `ConnectAndRegister`, tool list + `CallTool` proxy, YAML `mcp.servers`, `/mcp list`, `doctor` prints configured servers — [`internal/mcpclient`](./internal/mcpclient/), [`internal/config/mcp.go`](./internal/config/mcp.go)
 - [x] Basic permission hook: REPL confirms dangerous tools before run
 - [x] Slash commands — [`cmd/openclaude/slash.go`](./cmd/openclaude/slash.go): `/help`, `/provider`, `/mcp list`, `/compact`, `/clear`, `/exit`, `/quit`
@@ -72,7 +72,7 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 - [x] Path traversal / workspace boundary tests — [`internal/tools/workspace_boundary_test.go`](./internal/tools/workspace_boundary_test.go), [`paths_test.go`](./internal/tools/paths_test.go); notes in [`docs/SECURITY.md`](./docs/SECURITY.md)
 - [x] Secret scanning / redaction in transcripts — [`internal/core/redact.go`](./internal/core/redact.go), [`docs/SECURITY.md`](./docs/SECURITY.md#transcript-and-log-redaction)
-- [ ] Rate limit and timeout defaults documented (bash/tool HTTP clients)
+- [x] Rate limit and timeout defaults documented (bash/tool HTTP clients) — [`docs/SECURITY.md`](./docs/SECURITY.md#network), [`docs/CONFIG.md`](./docs/CONFIG.md#timeouts-iteration-limits-and-http-behavior)
 - [x] Dependabot for Go modules — [`.github/dependabot.yml`](./.github/dependabot.yml)
 
 ---

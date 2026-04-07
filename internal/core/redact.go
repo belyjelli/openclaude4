@@ -11,8 +11,10 @@ import (
 const RedactedPlaceholder = "[REDACTED]"
 
 var (
-	rxBearer        = regexp.MustCompile(`(?i)\bBearer\s+\S+`)
-	rxAuthHeader    = regexp.MustCompile(`(?i)Authorization:\s*[^\r\n]+`)
+	// Exclude " so curl -H "Authorization: Bearer …" does not absorb the closing quote (then rxAuthHeader would eat to EOL).
+	rxBearer = regexp.MustCompile(`(?i)\bBearer\s+[^\s"]+`)
+	// Stop before an embedded " so values inside curl -H "Authorization: …" do not swallow the rest of the flag.
+	rxAuthHeader = regexp.MustCompile(`(?i)Authorization:\s*[^"\r\n]+`)
 	rxEnvAPIKey     = regexp.MustCompile(`(?i)\b(?:OPENAI_API_KEY|GEMINI_API_KEY|GOOGLE_API_KEY|ANTHROPIC_API_KEY|AZURE_OPENAI_API_KEY)\s*=\s*\S+`)
 	rxOpenAIKey     = regexp.MustCompile(`\bsk-[a-zA-Z0-9]{20,}\b`)
 	rxGoogleAPIKey  = regexp.MustCompile(`\bAIza[0-9A-Za-z\-_]{35}\b`)

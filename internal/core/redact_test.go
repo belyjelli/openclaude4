@@ -20,7 +20,7 @@ func TestRedactStringForLog(t *testing.T) {
 		{
 			name: "bearer",
 			in:   `curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.x.y" https://x`,
-			want: `curl -H "Authorization: [REDACTED] https://x`,
+			want: `curl -H "Authorization: [REDACTED]" https://x`,
 		},
 		{
 			name: "authorization header line",
@@ -39,7 +39,7 @@ func TestRedactStringForLog(t *testing.T) {
 		},
 		{
 			name: "google style",
-			in:   "k=AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+			in:   "k=AIza" + strings.Repeat("x", 35),
 			want: "k=[REDACTED]",
 		},
 		{
