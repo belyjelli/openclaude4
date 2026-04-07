@@ -102,6 +102,10 @@ For manual mapping: API keys → `OPENAI_*` / `GEMINI_*` / YAML; custom OpenAI b
 
 Invalid `provider.name` values are rejected at chat startup (`config.Validate()`). Run `openclaude doctor` to see validation and client errors in one place.
 
+## In-session slash commands (REPL)
+
+Handled in the chat loop (not config keys): `/help`, `/provider`, `/mcp list`, `/compact` (lossy transcript trim: keeps system + last 24 messages), `/clear`, `/exit`, `/quit`.
+
 ## Diagnostics
 
 ```bash

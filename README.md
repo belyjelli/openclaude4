@@ -35,11 +35,11 @@ export GEMINI_API_KEY=...   # or GOOGLE_API_KEY
 
 **CLI:** `./openclaude version`, `./openclaude doctor`, `./openclaude --help`  
 **Flags:** `--config`, `--provider`, `--model`, `--base-url`  
-**In-session:** `/help`, `/provider`, `/mcp list`, `/clear`, `/exit`
+**In-session:** `/help`, `/provider`, `/mcp list`, `/compact`, `/clear`, `/exit`
 
 **Config layers:** v3 `.openclaude-profile.json` (cwd, then `$HOME`), then `openclaude.yaml` — see [docs/CONFIG.md](./docs/CONFIG.md) and [openclaude.example.yaml](./openclaude.example.yaml).
 
-**Tools:** `FileRead`, `FileWrite`, `FileEdit`, `Bash`, `Grep`, `Glob`, `WebSearch`, plus optional **MCP** tools from `mcp.servers` in config (`mcp_<server>__<tool>`). Workspace = process working directory (paths cannot escape it). Details: [docs/SECURITY.md](./docs/SECURITY.md) and [docs/CONFIG.md](./docs/CONFIG.md#mcp-servers).
+**Tools:** `FileRead`, `FileWrite`, `FileEdit`, `Bash`, `Grep`, `Glob`, `WebSearch`, **`Task`** (nested sub-agent loop), plus optional **MCP** tools from `mcp.servers` in config (`mcp_<server>__<tool>`). Workspace = process working directory (paths cannot escape it). Details: [docs/SECURITY.md](./docs/SECURITY.md) and [docs/CONFIG.md](./docs/CONFIG.md#mcp-servers).
 
 **Dangerous tools** prompt on stderr unless `OPENCLAUDE_AUTO_APPROVE_TOOLS=1` or `true`.
 
@@ -61,7 +61,7 @@ export GEMINI_API_KEY=...   # or GOOGLE_API_KEY
 
 ## Status
 
-**Phase 3 (MCP slice)** — stdio **MCP client** ([`github.com/modelcontextprotocol/go-sdk`](https://github.com/modelcontextprotocol/go-sdk)): `mcp.servers` in YAML, tool list + `CallTool`, `/mcp list`, approvals via `approval: ask|always|never`. Code: `internal/mcpclient`, `internal/config/mcp.go`.
+**Phase 3 (complete for Go CLI roadmap)** — **MCP** stdio client ([`github.com/modelcontextprotocol/go-sdk`](https://github.com/modelcontextprotocol/go-sdk)), **`Task`** sub-agent tool, slash router (`/compact`, `/mcp`, …). Code: `internal/mcpclient`, `internal/core/task_tool.go`, `cmd/openclaude/slash.go`.
 
 **Phase 2 (breadth slice done)** — v3 `.openclaude-profile.json` merge, `openclaude.yaml`, **`openai` / `ollama` / `gemini`**, explicit **codex** “not implemented” error, `doctor`, [docs/CONFIG.md](./docs/CONFIG.md). Tests: `internal/core/agent_test.go`, `internal/providers/openaicomp/client_test.go`, config profile tests.
 

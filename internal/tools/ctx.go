@@ -18,7 +18,7 @@ func WorkDir(ctx context.Context) string {
 	return v
 }
 
-// WithSubTaskDepth records nested Task (sub-agent) depth for [core.TaskTool].
+// WithSubTaskDepth records nested Task depth (reserved for future policy hooks; Task child runs omit the Task tool).
 func WithSubTaskDepth(ctx context.Context, depth int) context.Context {
 	return context.WithValue(ctx, subTaskDepthKey{}, depth)
 }

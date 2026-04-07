@@ -338,3 +338,13 @@ Run: `go run ./cmd/openclaude` from the repo (set `OPENAI_API_KEY`). See [README
 | v3 **`.openclaude-profile.json`** merge (cwd → `$HOME`, under YAML) | Done — `internal/config/profile_v3.go` |
 | `openclaude doctor` | Done |
 | CI tests with `httptest` | `internal/core/agent_test.go`, `internal/providers/ping_test.go`, `internal/providers/openaicomp/client_test.go`, `internal/config/profile_v3_test.go` |
+
+---
+
+## Phase 3 additions (this repository)
+
+| Item | Status |
+|------|--------|
+| **MCP** stdio client + YAML `mcp.servers` | Done — `internal/mcpclient`, `internal/config/mcp.go` |
+| **`Task`** sub-agent tool (depth-limited) | Done — `internal/core/task_tool.go` |
+| Slash router (`/compact`, `/mcp list`, …) | Done — `cmd/openclaude/slash.go` |

@@ -20,16 +20,13 @@ const defaultTaskSubMaxIter = 12
 // TaskTool runs a short nested agent loop (same tools and client) and returns the sub-agent's final text.
 type TaskTool struct {
 	resolveAgent func() *Agent
-	maxDepth     int
 	subMaxIter   int
 }
 
-// NewTaskTool registers a lazy link to the parent agent (set after construction).
-// maxDepth is how many nested Task levels are allowed (default 1 = no Task inside Task).
+// NewTaskTool returns a tool that resolves the parent agent lazily (after the outer agent is constructed).
 func NewTaskTool(resolveAgent func() *Agent) *TaskTool {
 	return &TaskTool{
 		resolveAgent: resolveAgent,
-		maxDepth:     1,
 		subMaxIter:   defaultTaskSubMaxIter,
 	}
 }
@@ -39,7 +36,7 @@ func (TaskTool) Name() string { return "Task" }
 func (TaskTool) IsDangerous() bool { return true }
 
 func (TaskTool) Description() string {
-	return "Spawn a focused sub-agent with the same tools to complete a sub-goal. Returns the sub-agent's final text summary. Nested Task calls are limited by depth."
+	return "Spawn a focused sub-agent with the same tools (except Task) to complete a sub-goal. Returns the sub-agent's final text summary."
 }
 
 func (TaskTool) Parameters() map[string]any {
@@ -68,13 +65,6 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 	if parent == nil || parent.Client == nil || parent.Registry == nil {
 		return "", errors.New("task: agent not ready")
 	}
-	depth := tools.SubTaskDepth(ctx)
-	if t.maxDepth <= 0 {
-		t.maxDepth = 1
-	}
-	if depth >= t.maxDepth {
-		return "", fmt.Errorf("task: max nested depth is %d (no further Task calls allowed here)", t.maxDepth)
-	}
 	goal := strings.TrimSpace(fmt.Sprint(args["goal"]))
 	if goal == "" {
 		return "", errors.New("task: goal is required")
@@ -91,15 +81,15 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 		subMax = defaultMaxIterations
 	}
 
-	childCtx := tools.WithSubTaskDepth(ctx, depth+1)
+	childReg := tools.CloneRegistryOmit(parent.Registry, "Task")
 
 	sub := &Agent{
 		Client:        parent.Client,
-		Registry:      parent.Registry,
+		Registry:      childReg,
 		Confirm:       parent.Confirm,
 		Out:           io.Discard,
 		MaxIterations: subMax,
-		OnEvent:       nil,
+		OnEvent:       parent.OnEvent,
 	}
 
 	userText := goal
@@ -113,7 +103,7 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 		Content: SubTaskSystemPrompt,
 	})
 
-	if err := sub.RunUserTurn(childCtx, &subMsgs, userText); err != nil {
+	if err := sub.RunUserTurn(ctx, &subMsgs, userText); err != nil {
 		return "", err
 	}
 	out := lastNonToolAssistantContent(subMsgs)

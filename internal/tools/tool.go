@@ -51,6 +51,21 @@ func (r *Registry) List() []Tool {
 	return out
 }
 
+// CloneRegistryOmit returns a new registry with every tool from src except those named omit.
+func CloneRegistryOmit(src *Registry, omit string) *Registry {
+	out := NewRegistry()
+	if src == nil {
+		return out
+	}
+	for _, t := range src.List() {
+		if t.Name() == omit {
+			continue
+		}
+		out.Register(t)
+	}
+	return out
+}
+
 // OpenAITools converts registry tools to the SDK tool list.
 func OpenAITools(reg *Registry) ([]sdk.Tool, error) {
 	list := reg.List()

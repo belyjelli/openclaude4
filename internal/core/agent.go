@@ -63,6 +63,7 @@ func (a *Agent) RunUserTurn(ctx context.Context, messages *[]sdk.ChatCompletionM
 
 	oaiTools, err := tools.OpenAITools(a.Registry)
 	if err != nil {
+		a.emit(Event{Kind: KindError, Message: fmt.Sprintf("openai tools: %v", err)})
 		return fmt.Errorf("openai tools: %w", err)
 	}
 

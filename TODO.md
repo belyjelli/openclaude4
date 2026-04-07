@@ -41,10 +41,10 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 - [x] `grep` tool (uses `rg` when available — see tool implementation)
 - [x] `glob` tool
-- [x] **Task** tool — bounded sub-session, fresh transcript, child registry omits `Task` — [`internal/subtask`](./internal/subtask/)
-- [x] MCP: stdio `ConnectAndRegister`, tool list + `CallTool` proxy, YAML `mcp.servers`, `/mcp list`, doctor — [`internal/mcpclient`](./internal/mcpclient/), [`internal/config/mcp.go`](./internal/config/mcp.go), [`cmd/openclaude/chat.go`](./cmd/openclaude/chat.go)
+- [x] **Task** tool — bounded sub-session, fresh system + user goal, same tools/client, stdout discarded for sub-run; nesting limited via context depth (default: no Task inside Task) — [`internal/core/task_tool.go`](./internal/core/task_tool.go)
+- [x] MCP: stdio `ConnectAndRegister`, tool list + `CallTool` proxy, YAML `mcp.servers`, `/mcp list`, `doctor` prints configured servers — [`internal/mcpclient`](./internal/mcpclient/), [`internal/config/mcp.go`](./internal/config/mcp.go)
 - [x] Basic permission hook: REPL confirms dangerous tools before run
-- [x] Slash commands: `/help`, `/provider`, `/clear`, `/exit` — extend set (`/help` text lists current)
+- [x] Slash commands — [`cmd/openclaude/slash.go`](./cmd/openclaude/slash.go): `/help`, `/provider`, `/mcp list`, `/compact`, `/clear`, `/exit`, `/quit`
 
 ## Phase 4 — Terminal UI
 
@@ -73,7 +73,7 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 - [x] Path traversal / workspace boundary tests — [`internal/tools/workspace_boundary_test.go`](./internal/tools/workspace_boundary_test.go), [`paths_test.go`](./internal/tools/paths_test.go); notes in [`docs/SECURITY.md`](./docs/SECURITY.md)
 - [ ] Secret scanning / redaction in transcripts
 - [ ] Rate limit and timeout defaults documented (bash/tool HTTP clients)
-- [ ] Dependency update policy (Dependabot/Renovate for Go modules)
+- [x] Dependabot for Go modules — [`.github/dependabot.yml`](./.github/dependabot.yml)
 
 ---
 

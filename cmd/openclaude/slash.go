@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -22,7 +23,10 @@ type chatState struct {
 	client   core.StreamClient
 }
 
-func handleSlashLine(line string, st chatState) error {
+func handleSlashLine(line string, st chatState, out io.Writer) error {
+	if out == nil {
+		out = os.Stdout
+	}
 	fields := strings.Fields(line)
 	if len(fields) == 0 {
 		return nil
@@ -35,28 +39,29 @@ func handleSlashLine(line string, st chatState) error {
 	case "exit", "quit":
 		return errSlashExitChat
 	case "help":
-		printChatHelp()
+		printChatHelp(out)
 	case "mcp":
 		if len(args) == 0 || args[0] == "list" {
-			_, _ = fmt.Fprintln(os.Stdout, st.mcpMgr.DescribeServers())
+			_, _ = fmt.Fprintln(out, st.mcpMgr.DescribeServers())
 			return nil
 		}
 		return fmt.Errorf("unknown /mcp subcommand %q (try /mcp list)", args[0])
 	case "clear":
 		*st.messages = nil
-		_, _ = fmt.Fprintln(os.Stdout, "(conversation cleared)")
+		_, _ = fmt.Fprintln(out, "(conversation cleared)")
 	case "compact":
-		n := compactTail(*st.messages, compactTailMessages)
-		if n == 0 {
-			_, _ = fmt.Fprintln(os.Stdout, "(nothing to compact)")
+		cur := *st.messages
+		next := compactTail(cur, compactTailMessages)
+		if len(next) == len(cur) {
+			_, _ = fmt.Fprintln(out, "(nothing to compact)")
 			return nil
 		}
-		*st.messages = n
-		_, _ = fmt.Fprintf(os.Stdout, "(compacted: kept system + last %d messages; older turns dropped)\n", compactTailMessages)
+		*st.messages = next
+		_, _ = fmt.Fprintf(out, "(compacted: kept system + last %d messages; older turns dropped)\n", compactTailMessages)
 	case "provider":
-		printProviderInfo(st.client)
+		printProviderInfoTo(st.client, out)
 	default:
-		return fmt.Errorf("unknown command %q — try /help", fields[0])
+		return fmt.Errorf("unknown command %q - try /help", fields[0])
 	}
 	return nil
 }

@@ -20,6 +20,10 @@ Shell commands run with a timeout and workspace-oriented working directory; they
 
 **MCP tools** (from `mcp.servers` in config) run inside **separate child processes** you configure. They are **not** sandboxed by OpenClaude’s workspace rules unless the server enforces that. With `approval: ask` (default), each MCP tool invocation uses the same confirmation path as other dangerous tools; `always` / `never` skip that prompt—only use those for servers you trust.
 
+The **`Task`** tool starts a **nested agent loop** with the same registry (including MCP tools): it can invoke any tool the main session could, uses the same confirm hook, and does **not** stream sub-agent text to the terminal (only the final summary is returned to the parent turn). Treat `Task` as dangerous; avoid `OPENCLAUDE_AUTO_APPROVE_TOOLS` with untrusted configs.
+
+The **`Task`** tool starts a nested agent loop with the same provider and tools; the child registry **drops `Task`** so the sub-agent cannot recurse. Sub-session streaming is discarded from the terminal; only the returned summary is shown to the outer model. It is **dangerous** and uses the same approval path as `Bash` / file writes unless auto-approve is enabled.
+
 ## Network
 
 `WebSearch` and LLM providers perform outbound HTTP(S). Use API keys and base URLs you trust; prefer documented timeouts where the code sets them (e.g. HTTP client timeouts in tools).
