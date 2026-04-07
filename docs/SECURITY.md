@@ -18,6 +18,8 @@ File tools (`FileRead`, `FileWrite`, `FileEdit`) and directory-scoped tools (`Gr
 
 Shell commands run with a timeout and workspace-oriented working directory; they are still **full shell** invocations—users should not auto-approve in untrusted environments.
 
+**MCP tools** (from `mcp.servers` in config) run inside **separate child processes** you configure. They are **not** sandboxed by OpenClaude’s workspace rules unless the server enforces that. With `approval: ask` (default), each MCP tool invocation uses the same confirmation path as other dangerous tools; `always` / `never` skip that prompt—only use those for servers you trust.
+
 ## Network
 
 `WebSearch` and LLM providers perform outbound HTTP(S). Use API keys and base URLs you trust; prefer documented timeouts where the code sets them (e.g. HTTP client timeouts in tools).

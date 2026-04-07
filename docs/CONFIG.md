@@ -51,7 +51,24 @@ gemini:
   api_key: ""       # prefer GEMINI_API_KEY or GOOGLE_API_KEY
   model: gemini-2.0-flash
   base_url: ""      # optional; default is Google's OpenAI-compat Gemini endpoint
+
+# Optional: Model Context Protocol (stdio subprocesses). See docs/SECURITY.md.
+mcp:
+  servers:
+    - name: fs
+      command: ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/root"]
+      approval: ask        # ask | always | never — ask = confirm like other dangerous tools
+      # env:                 # optional extra KEY: value pairs for the child process
+      #   FOO: bar
 ```
+
+### MCP (`mcp.servers`)
+
+Each entry runs **`command`** as a subprocess; OpenClaude talks to it over **stdin/stdout** (MCP JSON-RPC). **`name`** must be unique; it appears in tool names as `mcp_<name>__<tool>`.
+
+- **`approval`**: `ask` (default) treats every tool from that server as dangerous (stdin confirmation unless `OPENCLAUDE_AUTO_APPROVE_TOOLS`). `always` and `never` skip that prompt (use only for servers you trust).
+
+Failed servers are skipped with a message on stderr; chat still starts if built-in tools are enough.
 
 ## Environment variables
 

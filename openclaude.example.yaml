@@ -16,3 +16,9 @@ gemini:
   api_key: "" # GEMINI_API_KEY or GOOGLE_API_KEY
   model: gemini-2.0-flash
   # base_url: https://generativelanguage.googleapis.com/v1beta/openai
+
+# mcp:
+#   servers:
+#     - name: fs
+#       command: ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+#       approval: ask

@@ -35,11 +35,11 @@ export GEMINI_API_KEY=...   # or GOOGLE_API_KEY
 
 **CLI:** `./openclaude version`, `./openclaude doctor`, `./openclaude --help`  
 **Flags:** `--config`, `--provider`, `--model`, `--base-url`  
-**In-session:** `/help`, `/provider`, `/clear`, `/exit`
+**In-session:** `/help`, `/provider`, `/mcp list`, `/clear`, `/exit`
 
 **Config layers:** v3 `.openclaude-profile.json` (cwd, then `$HOME`), then `openclaude.yaml` — see [docs/CONFIG.md](./docs/CONFIG.md) and [openclaude.example.yaml](./openclaude.example.yaml).
 
-**Tools:** `FileRead`, `FileWrite`, `FileEdit`, `Bash`, `Grep`, `Glob`, `WebSearch`. Workspace = process working directory (paths cannot escape it). Details: [docs/SECURITY.md](./docs/SECURITY.md).
+**Tools:** `FileRead`, `FileWrite`, `FileEdit`, `Bash`, `Grep`, `Glob`, `WebSearch`, plus optional **MCP** tools from `mcp.servers` in config (`mcp_<server>__<tool>`). Workspace = process working directory (paths cannot escape it). Details: [docs/SECURITY.md](./docs/SECURITY.md) and [docs/CONFIG.md](./docs/CONFIG.md#mcp-mcpservers).
 
 **Dangerous tools** prompt on stderr unless `OPENCLAUDE_AUTO_APPROVE_TOOLS=1` or `true`.
 
