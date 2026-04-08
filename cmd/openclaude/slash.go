@@ -57,6 +57,16 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 		printOnboardHints(out)
 	case "doctor":
 		PrintDoctorReport(out, version, commit)
+	case "config":
+		config.DescribeEffectiveConfig(out)
+	case "permissions":
+		printPermissionsSummary(out)
+	case "version":
+		printVersionSlash(out, version, commit)
+	case "init":
+		printInitSnippet(out)
+	case "export":
+		return slashExport(st, args, out)
 	case "context", "tokens":
 		printContextUsage(st, out)
 	case "btw":

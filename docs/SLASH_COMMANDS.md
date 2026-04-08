@@ -2,7 +2,7 @@
 
 This compares **in-session** `/…` commands in:
 
-- **openclaude4** — Go CLI (`openclaude` / `openclaude --tui`): router in [`cmd/openclaude/slash.go`](../cmd/openclaude/slash.go), help text in [`cmd/openclaude/chat.go`](../cmd/openclaude/chat.go) (`printChatHelpTo`). Helpers: [`slash_swap.go`](../cmd/openclaude/slash_swap.go), [`slash_extra.go`](../cmd/openclaude/slash_extra.go), [`slash_provider_wizard.go`](../cmd/openclaude/slash_provider_wizard.go). Live client swaps: [`internal/chatlive/live.go`](../internal/chatlive/live.go).
+- **openclaude4** — Go CLI (`openclaude` / `openclaude --tui`): router in [`cmd/openclaude/slash.go`](../cmd/openclaude/slash.go), help text in [`cmd/openclaude/chat.go`](../cmd/openclaude/chat.go) (`printChatHelpTo`). Helpers: [`slash_swap.go`](../cmd/openclaude/slash_swap.go), [`slash_extra.go`](../cmd/openclaude/slash_extra.go), [`slash_export.go`](../cmd/openclaude/slash_export.go), [`slash_provider_wizard.go`](../cmd/openclaude/slash_provider_wizard.go). Live client swaps: [`internal/chatlive/live.go`](../internal/chatlive/live.go).
 - **openclaude3** — TypeScript/Bun CLI: built-ins from `COMMANDS()` in [`src/commands.ts`](https://github.com/Gitlawb/openclaude/blob/main/src/commands.ts) (sibling repo). v3 also registers **dynamic** slash commands (skills dirs, plugins, bundled skills, optional workflows/MCP skills), which are not listed exhaustively here.
 
 v4 has a **fixed set** of built-in local slash commands plus **dynamic** `/<skill>` when the name matches the loaded skills catalog (case-insensitive). v3 has **many** more built-ins plus extensions; availability can depend on **build feature flags**, **auth**, and **`isEnabled()`** per command.
@@ -23,7 +23,7 @@ v4 has a **fixed set** of built-in local slash commands plus **dynamic** `/<skil
 | Model | **`/model`**, flags, config | `/model`, … |
 | Context / cost | **`/context`**, **`/tokens`**, **`/cost`**, **`/usage`** | `/context`, `/cost`, `/usage`, … |
 | Clipboard / chrome | **`/copy`**, **`/theme`** (TUI), **`/vim`** (stub) | `/copy`, `/theme`, `/vim`, … |
-| **Most other v3 commands** | Shell: `openclaude …`, config file, MCP tools | `/config`, `/init`, `/review`, `/permissions`, … |
+| **Most other v3 commands** | Shell: `openclaude …`, config file, MCP tools + **`/config`**, **`/export`**, **`/init`**, **`/permissions`**, **`/version`** | `/review`, … |
 
 ## openclaude4 — full list
 
@@ -33,6 +33,11 @@ v4 has a **fixed set** of built-in local slash commands plus **dynamic** `/<skil
 | `/exit`, `/quit` | Leave chat |
 | `/onboard`, `/setup` | Short onboarding hints |
 | `/doctor` | Same output as `openclaude doctor` |
+| `/config` | [`DescribeEffectiveConfig`](../internal/config/describe.go): precedence, `viper` file, v3 profile path, search paths, writable config hint, provider/model/session/MCP names + approval (no secrets) |
+| `/permissions` | `OPENCLAUDE_AUTO_APPROVE_TOOLS`, MCP `approval` per server, cwd, pointer to [SECURITY.md](./SECURITY.md) |
+| `/version` | Same line as `openclaude version` (embedded version/commit) |
+| `/init` | Starter `openclaude.yaml` snippet + pointers to `openclaude.example.yaml` and CONFIG.md |
+| `/export` | In-memory transcript → JSON ([`session.FileV1`](../internal/session/file_v1.go)) or Markdown; `/export`, `/export json`, `/export md`, optional path; large stdout exports require a path ([`slash_export.go`](../cmd/openclaude/slash_export.go)) |
 | `/context`, `/tokens` | Message count, rough tokens ([`RoughTokenEstimate`](../internal/session/tokens.go)), compact keep + threshold |
 | `/model` | No args: print current model. `/model <id>`: set model for active provider (`viper` + new client; [`LiveChat`](../internal/chatlive/live.go)). TUI: blocked while a turn is in progress |
 | `/provider` | Show provider info |
@@ -77,6 +82,8 @@ Login/logout, Claude.ai flows, `/review` / security-review pipelines, GitHub app
 Below is a **prioritized** subset of v3 built-ins that are still missing in v4 but align with the **terminal agent + config + tools** shape. Names match v3 where it helps muscle memory; behavior can be a smaller Go implementation.
 
 ### Tier A — high value, fits v4 without a new product surface
+
+**Status (v4):** `/config`, `/permissions`, `/version`, `/init`, and `/export` are implemented; see the v4 table above.
 
 | v3-style command | Why | v4-shaped implementation |
 |------------------|-----|---------------------------|

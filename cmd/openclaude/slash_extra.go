@@ -180,3 +180,71 @@ func mcpAddShellHint() string {
 	}
 	return fmt.Sprintf("%s mcp add --name <id> --exec <argv>...  (repeat --exec per token)", exe)
 }
+
+func printPermissionsSummary(out io.Writer) {
+	if out == nil {
+		out = io.Discard
+	}
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS")))
+	auto := v == "1" || v == "true" || v == "yes"
+	if auto {
+		_, _ = fmt.Fprintln(out, "OPENCLAUDE_AUTO_APPROVE_TOOLS: on (dangerous tools and MCP tools with approval=ask run without prompting)")
+	} else {
+		_, _ = fmt.Fprintln(out, "OPENCLAUDE_AUTO_APPROVE_TOOLS: off (dangerous tools and MCP approval=ask prompt before run)")
+	}
+	srv := config.MCPServers()
+	if len(srv) == 0 {
+		_, _ = fmt.Fprintln(out, "MCP servers: (none in config)")
+	} else {
+		_, _ = fmt.Fprintln(out, "MCP server tool approval (config):")
+		for _, s := range srv {
+			_, _ = fmt.Fprintf(out, "  %s: %s\n", s.Name, config.NormalizeMCPApproval(s.Approval))
+		}
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "."
+	}
+	_, _ = fmt.Fprintf(out, "Workspace (tool cwd): %s\n", cwd)
+	_, _ = fmt.Fprintln(out, "Boundary and caveats: docs/SECURITY.md")
+}
+
+func printInitSnippet(out io.Writer) {
+	if out == nil {
+		out = io.Discard
+	}
+	const snippet = `# Copy to ./openclaude.yaml or ~/.config/openclaude/openclaude.yaml
+# Do not commit real API keys. v3 .openclaude-profile.json is merged first, then this file.
+
+provider:
+  name: openai # openai | ollama | gemini | github
+  model: gpt-4o-mini
+
+openai:
+  api_key: "" # prefer OPENAI_API_KEY in the environment
+
+ollama:
+  host: http://127.0.0.1:11434
+  model: llama3.2
+
+gemini:
+  api_key: "" # GEMINI_API_KEY or GOOGLE_API_KEY
+  model: gemini-2.0-flash
+  # base_url: optional override
+
+# mcp:
+#   servers:
+#     - name: fs
+#       command: ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+#       approval: ask
+`
+	_, _ = fmt.Fprintln(out, "Starter openclaude.yaml (see also openclaude.example.yaml and docs/CONFIG.md):")
+	_, _ = fmt.Fprint(out, snippet)
+}
+
+func printVersionSlash(out io.Writer, ver, cmt string) {
+	if out == nil {
+		out = io.Discard
+	}
+	_, _ = fmt.Fprintf(out, "openclaude %s (%s)\n", ver, cmt)
+}

@@ -20,6 +20,9 @@ func TestMergeV3Profile_Gemini(t *testing.T) {
 	viper.Reset()
 	bindViperEnv()
 	MergeV3Profile(tmp, "")
+	if MergedV3ProfilePath != prof {
+		t.Fatalf("MergedV3ProfilePath = %q want %q", MergedV3ProfilePath, prof)
+	}
 
 	if ProviderName() != "gemini" {
 		t.Fatalf("ProviderName = %q", ProviderName())
@@ -44,6 +47,9 @@ func TestMergeV3Profile_YamlOverridesProfile(t *testing.T) {
 
 	viper.Reset()
 	Load("")
+	if got := filepath.Clean(MergedV3ProfilePath); got != filepath.Clean(filepath.Join(tmp, ".openclaude-profile.json")) {
+		t.Fatalf("MergedV3ProfilePath = %q", MergedV3ProfilePath)
+	}
 	if ProviderName() != "openai" {
 		t.Fatalf("want openai from yaml over profile ollama, got %q", ProviderName())
 	}

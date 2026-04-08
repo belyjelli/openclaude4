@@ -607,6 +607,11 @@ func printChatHelpTo(w io.Writer) {
 	const help = `Commands:
   /onboard, /setup Quick env hints (same themes as doctor)
   /doctor       Same diagnostics as: openclaude doctor
+  /config       Effective config summary (precedence, paths, provider/model/session/MCP names; no secrets)
+  /permissions  Dangerous-tool auto-approve + MCP approval from config; see docs/SECURITY.md
+  /version      Same as: openclaude version
+  /init         Print starter openclaude.yaml snippet (see openclaude.example.yaml, docs/CONFIG.md)
+  /export       Transcript export: /export [json|md] [path] or /export <path> (JSON to file)
   /context, /tokens  Rough token estimate + message count + compact settings
   /model [<id>] Show or set model for the active provider (updates session; TUI: not while busy)
   /provider     Show active provider, model, base URL, credential hint

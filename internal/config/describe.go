@@ -30,18 +30,11 @@ func DescribeEffectiveConfig(w io.Writer) {
 		_, _ = fmt.Fprintln(w, "v3 profile merged: (none)")
 	}
 
-	cwd, _ := os.Getwd()
 	home, _ := os.UserHomeDir()
 	_, _ = fmt.Fprintln(w, "Standard file search (first existing file wins at load):")
 	for _, base := range configSearchDirs(home) {
 		for _, ext := range []string{"yaml", "yml", "json"} {
 			name := filepath.Join(base, "openclaude."+ext)
-			rel := name
-			if cwd != "" {
-				if r, err := filepath.Rel(cwd, name); err == nil && !strings.HasPrefix(r, "..") {
-					rel = r
-				}
-			}
 			st, err := os.Stat(name)
 			if err != nil {
 				_, _ = fmt.Fprintf(w, "  %s  (missing)\n", name)
@@ -51,7 +44,7 @@ func DescribeEffectiveConfig(w io.Writer) {
 				_, _ = fmt.Fprintf(w, "  %s  (directory — skipped)\n", name)
 				continue
 			}
-			_, _ = fmt.Fprintf(w, "  %s  [exists]  (%s)\n", name, rel)
+			_, _ = fmt.Fprintf(w, "  %s  [exists]\n", name)
 		}
 	}
 
