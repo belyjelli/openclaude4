@@ -12,6 +12,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/session"
+	"github.com/gitlawb/openclaude4/internal/skills"
 	sdk "github.com/sashabaranov/go-openai"
 )
 
@@ -24,6 +25,7 @@ type chatState struct {
 	client           core.StreamClient
 	persist          *chatPersist
 	providerWizardIn io.Reader // stdin in plain REPL; nil in TUI (wizard prints static guide only)
+	skillCat         *skills.Catalog
 }
 
 func handleSlashLine(line string, st chatState, out io.Writer) error {
@@ -81,6 +83,8 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 		_, _ = fmt.Fprintf(out, "(compacted: kept system + last %d messages; older turns dropped)\n", keep)
 	case "session":
 		return handleSessionSlash(args, st, out)
+	case "skills":
+		return handleSkillsSlash(args, st, out)
 	case "provider":
 		if len(args) == 0 {
 			printProviderInfoTo(st.client, out)
@@ -205,6 +209,46 @@ func writeRunningList(w io.Writer, dir string) error {
 		}
 	}
 	return nil
+}
+
+func handleSkillsSlash(args []string, st chatState, out io.Writer) error {
+	cat := st.skillCat
+	if cat == nil {
+		var err error
+		cat, err = skills.Load(config.SkillDirs())
+		if err != nil {
+			return fmt.Errorf("skills: %w", err)
+		}
+	}
+	switch {
+	case len(args) == 0 || args[0] == "list":
+		if cat.Len() == 0 {
+			_, _ = fmt.Fprintln(out, "(no skills loaded — add .openclaude/skills/<name>/SKILL.md or skills.dirs in config)")
+			return nil
+		}
+		for _, e := range cat.List() {
+			_, _ = fmt.Fprintf(out, "  %-24s  %s\n", e.Name, e.Description)
+		}
+		return nil
+	case args[0] == "read":
+		if len(args) < 2 {
+			return fmt.Errorf("usage: /skills read <name>")
+		}
+		e, ok := cat.Get(args[1])
+		if !ok {
+			return fmt.Errorf("unknown skill %q", args[1])
+		}
+		if e.Description != "" {
+			_, _ = fmt.Fprintf(out, "# %s\n\n%s\n\n---\n\n", e.Name, e.Description)
+		}
+		_, _ = fmt.Fprint(out, e.Body)
+		if !strings.HasSuffix(e.Body, "\n") {
+			_, _ = fmt.Fprintln(out)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown /skills %q — try /skills list, /skills read <name>", args[0])
+	}
 }
 
 func printMCPHelp(w io.Writer) {

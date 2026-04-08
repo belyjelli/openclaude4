@@ -191,6 +191,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 					client:           client,
 					persist:          persist,
 					providerWizardIn: nil, // TUI: /provider wizard prints static guide only
+					skillCat:         skillCat,
 				}, &out)
 				if errors.Is(err, errSlashExitChat) {
 					return out.String(), true, nil
@@ -248,6 +249,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 				client:           client,
 				persist:          persist,
 				providerWizardIn: os.Stdin,
+				skillCat:         skillCat,
 			}, os.Stdout)
 			if errors.Is(err, errSlashExitChat) {
 				return nil
@@ -591,6 +593,8 @@ func printChatHelpTo(w io.Writer) {
   /session     Show active session file path (when sessions enabled)
   /session list    List saved session files on disk
   /session running, /session ps   List local openclaude PIDs (registry; works even if disk session off)
+  /skills list     List loaded skills (SKILL.md under skills dirs)
+  /skills read <n> Print one skill body (model can also use SkillsList / SkillsRead tools)
   /session load <id>   Switch to another session (saves current first)
   /session new <id>    New empty session under id (saves current first)
   /session save    Force write current transcript to disk

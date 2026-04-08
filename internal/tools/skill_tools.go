@@ -29,7 +29,7 @@ func (s SkillsList) Parameters() map[string]any {
 	}
 }
 
-func (s SkillsList) Execute(context.Context, map[string]any) (string, error) {
+func (s SkillsList) Execute(_ context.Context, _ map[string]any) (string, error) {
 	cat := s.Cat
 	if cat == nil {
 		cat = skills.EmptyCatalog()
