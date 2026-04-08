@@ -52,6 +52,9 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		case errors.Is(err, openaicomp.ErrMissingGeminiKey):
 			_, _ = fmt.Fprintln(os.Stderr, "Error: set GEMINI_API_KEY or GOOGLE_API_KEY for provider gemini.")
 			return err
+		case errors.Is(err, openaicomp.ErrMissingGitHubToken):
+			_, _ = fmt.Fprintln(os.Stderr, "Error: set GITHUB_TOKEN or GITHUB_PAT for provider github.")
+			return err
 		case errors.Is(err, providers.ErrCodexNotImplemented):
 			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return err

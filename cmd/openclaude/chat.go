@@ -70,6 +70,9 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		case errors.Is(err, openaicomp.ErrMissingGeminiKey):
 			_, _ = fmt.Fprintln(os.Stderr, "Error: set GEMINI_API_KEY or GOOGLE_API_KEY for provider gemini.")
 			return err
+		case errors.Is(err, openaicomp.ErrMissingGitHubToken):
+			_, _ = fmt.Fprintln(os.Stderr, "Error: set GITHUB_TOKEN or GITHUB_PAT for provider github.")
+			return err
 		case errors.Is(err, providers.ErrCodexNotImplemented):
 			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return err
@@ -604,7 +607,8 @@ func printChatHelpTo(w io.Writer) {
   /exit        Exit (same as /quit)
   /quit        Exit
 
-Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch, WebFetch, SpiderScrape (only if spider CLI on PATH; no Firecrawl), Task (sub-agent), plus MCP tools (mcp_<server>__<tool>).
+Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch, WebFetch, GoOutline (Go AST outline), SkillsList, SkillsRead, SpiderScrape (only if spider CLI on PATH; no Firecrawl), Task (sub-agent), plus MCP tools (mcp_<server>__<tool>).
+Vision: --image-url and --image-file attach to the first user message (REPL/TUI) or to -p one-shot; needs a vision-capable model.
 Workspace is the current working directory.
 
 Providers: openai (OPENAI_API_KEY), ollama (local), gemini (GEMINI_API_KEY or GOOGLE_API_KEY).

@@ -112,6 +112,28 @@ Failed servers are skipped with a message on stderr; chat still starts if built-
 
 **Running registry:** each interactive chat writes `<session-dir>/running/<pid>.json` (removed on clean exit). Inspect with **`openclaude sessions`** or **`/session running`** in the REPL/TUI.
 
+**Skills (SKILL.md):**
+
+| Key / env | Purpose |
+|-----------|--------|
+| `skills.dirs` (YAML list) | Extra directories to scan for subfolders containing `SKILL.md` |
+| `OPENCLAUDE_SKILLS_DIRS` | Comma-separated skill roots (merged with config) |
+| *(defaults)* | `./.openclaude/skills` and `~/.local/share/openclaude/skills` if those directories exist |
+
+**Task sub-agent model override:**
+
+| Key / env | Purpose |
+|-----------|--------|
+| `agent_routing.task_model` | Model id for **Task** tool sub-runs (same provider/endpoint as the main client) |
+| `OPENCLAUDE_AGENT_TASK_MODEL` | Env alias for `agent_routing.task_model` |
+
+**Vision (OpenAI-style `image_url` parts):**
+
+| Flag | Purpose |
+|------|--------|
+| `--image-url` | Repeatable HTTP(S) URL attached to the **first** non-slash user message (REPL/TUI) or combined with `-p` |
+| `--image-file` | Repeatable local file path (read as base64 `data:` URL; max 8 MiB per file) |
+
 Ollama exposes an OpenAI-compatible chat API at `{OLLAMA_HOST}/v1` ([Ollama OpenAI docs](https://github.com/ollama/ollama/blob/main/docs/openai.md)).
 
 ## v3 migration notes
@@ -131,7 +153,7 @@ Invalid `provider.name` values are rejected at chat startup (`config.Validate()`
 
 ## In-session slash commands (REPL)
 
-Handled in the chat loop (not config keys): `/help`, `/onboard` / `/setup`, `/provider` (and **`/provider wizard`** for interactive YAML/env setup in the plain REPL; in `--tui`, wizard prints a static copy-paste guide), `/mcp list`, `/mcp doctor`, `/mcp help`, `/session` (show, list, **running** / **ps**, load, new, save), `/compact` (lossy transcript trim: keeps system + last N messages, default 24; override via `session.compact_keep_messages`), `/clear`, `/exit`, `/quit`. From the shell: **`openclaude sessions`** (saved sessions + running registry), **`openclaude mcp list`** (config only), **`openclaude mcp doctor`** (connect + list tools; exit 1 if any server fails), **`openclaude mcp add`** (append a `mcp.servers` entry — repeats `--exec` per argv token; **`--dry-run`** to preview; YAML comments are not preserved on rewrite).
+Handled in the chat loop (not config keys): `/help`, `/onboard` / `/setup`, `/provider` (and **`/provider wizard`** for interactive YAML/env setup in the plain REPL; in `--tui`, wizard prints a static copy-paste guide), `/mcp list`, `/mcp doctor`, `/mcp help`, `/skills list`, `/skills read <name>`, `/session` (show, list, **running** / **ps**, load, new, save), `/compact` (lossy transcript trim: keeps system + last N messages, default 24; override via `session.compact_keep_messages`), `/clear`, `/exit`, `/quit`. From the shell: **`openclaude sessions`** (saved sessions + running registry), **`openclaude mcp list`** (config only), **`openclaude mcp doctor`** (connect + list tools; exit 1 if any server fails), **`openclaude mcp add`** (append a `mcp.servers` entry — repeats `--exec` per argv token; **`--dry-run`** to preview; YAML comments are not preserved on rewrite).
 
 ## Diagnostics
 

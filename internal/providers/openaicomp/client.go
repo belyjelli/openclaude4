@@ -21,7 +21,7 @@ type Client struct {
 	model  string
 	apiKey string
 	base   string
-	kind   string // "openai" | "ollama" | "gemini"
+	kind   string // "openai" | "ollama" | "gemini" | "github"
 }
 
 // New builds an OpenAI or OpenAI-compatible remote client (requires OPENAI_API_KEY).
@@ -75,7 +75,7 @@ func NewGemini() (*Client, error) {
 	}, nil
 }
 
-// ProviderKind returns "openai", "ollama", or "gemini".
+// ProviderKind returns "openai", "ollama", "gemini", or "github".
 func (c *Client) ProviderKind() string {
 	if c.kind != "" {
 		return c.kind
@@ -127,6 +127,11 @@ func (c *Client) RedactedAPIKeySummary() string {
 	switch c.ProviderKind() {
 	case "ollama":
 		return "(local Ollama — no API key)"
+	case "github":
+		if len(c.apiKey) <= 8 {
+			return "(set)"
+		}
+		return c.apiKey[:4] + "…" + c.apiKey[len(c.apiKey)-4:]
 	case "gemini":
 		if len(c.apiKey) <= 8 {
 			return "(set)"

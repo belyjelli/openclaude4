@@ -58,6 +58,19 @@ gemini:
   model: "gemini-2.0-flash"
   # base_url: ""   # optional override
 
+--- GitHub Models ---
+export OPENCLAUDE_PROVIDER=github
+export GITHUB_TOKEN=...      # or GITHUB_PAT
+# optional:
+export GITHUB_MODEL=gpt-4o
+export GITHUB_BASE_URL=https://<region>.models.ai.azure.com
+
+provider:
+  name: github
+github:
+  model: "gpt-4o"
+  # base_url: ""   # optional Azure endpoint
+
 Then restart openclaude. Run openclaude doctor to verify.
 `
 	_, _ = fmt.Fprint(out, guide)
@@ -74,7 +87,7 @@ func runProviderInteractiveWizard(out io.Writer, in io.Reader, client core.Strea
 	_, _ = fmt.Fprintln(out)
 	printProviderInfoTo(client, out)
 	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "Choose provider:  1 = openai   2 = ollama   3 = gemini   (empty = cancel)")
+	_, _ = fmt.Fprintln(out, "Choose provider:  1 = openai   2 = ollama   3 = gemini   4 = github   (empty = cancel)")
 	line, err := readWizardLine(r)
 	if err != nil {
 		return err

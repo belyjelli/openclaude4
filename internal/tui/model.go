@@ -40,18 +40,18 @@ type Config struct {
 }
 
 type model struct {
-	cfg         Config
-	send        func(tea.Msg)
-	vp          viewport.Model
-	ti          textinput.Model
-	busy        bool
-	perm        *permState
-	width       int
-	height      int
-	permBr      *permBridge
-	getAgent    func() *core.Agent
-	stickBottom bool
-	runningTool string
+	cfg               Config
+	send              func(tea.Msg)
+	vp                viewport.Model
+	ti                textinput.Model
+	busy              bool
+	perm              *permState
+	width             int
+	height            int
+	permBr            *permBridge
+	getAgent          func() *core.Agent
+	stickBottom       bool
+	runningTool       string
 	pendingImageURLs  []string
 	pendingImageFiles []string
 	// transcript

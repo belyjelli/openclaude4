@@ -23,7 +23,7 @@ func NewStreamClient() (core.StreamClient, error) {
 	default:
 		name := config.ProviderName()
 		if name != "" && name != "openai" {
-			return nil, fmt.Errorf("unknown provider %q (try openai, ollama, gemini, or ollama)", name)
+			return nil, fmt.Errorf("unknown provider %q (try openai, ollama, gemini, or github)", name)
 		}
 		return openaicomp.New()
 	}

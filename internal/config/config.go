@@ -54,6 +54,8 @@ func Model() string {
 		return OllamaModel()
 	case "gemini":
 		return GeminiModel()
+	case "github":
+		return GitHubModelsModel()
 	default:
 		return openAIModel()
 	}

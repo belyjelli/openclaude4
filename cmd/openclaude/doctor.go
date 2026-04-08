@@ -45,6 +45,8 @@ func runDoctor(_ *cobra.Command, _ []string) {
 		_, _ = fmt.Fprintf(os.Stdout, "Ollama API base: %s\n", config.OllamaChatBase())
 	case "gemini":
 		_, _ = fmt.Fprintf(os.Stdout, "Gemini OpenAI-compat base: %s\n", config.GeminiBaseURL())
+	case "github":
+		_, _ = fmt.Fprintf(os.Stdout, "GitHub Models base: %s\n", config.GitHubModelsBaseURL())
 	default:
 		if b := config.BaseURL(); b != "" {
 			_, _ = fmt.Fprintf(os.Stdout, "OpenAI base URL: %s\n", b)

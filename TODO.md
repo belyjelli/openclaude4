@@ -15,7 +15,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 ### Providers and auth
 
 - [ ] **Codex** provider (v4 returns `ErrCodexNotImplemented` from [`internal/providers/runtime.go`](./internal/providers/runtime.go))
-- [ ] **GitHub Models** and interactive onboarding equivalent to v3 `/onboard-github` (token capture, saved profile)
+- [x] Partial: **GitHub Models** provider — [`openaicomp.NewGitHubModels`](./internal/providers/openaicomp/github.go); `OPENCLAUDE_PROVIDER=github`, `GITHUB_TOKEN` / `GITHUB_PAT`; interactive `/onboard-github` still open
 - [ ] **Atomic Chat**, **Bedrock / Vertex / Foundry** and other env-driven backends listed in [v3 README](https://github.com/Gitlawb/openclaude) “Supported Providers”
 - [ ] Optional: v3-style **secure storage / keychain** hydration for Gemini and GitHub (beyond env + `.openclaude-profile.json` merge)
 
@@ -23,10 +23,10 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 
 - [x] **WebFetch** tool — [`internal/tools/web_fetch.go`](./internal/tools/web_fetch.go): HTTP(S) GET, HTML→text, SSRF-minded host/IP checks, caps documented in [SECURITY.md](./docs/SECURITY.md)
 - [x] Optional **spider_cli** — when `spider` is on `PATH`, **[`SpiderScrape`](./internal/tools/spider_scrape.go)** is registered (single-URL scrape). **No Firecrawl** — v3’s `FIRECRAWL_API_KEY` path is intentionally omitted; use **SpiderScrape** for richer local scrape.
-- [ ] **Skills** / **SkillTool** and user slash-command skill loading; **plugin directories** and plugin CLI (v3 `main.tsx` / `src/tools/SkillTool`)
-- [ ] **LSP** integration ([`src/services/lsp`](https://github.com/Gitlawb/openclaude/tree/main/src/services/lsp) in v3)
-- [ ] **Multimodal / vision** inputs (image URL or base64) on the chat path for models that support it
-- [ ] **Agent routing** — v3 `settings.json` `agentModels` + `agentRouting` (per-agent model selection); v4 today uses one stream client and a **Task** sub-loop only
+- [x] Partial: **Skills** — [`internal/skills`](./internal/skills/skills.go) loads `<dir>/<name>/SKILL.md` (+ YAML frontmatter); tools **SkillsList** / **SkillsRead**; [`/skills list|read`](./cmd/openclaude/slash.go); dirs: `skills.dirs`, `OPENCLAUDE_SKILLS_DIRS`, default `.openclaude/skills` and `~/.local/share/openclaude/skills` when present. **No** v3 plugin CLI yet.
+- [x] Partial: **LSP-shaped Go outline** — **GoOutline** tool ([`internal/tools/go_outline.go`](./internal/tools/go_outline.go)) lists top-level declarations via `go/parser` (not a language server).
+- [x] Partial: **Multimodal / vision** — [`core.RunUserTurnMulti`](./internal/core/agent.go) + [`core.BuildUserContentParts`](./internal/core/multipart.go); flags [`--image-url`](./cmd/openclaude/root.go) / [`--image-file`](./cmd/openclaude/root.go) (first user message in REPL/TUI; with `-p`). gRPC chat remains text-only for now.
+- [x] Partial: **Agent routing** — [`agent_routing.task_model`](./internal/config/agent_routing.go) / `OPENCLAUDE_AGENT_TASK_MODEL` selects model for **Task** sub-agent when the client is `*openaicomp.Client`. Full v3-style multi-agent routing still open.
 
 ### CLI / UX
 
@@ -90,7 +90,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 - [x] **Task** tool — bounded sub-session, fresh system + user goal, same tools/client, stdout discarded for sub-run; child registry omits `Task` (no recursion) — [`internal/core/task_tool.go`](./internal/core/task_tool.go)
 - [x] MCP: stdio `ConnectAndRegister`, tool list + `CallTool` proxy, YAML `mcp.servers`, `/mcp list`, `doctor` prints configured servers, **`openclaude mcp list` / `mcp doctor`** — [`internal/mcpclient`](./internal/mcpclient/), [`internal/config/mcp.go`](./internal/config/mcp.go), [`cmd/openclaude/mcp.go`](./cmd/openclaude/mcp.go)
 - [x] Basic permission hook: REPL confirms dangerous tools before run
-- [x] Slash commands — [`cmd/openclaude/slash.go`](./cmd/openclaude/slash.go): `/help`, `/provider`, `/mcp list`, `/mcp doctor`, `/session` (when persistence enabled), `/compact`, `/clear`, `/exit`, `/quit`
+- [x] Slash commands — [`cmd/openclaude/slash.go`](./cmd/openclaude/slash.go): `/help`, `/provider`, `/mcp`, `/skills`, `/session` (when persistence enabled), `/compact`, `/clear`, `/exit`, `/quit`
 
 ## Phase 4 — Terminal UI
 
