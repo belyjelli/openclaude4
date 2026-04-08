@@ -7,6 +7,8 @@ This compares **in-session** `/…` commands in:
 
 v4 has a **fixed set** of built-in local slash commands plus **dynamic** `/<skill>` when the name matches the loaded skills catalog (case-insensitive). v3 has **many** more built-ins plus extensions; availability can depend on **build feature flags**, **auth**, and **`isEnabled()`** per command.
 
+In **`openclaude --tui`**, the prompt offers **slash typeahead**: after `/`, matching commands (including skill names) appear above the input with **Tab** to complete and arrow keys to choose—see [`internal/tui/README.md`](../internal/tui/README.md).
+
 ## Side-by-side (rough parity)
 
 | Area | openclaude4 | openclaude3 |

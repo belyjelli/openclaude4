@@ -186,6 +186,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			Client:         client,
 			Registry:       reg,
 			Messages:       &messages,
+			SkillNames:     skillCat.Names,
 			AutoApprove:    &autoApproveTUI,
 			MCPManager:     mcpMgr,
 			Banner:         bannerStr,

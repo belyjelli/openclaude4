@@ -35,6 +35,7 @@ func (m *model) pushToast(text string, kind int) tea.Cmd {
 	m.toastKind = kind
 	m.toastClearID++
 	id := m.toastClearID
+	m.reflowLayout()
 	return tea.Tick(5*time.Second, func(time.Time) tea.Msg {
 		return toastClearMsg{id: id}
 	})

@@ -381,9 +381,9 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 		if err != nil {
 			m.commitLine(errStyle.Render("Error: ") + err.Error())
 			if c := m.pushToast(err.Error(), toastErr); c != nil {
-				return m, c
+				return m, tea.Batch(textinput.Blink, c)
 			}
-			return m, nil
+			return m, textinput.Blink
 		}
 		if strings.TrimSpace(out) != "" {
 			m.commitLine(out)

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -150,7 +151,11 @@ func suggestionBlockHeight(matches []slashEntry) int {
 	if len(matches) == 0 {
 		return 0
 	}
-	return slashSuggestHeaderLines + suggestionContentLines(matches)
+	h := slashSuggestHeaderLines + suggestionContentLines(matches)
+	if len(matches) > slashSuggestMaxRows {
+		h++
+	}
+	return h
 }
 
 func renderSlashSuggestions(width int, matches []slashEntry, selected int) string {
@@ -170,6 +175,10 @@ func renderSlashSuggestions(width int, matches []slashEntry, selected int) strin
 			line = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")).Render(line)
 		}
 		rows = append(rows, lipgloss.NewStyle().Width(width).Render(line))
+	}
+	if len(matches) > slashSuggestMaxRows {
+		more := len(matches) - slashSuggestMaxRows
+		rows = append(rows, dimStyle.Width(width).Render(fmt.Sprintf("+%d more", more)))
 	}
 	body := lipgloss.JoinVertical(lipgloss.Left, rows...)
 	box := lipgloss.NewStyle().
