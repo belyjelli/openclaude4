@@ -10,14 +10,10 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 ## Stub backlog & doc follow-ups
 
-Actionable items from stub/parity audits (implement in this order when prioritizing **small, user-visible** fixes before large provider work):
-
-1. **LICENSE** — Add a root `LICENSE` consistent with [OpenClaude v3](https://github.com/Gitlawb/openclaude/blob/main/LICENSE) / org policy; update [README.md](./README.md) to link it (currently points to upstream until then).
-2. **Codex failure timing** — Today `provider.name: codex` passes [`config.Validate`](./internal/config/validate.go) but [`NewStreamClient`](./internal/providers/runtime.go) returns `ErrCodexNotImplemented`. Either keep **doc-aligned** behavior (already updated in CONFIG/PROVIDERS/MIGRATION) or **fail early** in `Validate()` with the same user-facing message. **Note:** `config` must not import `providers` (import cycle); early failure needs a **shared error** in a small package (e.g. `internal/providererrs`) or a duplicated sentinel string.
-3. **`/vim` TUI** — Implement vim-style prompt editing in Bubble Tea (`internal/tui`, slash handler in [`cmd/openclaude/slash_extra.go`](./cmd/openclaude/slash_extra.go)); update [docs/SLASH_COMMANDS.md](./docs/SLASH_COMMANDS.md).
-4. **gRPC multimodal** — Extend [`internal/grpc/proto/openclaude.proto`](./internal/grpc/proto/openclaude.proto) and [`internal/grpc/server.go`](./internal/grpc/server.go) so `ChatRequest` can carry image parts; reuse [`core.BuildUserContentParts`](./internal/core/multipart.go) / `RunUserTurnMulti`; document in [docs/gRPC_COMPATIBILITY.md](./docs/gRPC_COMPATIBILITY.md).
-
-**Recommended next step after doc updates:** item **2** (small, reduces confusion) or **1** (legal clarity). Item **4** matters for extension/clients that need parity with CLI `--image-*`.
+- [x] **LICENSE** — root [LICENSE](./LICENSE) + [README.md](./README.md) link.
+- [x] **Codex early validation** — [`internal/providererrs`](./internal/providererrs/codex.go) + [`config.Validate`](./internal/config/validate.go) returns `ErrCodexNotImplemented` for `provider.name: codex` (same sentinel as [`NewStreamClient`](./internal/providers/runtime.go)).
+- [ ] **`/vim` TUI** — vim-style prompt subset in Bubble Tea; [docs/SLASH_COMMANDS.md](./docs/SLASH_COMMANDS.md).
+- [x] **gRPC multimodal** — `ChatRequest.image_url` / `image_inline` + [`internal/grpc/server.go`](./internal/grpc/server.go) → `RunUserTurnMulti`; [docs/gRPC_COMPATIBILITY.md](./docs/gRPC_COMPATIBILITY.md).
 
 ---
 
@@ -27,7 +23,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 
 ### Providers and auth
 
-- [ ] **Codex** provider (v4 returns `ErrCodexNotImplemented` from [`internal/providers/runtime.go`](./internal/providers/runtime.go))
+- [ ] **Codex** provider (v4 returns `ErrCodexNotImplemented` from [`config.Validate`](./internal/config/validate.go) and [`NewStreamClient`](./internal/providers/runtime.go))
 - [x] **GitHub Models** provider — [`openaicomp.NewGitHubModels`](./internal/providers/openaicomp/github.go); `OPENCLAUDE_PROVIDER=github`, `GITHUB_TOKEN` / `GITHUB_PAT`; interactive wizard in [`cmd/openclaude/slash_provider_wizard.go`](./cmd/openclaude/slash_provider_wizard.go); see [docs/PROVIDERS.md](./docs/PROVIDERS.md) for setup
 - [ ] **Atomic Chat**, **Bedrock / Vertex / Foundry** and other env-driven backends listed in [v3 README](https://github.com/Gitlawb/openclaude) “Supported Providers”
 - [ ] Optional: v3-style **secure storage / keychain** hydration for Gemini and GitHub (beyond env + `.openclaude-profile.json` merge)
@@ -38,7 +34,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 - [x] Optional **spider_cli** — when `spider` is on `PATH`, **[`SpiderScrape`](./internal/tools/spider_scrape.go)** is registered (single-URL scrape). **No Firecrawl** — v3’s `FIRECRAWL_API_KEY` path is intentionally omitted; use **SpiderScrape** for richer local scrape.
 - [x] Partial: **Skills** — [`internal/skills`](./internal/skills/skills.go) loads `<dir>/<name>/SKILL.md` (+ YAML frontmatter); tools **SkillsList** / **SkillsRead**; [`/skills list|read`](./cmd/openclaude/slash.go); dirs: `skills.dirs`, `OPENCLAUDE_SKILLS_DIRS`, default `.openclaude/skills` and `~/.local/share/openclaude/skills` when present. **No** v3 plugin CLI yet.
 - [x] Partial: **LSP-shaped Go outline** — **GoOutline** tool ([`internal/tools/go_outline.go`](./internal/tools/go_outline.go)) lists top-level declarations via `go/parser` (not a language server).
-- [x] Partial: **Multimodal / vision** — [`core.RunUserTurnMulti`](./internal/core/agent.go) + [`core.BuildUserContentParts`](./internal/core/multipart.go); flags [`--image-url`](./cmd/openclaude/root.go) / [`--image-file`](./cmd/openclaude/root.go) (first user message in REPL/TUI; with `-p`). gRPC chat remains text-only for now.
+- [x] Partial: **Multimodal / vision** — [`core.RunUserTurnMulti`](./internal/core/agent.go) + [`core.BuildUserContentParts`](./internal/core/multipart.go); flags [`--image-url`](./cmd/openclaude/root.go) / [`--image-file`](./cmd/openclaude/root.go) (first user message in REPL/TUI; with `-p`). gRPC: [`ChatRequest.image_url` / `image_inline`](./internal/grpc/proto/openclaude.proto) on `openclaude serve`.
 - [x] Partial: **Agent routing** — [`agent_routing.task_model`](./internal/config/agent_routing.go) / `OPENCLAUDE_AGENT_TASK_MODEL` selects model for **Task** sub-agent when the client is `*openaicomp.Client`. Full v3-style multi-agent routing still open.
 
 ### CLI / UX

@@ -47,6 +47,8 @@ type Config struct {
 	StatusLineFunc func() string
 	// Theme drives lipgloss + markdown rendering (optional).
 	Theme *ThemeHolder
+	// VimKeys toggles vim-style prompt editing (/vim in TUI); nil disables.
+	VimKeys *VimKeysHolder
 }
 
 type model struct {
@@ -64,6 +66,7 @@ type model struct {
 	runningTool       string
 	pendingImageURLs  []string
 	pendingImageFiles []string
+	vimNormal         bool // true = vim normal mode on prompt (movement); false = insert when VimKeys enabled
 	// transcript
 	committed strings.Builder
 	liveAsst  strings.Builder

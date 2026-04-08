@@ -82,4 +82,4 @@ Tagged releases (semver, e.g. `v0.1.0`) publish archives via [GoReleaser](./gore
 
 ## License
 
-There is **no** `LICENSE` file in this repository yet. Contribute under [CONTRIBUTING.md](./CONTRIBUTING.md); expect terms to **align with** the upstream [OpenClaude v3 license](https://github.com/Gitlawb/openclaude/blob/main/LICENSE) once a root `LICENSE` is added. Tracked in [TODO.md](./TODO.md) (**Stub backlog & doc follow-ups**).
+See [LICENSE](./LICENSE) in this repository (same framing as [OpenClaude v3](https://github.com/Gitlawb/openclaude/blob/main/LICENSE): NOTICE on Anthropic-derived lineage + MIT for OpenClaude contributor modifications where legally permissible). Contributor practices: [CONTRIBUTING.md](./CONTRIBUTING.md).

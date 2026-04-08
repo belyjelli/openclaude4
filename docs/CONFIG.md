@@ -157,7 +157,7 @@ For manual mapping: API keys → `OPENAI_*` / `GEMINI_*` / YAML; custom OpenAI b
 
 ## Validation
 
-Unknown `provider.name` values are rejected when the chat (or serve) command loads config (`config.Validate()`). The reserved name **`codex`** passes validation but **`NewStreamClient` fails** with `ErrCodexNotImplemented` until the provider is implemented ([`internal/providers/runtime.go`](../internal/providers/runtime.go)). Run `openclaude doctor` to see validation and client construction in one place.
+Unknown `provider.name` values are rejected when the chat (or serve) command loads config (`config.Validate()`). The reserved name **`codex`** fails validation with the same `ErrCodexNotImplemented` sentinel used by [`NewStreamClient`](../internal/providers/runtime.go) ([`internal/providererrs`](../internal/providererrs/codex.go)). Run `openclaude doctor` to see validation and client construction in one place.
 
 ## In-session slash commands (REPL)
 
@@ -182,6 +182,8 @@ Headless **`openclaude.v4.AgentService`** (see [`internal/grpc/README.md`](../in
 | **`--listen`** | Overrides `OPENCLAUDE_GRPC_ADDR`. |
 
 Session persistence for gRPC uses the same **`session.*` / `OPENCLAUDE_NO_SESSION`** rules as the REPL. Clients set **`ChatRequest.session_id`** to load/save a named session; see the proto and gRPC README.
+
+**Vision over gRPC:** `ChatRequest.image_url` (repeated) and `image_inline` (raw bytes + `mime_type`) are optional; you may send images with empty `user_text` (server uses the same placeholder text as the CLI). Limits: 16 images per turn, 8 MiB per inline attachment — see [`internal/grpc/proto/openclaude.proto`](../internal/grpc/proto/openclaude.proto).
 
 ## Timeouts, iteration limits, and HTTP behavior
 

@@ -26,6 +26,29 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func grpcNonEmptyImageURLs(urls []string) bool {
+	for _, u := range urls {
+		if strings.TrimSpace(u) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func grpcInlineImagesFromProto(attachments []*openclaudev4.ImageAttachment) []core.GRPCInlineImage {
+	var out []core.GRPCInlineImage
+	for _, a := range attachments {
+		if a == nil || len(a.GetData()) == 0 {
+			continue
+		}
+		out = append(out, core.GRPCInlineImage{
+			Data: a.GetData(),
+			MIME: a.GetMimeType(),
+		})
+	}
+	return out
+}
+
 // Kernel wires the same [core.StreamClient] and [tools.Registry] types as the CLI/TUI.
 type Kernel struct {
 	Client      core.StreamClient
@@ -161,15 +184,27 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 			switch p := m.Payload.(type) {
 			case *openclaudev4.ClientMessage_ChatRequest:
 				req := p.ChatRequest
-				if req == nil || strings.TrimSpace(req.GetUserText()) == "" {
+				if req == nil {
 					_ = send(&openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_Error{Error: &openclaudev4.ErrorEvent{
-						Message: "chat_request.user_text is required",
+						Message: "chat_request is required",
+						Code:    "invalid_argument",
+					}}})
+					continue
+				}
+				userText := strings.TrimSpace(req.GetUserText())
+				inlines := grpcInlineImagesFromProto(req.GetImageInline())
+				hasImg := grpcNonEmptyImageURLs(req.GetImageUrl()) || len(inlines) > 0
+				if userText == "" && !hasImg {
+					_ = send(&openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_Error{Error: &openclaudev4.ErrorEvent{
+						Message: "chat_request.user_text or at least one image (image_url / image_inline) is required",
 						Code:    "invalid_argument",
 					}}})
 					continue
 				}
 				turnWG.Add(1)
-				go func(req *openclaudev4.ChatRequest) {
+				urlCopy := append([]string(nil), req.GetImageUrl()...)
+				inlineCopy := append([]core.GRPCInlineImage(nil), inlines...)
+				go func(req *openclaudev4.ChatRequest, userText string, imageURLs []string, inlines []core.GRPCInlineImage, hasImg bool) {
 					defer turnWG.Done()
 					s.serveTurnMu.Lock()
 					defer s.serveTurnMu.Unlock()
@@ -226,12 +261,24 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 						s.Kernel.TaskParent.Store(agent)
 						defer s.Kernel.TaskParent.Store(nil)
 					}
-					_ = agent.RunUserTurn(turnCtx, &messages, req.GetUserText())
+					if hasImg {
+						parts, err := core.BuildUserContentPartsFromGRPC(req.GetUserText(), imageURLs, inlines)
+						if err != nil {
+							_ = send(&openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_Error{Error: &openclaudev4.ErrorEvent{
+								Message: err.Error(),
+								Code:    "invalid_argument",
+							}}})
+							return
+						}
+						_ = agent.RunUserTurnMulti(turnCtx, &messages, parts)
+					} else {
+						_ = agent.RunUserTurn(turnCtx, &messages, userText)
+					}
 
 					if persist && activeStore != nil {
 						_ = activeStore.Save(session.RepairTranscript(messages), wdSave)
 					}
-				}(req)
+				}(req, userText, urlCopy, inlineCopy, hasImg)
 
 			case *openclaudev4.ClientMessage_UserInput:
 				ui := p.UserInput

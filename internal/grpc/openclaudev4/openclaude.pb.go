@@ -119,6 +119,60 @@ func (*ClientMessage_UserInput) isClientMessage_Payload() {}
 
 func (*ClientMessage_Cancel) isClientMessage_Payload() {}
 
+// Raw image bytes for models that accept data URLs (same caps as CLI file images: 8 MiB each).
+type ImageAttachment struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Data  []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	// e.g. image/png, image/jpeg — used in data:image/...;base64,... parts.
+	MimeType      string `protobuf:"bytes,2,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImageAttachment) Reset() {
+	*x = ImageAttachment{}
+	mi := &file_openclaude_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImageAttachment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImageAttachment) ProtoMessage() {}
+
+func (x *ImageAttachment) ProtoReflect() protoreflect.Message {
+	mi := &file_openclaude_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImageAttachment.ProtoReflect.Descriptor instead.
+func (*ImageAttachment) Descriptor() ([]byte, []int) {
+	return file_openclaude_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ImageAttachment) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *ImageAttachment) GetMimeType() string {
+	if x != nil {
+		return x.MimeType
+	}
+	return ""
+}
+
 // Starts one user turn (append user message, run model↔tools until idle).
 type ChatRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
@@ -129,14 +183,18 @@ type ChatRequest struct {
 	Model *string `protobuf:"bytes,3,opt,name=model,proto3,oneof" json:"model,omitempty"`
 	// When server session persistence is enabled: load/save this on-disk session (v3-style).
 	// Empty: use a new random id for the first turn on this stream, then keep it for later empty requests.
-	SessionId     *string `protobuf:"bytes,4,opt,name=session_id,json=sessionId,proto3,oneof" json:"session_id,omitempty"`
+	SessionId *string `protobuf:"bytes,4,opt,name=session_id,json=sessionId,proto3,oneof" json:"session_id,omitempty"`
+	// Vision: HTTPS or data: URLs (same semantics as CLI --image-url). Max 16 entries; empty strings skipped.
+	ImageUrl []string `protobuf:"bytes,5,rep,name=image_url,json=imageUrl,proto3" json:"image_url,omitempty"`
+	// Vision: inline bytes → data URL parts. Max 16 entries; each data max 8 MiB (server rejects larger).
+	ImageInline   []*ImageAttachment `protobuf:"bytes,6,rep,name=image_inline,json=imageInline,proto3" json:"image_inline,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ChatRequest) Reset() {
 	*x = ChatRequest{}
-	mi := &file_openclaude_proto_msgTypes[1]
+	mi := &file_openclaude_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -148,7 +206,7 @@ func (x *ChatRequest) String() string {
 func (*ChatRequest) ProtoMessage() {}
 
 func (x *ChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openclaude_proto_msgTypes[1]
+	mi := &file_openclaude_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -161,7 +219,7 @@ func (x *ChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatRequest.ProtoReflect.Descriptor instead.
 func (*ChatRequest) Descriptor() ([]byte, []int) {
-	return file_openclaude_proto_rawDescGZIP(), []int{1}
+	return file_openclaude_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ChatRequest) GetUserText() string {
@@ -192,6 +250,20 @@ func (x *ChatRequest) GetSessionId() string {
 	return ""
 }
 
+func (x *ChatRequest) GetImageUrl() []string {
+	if x != nil {
+		return x.ImageUrl
+	}
+	return nil
+}
+
+func (x *ChatRequest) GetImageInline() []*ImageAttachment {
+	if x != nil {
+		return x.ImageInline
+	}
+	return nil
+}
+
 // Reply to PermissionRequired (yes/no or free text, same semantics as CLI confirm).
 type UserInput struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -203,7 +275,7 @@ type UserInput struct {
 
 func (x *UserInput) Reset() {
 	*x = UserInput{}
-	mi := &file_openclaude_proto_msgTypes[2]
+	mi := &file_openclaude_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -215,7 +287,7 @@ func (x *UserInput) String() string {
 func (*UserInput) ProtoMessage() {}
 
 func (x *UserInput) ProtoReflect() protoreflect.Message {
-	mi := &file_openclaude_proto_msgTypes[2]
+	mi := &file_openclaude_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -228,7 +300,7 @@ func (x *UserInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserInput.ProtoReflect.Descriptor instead.
 func (*UserInput) Descriptor() ([]byte, []int) {
-	return file_openclaude_proto_rawDescGZIP(), []int{2}
+	return file_openclaude_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *UserInput) GetPromptId() string {
@@ -254,7 +326,7 @@ type CancelSignal struct {
 
 func (x *CancelSignal) Reset() {
 	*x = CancelSignal{}
-	mi := &file_openclaude_proto_msgTypes[3]
+	mi := &file_openclaude_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -266,7 +338,7 @@ func (x *CancelSignal) String() string {
 func (*CancelSignal) ProtoMessage() {}
 
 func (x *CancelSignal) ProtoReflect() protoreflect.Message {
-	mi := &file_openclaude_proto_msgTypes[3]
+	mi := &file_openclaude_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -279,7 +351,7 @@ func (x *CancelSignal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelSignal.ProtoReflect.Descriptor instead.
 func (*CancelSignal) Descriptor() ([]byte, []int) {
-	return file_openclaude_proto_rawDescGZIP(), []int{3}
+	return file_openclaude_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *CancelSignal) GetReason() string {
@@ -308,7 +380,7 @@ type ServerMessage struct {
 
 func (x *ServerMessage) Reset() {
 	*x = ServerMessage{}
-	mi := &file_openclaude_proto_msgTypes[4]
+	mi := &file_openclaude_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -320,7 +392,7 @@ func (x *ServerMessage) String() string {
 func (*ServerMessage) ProtoMessage() {}
 
 func (x *ServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_openclaude_proto_msgTypes[4]
+	mi := &file_openclaude_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -333,7 +405,7 @@ func (x *ServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerMessage.ProtoReflect.Descriptor instead.
 func (*ServerMessage) Descriptor() ([]byte, []int) {
-	return file_openclaude_proto_rawDescGZIP(), []int{4}
+	return file_openclaude_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ServerMessage) GetEvent() isServerMessage_Event {
@@ -476,7 +548,7 @@ type TextChunk struct {
 
 func (x *TextChunk) Reset() {
 	*x = TextChunk{}
-	mi := &file_openclaude_proto_msgTypes[5]
+	mi := &file_openclaude_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -488,7 +560,7 @@ func (x *TextChunk) String() string {
 func (*TextChunk) ProtoMessage() {}
 
 func (x *TextChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_openclaude_proto_msgTypes[5]
+	mi := &file_openclaude_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -501,7 +573,7 @@ func (x *TextChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TextChunk.ProtoReflect.Descriptor instead.
 func (*TextChunk) Descriptor() ([]byte, []int) {
-	return file_openclaude_proto_rawDescGZIP(), []int{5}
+	return file_openclaude_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *TextChunk) GetText() string {
@@ -522,7 +594,7 @@ type ToolCallStart struct {
 
 func (x *ToolCallStart) Reset() {
 	*x = ToolCallStart{}
-	mi := &file_openclaude_proto_msgTypes[6]
+	mi := &file_openclaude_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -534,7 +606,7 @@ func (x *ToolCallStart) String() string {
 func (*ToolCallStart) ProtoMessage() {}
 
 func (x *ToolCallStart) ProtoReflect() protoreflect.Message {
-	mi := &file_openclaude_proto_msgTypes[6]
+	mi := &file_openclaude_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -547,7 +619,7 @@ func (x *ToolCallStart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolCallStart.ProtoReflect.Descriptor instead.
 func (*ToolCallStart) Descriptor() ([]byte, []int) {
-	return file_openclaude_proto_rawDescGZIP(), []int{6}
+	return file_openclaude_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ToolCallStart) GetToolName() string {
@@ -584,7 +656,7 @@ type ToolCallResult struct {
 
 func (x *ToolCallResult) Reset() {
 	*x = ToolCallResult{}
-	mi := &file_openclaude_proto_msgTypes[7]
+	mi := &file_openclaude_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -596,7 +668,7 @@ func (x *ToolCallResult) String() string {
 func (*ToolCallResult) ProtoMessage() {}
 
 func (x *ToolCallResult) ProtoReflect() protoreflect.Message {
-	mi := &file_openclaude_proto_msgTypes[7]
+	mi := &file_openclaude_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -609,7 +681,7 @@ func (x *ToolCallResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolCallResult.ProtoReflect.Descriptor instead.
 func (*ToolCallResult) Descriptor() ([]byte, []int) {
-	return file_openclaude_proto_rawDescGZIP(), []int{7}
+	return file_openclaude_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ToolCallResult) GetToolName() string {
@@ -660,7 +732,7 @@ type PermissionRequired struct {
 
 func (x *PermissionRequired) Reset() {
 	*x = PermissionRequired{}
-	mi := &file_openclaude_proto_msgTypes[8]
+	mi := &file_openclaude_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -672,7 +744,7 @@ func (x *PermissionRequired) String() string {
 func (*PermissionRequired) ProtoMessage() {}
 
 func (x *PermissionRequired) ProtoReflect() protoreflect.Message {
-	mi := &file_openclaude_proto_msgTypes[8]
+	mi := &file_openclaude_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -685,7 +757,7 @@ func (x *PermissionRequired) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PermissionRequired.ProtoReflect.Descriptor instead.
 func (*PermissionRequired) Descriptor() ([]byte, []int) {
-	return file_openclaude_proto_rawDescGZIP(), []int{8}
+	return file_openclaude_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *PermissionRequired) GetPromptId() string {
@@ -726,7 +798,7 @@ type PermissionAck struct {
 
 func (x *PermissionAck) Reset() {
 	*x = PermissionAck{}
-	mi := &file_openclaude_proto_msgTypes[9]
+	mi := &file_openclaude_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -738,7 +810,7 @@ func (x *PermissionAck) String() string {
 func (*PermissionAck) ProtoMessage() {}
 
 func (x *PermissionAck) ProtoReflect() protoreflect.Message {
-	mi := &file_openclaude_proto_msgTypes[9]
+	mi := &file_openclaude_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -751,7 +823,7 @@ func (x *PermissionAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PermissionAck.ProtoReflect.Descriptor instead.
 func (*PermissionAck) Descriptor() ([]byte, []int) {
-	return file_openclaude_proto_rawDescGZIP(), []int{9}
+	return file_openclaude_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *PermissionAck) GetPromptId() string {
@@ -780,7 +852,7 @@ type AssistantFinished struct {
 
 func (x *AssistantFinished) Reset() {
 	*x = AssistantFinished{}
-	mi := &file_openclaude_proto_msgTypes[10]
+	mi := &file_openclaude_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -792,7 +864,7 @@ func (x *AssistantFinished) String() string {
 func (*AssistantFinished) ProtoMessage() {}
 
 func (x *AssistantFinished) ProtoReflect() protoreflect.Message {
-	mi := &file_openclaude_proto_msgTypes[10]
+	mi := &file_openclaude_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -805,7 +877,7 @@ func (x *AssistantFinished) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AssistantFinished.ProtoReflect.Descriptor instead.
 func (*AssistantFinished) Descriptor() ([]byte, []int) {
-	return file_openclaude_proto_rawDescGZIP(), []int{10}
+	return file_openclaude_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AssistantFinished) GetFullText() string {
@@ -844,7 +916,7 @@ type TurnComplete struct {
 
 func (x *TurnComplete) Reset() {
 	*x = TurnComplete{}
-	mi := &file_openclaude_proto_msgTypes[11]
+	mi := &file_openclaude_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -856,7 +928,7 @@ func (x *TurnComplete) String() string {
 func (*TurnComplete) ProtoMessage() {}
 
 func (x *TurnComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_openclaude_proto_msgTypes[11]
+	mi := &file_openclaude_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -869,7 +941,7 @@ func (x *TurnComplete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TurnComplete.ProtoReflect.Descriptor instead.
 func (*TurnComplete) Descriptor() ([]byte, []int) {
-	return file_openclaude_proto_rawDescGZIP(), []int{11}
+	return file_openclaude_proto_rawDescGZIP(), []int{12}
 }
 
 type ErrorEvent struct {
@@ -882,7 +954,7 @@ type ErrorEvent struct {
 
 func (x *ErrorEvent) Reset() {
 	*x = ErrorEvent{}
-	mi := &file_openclaude_proto_msgTypes[12]
+	mi := &file_openclaude_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -894,7 +966,7 @@ func (x *ErrorEvent) String() string {
 func (*ErrorEvent) ProtoMessage() {}
 
 func (x *ErrorEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_openclaude_proto_msgTypes[12]
+	mi := &file_openclaude_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -907,7 +979,7 @@ func (x *ErrorEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ErrorEvent.ProtoReflect.Descriptor instead.
 func (*ErrorEvent) Descriptor() ([]byte, []int) {
-	return file_openclaude_proto_rawDescGZIP(), []int{12}
+	return file_openclaude_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ErrorEvent) GetMessage() string {
@@ -934,13 +1006,18 @@ const file_openclaude_proto_rawDesc = "" +
 	"\n" +
 	"user_input\x18\x02 \x01(\v2\x18.openclaude.v4.UserInputH\x00R\tuserInput\x125\n" +
 	"\x06cancel\x18\x03 \x01(\v2\x1b.openclaude.v4.CancelSignalH\x00R\x06cancelB\t\n" +
-	"\apayload\"\xaf\x01\n" +
+	"\apayload\"B\n" +
+	"\x0fImageAttachment\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\x12\x1b\n" +
+	"\tmime_type\x18\x02 \x01(\tR\bmimeType\"\x8f\x02\n" +
 	"\vChatRequest\x12\x1b\n" +
 	"\tuser_text\x18\x01 \x01(\tR\buserText\x12+\n" +
 	"\x11working_directory\x18\x02 \x01(\tR\x10workingDirectory\x12\x19\n" +
 	"\x05model\x18\x03 \x01(\tH\x00R\x05model\x88\x01\x01\x12\"\n" +
 	"\n" +
-	"session_id\x18\x04 \x01(\tH\x01R\tsessionId\x88\x01\x01B\b\n" +
+	"session_id\x18\x04 \x01(\tH\x01R\tsessionId\x88\x01\x01\x12\x1b\n" +
+	"\timage_url\x18\x05 \x03(\tR\bimageUrl\x12A\n" +
+	"\fimage_inline\x18\x06 \x03(\v2\x1e.openclaude.v4.ImageAttachmentR\vimageInlineB\b\n" +
 	"\x06_modelB\r\n" +
 	"\v_session_id\">\n" +
 	"\tUserInput\x12\x1b\n" +
@@ -1006,41 +1083,43 @@ func file_openclaude_proto_rawDescGZIP() []byte {
 	return file_openclaude_proto_rawDescData
 }
 
-var file_openclaude_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_openclaude_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_openclaude_proto_goTypes = []any{
 	(*ClientMessage)(nil),      // 0: openclaude.v4.ClientMessage
-	(*ChatRequest)(nil),        // 1: openclaude.v4.ChatRequest
-	(*UserInput)(nil),          // 2: openclaude.v4.UserInput
-	(*CancelSignal)(nil),       // 3: openclaude.v4.CancelSignal
-	(*ServerMessage)(nil),      // 4: openclaude.v4.ServerMessage
-	(*TextChunk)(nil),          // 5: openclaude.v4.TextChunk
-	(*ToolCallStart)(nil),      // 6: openclaude.v4.ToolCallStart
-	(*ToolCallResult)(nil),     // 7: openclaude.v4.ToolCallResult
-	(*PermissionRequired)(nil), // 8: openclaude.v4.PermissionRequired
-	(*PermissionAck)(nil),      // 9: openclaude.v4.PermissionAck
-	(*AssistantFinished)(nil),  // 10: openclaude.v4.AssistantFinished
-	(*TurnComplete)(nil),       // 11: openclaude.v4.TurnComplete
-	(*ErrorEvent)(nil),         // 12: openclaude.v4.ErrorEvent
+	(*ImageAttachment)(nil),    // 1: openclaude.v4.ImageAttachment
+	(*ChatRequest)(nil),        // 2: openclaude.v4.ChatRequest
+	(*UserInput)(nil),          // 3: openclaude.v4.UserInput
+	(*CancelSignal)(nil),       // 4: openclaude.v4.CancelSignal
+	(*ServerMessage)(nil),      // 5: openclaude.v4.ServerMessage
+	(*TextChunk)(nil),          // 6: openclaude.v4.TextChunk
+	(*ToolCallStart)(nil),      // 7: openclaude.v4.ToolCallStart
+	(*ToolCallResult)(nil),     // 8: openclaude.v4.ToolCallResult
+	(*PermissionRequired)(nil), // 9: openclaude.v4.PermissionRequired
+	(*PermissionAck)(nil),      // 10: openclaude.v4.PermissionAck
+	(*AssistantFinished)(nil),  // 11: openclaude.v4.AssistantFinished
+	(*TurnComplete)(nil),       // 12: openclaude.v4.TurnComplete
+	(*ErrorEvent)(nil),         // 13: openclaude.v4.ErrorEvent
 }
 var file_openclaude_proto_depIdxs = []int32{
-	1,  // 0: openclaude.v4.ClientMessage.chat_request:type_name -> openclaude.v4.ChatRequest
-	2,  // 1: openclaude.v4.ClientMessage.user_input:type_name -> openclaude.v4.UserInput
-	3,  // 2: openclaude.v4.ClientMessage.cancel:type_name -> openclaude.v4.CancelSignal
-	5,  // 3: openclaude.v4.ServerMessage.text_chunk:type_name -> openclaude.v4.TextChunk
-	6,  // 4: openclaude.v4.ServerMessage.tool_start:type_name -> openclaude.v4.ToolCallStart
-	7,  // 5: openclaude.v4.ServerMessage.tool_result:type_name -> openclaude.v4.ToolCallResult
-	8,  // 6: openclaude.v4.ServerMessage.permission_required:type_name -> openclaude.v4.PermissionRequired
-	9,  // 7: openclaude.v4.ServerMessage.permission_ack:type_name -> openclaude.v4.PermissionAck
-	10, // 8: openclaude.v4.ServerMessage.assistant_finished:type_name -> openclaude.v4.AssistantFinished
-	11, // 9: openclaude.v4.ServerMessage.turn_complete:type_name -> openclaude.v4.TurnComplete
-	12, // 10: openclaude.v4.ServerMessage.error:type_name -> openclaude.v4.ErrorEvent
-	0,  // 11: openclaude.v4.AgentService.Chat:input_type -> openclaude.v4.ClientMessage
-	4,  // 12: openclaude.v4.AgentService.Chat:output_type -> openclaude.v4.ServerMessage
-	12, // [12:13] is the sub-list for method output_type
-	11, // [11:12] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	2,  // 0: openclaude.v4.ClientMessage.chat_request:type_name -> openclaude.v4.ChatRequest
+	3,  // 1: openclaude.v4.ClientMessage.user_input:type_name -> openclaude.v4.UserInput
+	4,  // 2: openclaude.v4.ClientMessage.cancel:type_name -> openclaude.v4.CancelSignal
+	1,  // 3: openclaude.v4.ChatRequest.image_inline:type_name -> openclaude.v4.ImageAttachment
+	6,  // 4: openclaude.v4.ServerMessage.text_chunk:type_name -> openclaude.v4.TextChunk
+	7,  // 5: openclaude.v4.ServerMessage.tool_start:type_name -> openclaude.v4.ToolCallStart
+	8,  // 6: openclaude.v4.ServerMessage.tool_result:type_name -> openclaude.v4.ToolCallResult
+	9,  // 7: openclaude.v4.ServerMessage.permission_required:type_name -> openclaude.v4.PermissionRequired
+	10, // 8: openclaude.v4.ServerMessage.permission_ack:type_name -> openclaude.v4.PermissionAck
+	11, // 9: openclaude.v4.ServerMessage.assistant_finished:type_name -> openclaude.v4.AssistantFinished
+	12, // 10: openclaude.v4.ServerMessage.turn_complete:type_name -> openclaude.v4.TurnComplete
+	13, // 11: openclaude.v4.ServerMessage.error:type_name -> openclaude.v4.ErrorEvent
+	0,  // 12: openclaude.v4.AgentService.Chat:input_type -> openclaude.v4.ClientMessage
+	5,  // 13: openclaude.v4.AgentService.Chat:output_type -> openclaude.v4.ServerMessage
+	13, // [13:14] is the sub-list for method output_type
+	12, // [12:13] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_openclaude_proto_init() }
@@ -1053,8 +1132,8 @@ func file_openclaude_proto_init() {
 		(*ClientMessage_UserInput)(nil),
 		(*ClientMessage_Cancel)(nil),
 	}
-	file_openclaude_proto_msgTypes[1].OneofWrappers = []any{}
-	file_openclaude_proto_msgTypes[4].OneofWrappers = []any{
+	file_openclaude_proto_msgTypes[2].OneofWrappers = []any{}
+	file_openclaude_proto_msgTypes[5].OneofWrappers = []any{
 		(*ServerMessage_TextChunk)(nil),
 		(*ServerMessage_ToolStart)(nil),
 		(*ServerMessage_ToolResult)(nil),
@@ -1070,7 +1149,7 @@ func file_openclaude_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_openclaude_proto_rawDesc), len(file_openclaude_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

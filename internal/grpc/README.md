@@ -37,6 +37,7 @@ v4 intentionally uses **`package openclaude.v4`** and a distinct Go import path 
 | `ChatRequest.working_directory` | same |
 | `ChatRequest.model` | same (optional; server process still owns the real client today) |
 | `ChatRequest.session_id` | `ChatRequest.session_id` (field 4) — on-disk binding when `openclaude serve` runs with sessions enabled (same dir as REPL) |
+| *(v3 multimodal, if present on message)* | `ChatRequest.image_url` (repeated), `ChatRequest.image_inline` (`ImageAttachment`: bytes + `mime_type`) — wired to [`core.RunUserTurnMulti`](../../internal/core/agent.go); caps: 16 attachments total, 8 MiB per inline blob |
 | `UserInput` / `CancelSignal` | same roles |
 | `TextChunk` | same |
 | `ToolCallStart` | same field names (`tool_use_id`, …) |
@@ -51,7 +52,7 @@ Implemented in [`cmd/openclaude/serve.go`](../../cmd/openclaude/serve.go): same 
 
 - **Address:** `--listen` or env **`OPENCLAUDE_GRPC_ADDR`** (default **`:50051`**).
 - **Sessions:** [`Kernel.Session`](server.go) uses `config.SessionDisabled()` and `config.EffectiveSessionDir()`. [`ChatRequest.session_id`](proto/openclaude.proto) selects the on-disk session; empty id on a stream uses a new random id for the first turn, then sticks for later empty requests on that stream.
-- **Concurrency:** one `RunUserTurn` at a time server-wide (`serveTurnMu`) so the `Task` tool always resolves the active agent.
+- **Concurrency:** one user turn at a time server-wide (`serveTurnMu`) — `RunUserTurn` or `RunUserTurnMulti` — so the `Task` tool always resolves the active agent.
 - **Future:** TLS / auth middleware; optional HTTP gateway.
 
 ## Tests

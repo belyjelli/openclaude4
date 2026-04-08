@@ -24,6 +24,13 @@ message ClientMessage {
   }
 }
 
+// Raw image bytes for models that accept data URLs (same caps as CLI file images: 8 MiB each).
+message ImageAttachment {
+  bytes data = 1;
+  // e.g. image/png, image/jpeg — used in data:image/...;base64,... parts.
+  string mime_type = 2;
+}
+
 // Starts one user turn (append user message, run model↔tools until idle).
 message ChatRequest {
   string user_text = 1;
@@ -34,6 +41,10 @@ message ChatRequest {
   // When server session persistence is enabled: load/save this on-disk session (v3-style).
   // Empty: use a new random id for the first turn on this stream, then keep it for later empty requests.
   optional string session_id = 4;
+  // Vision: HTTPS or data: URLs (same semantics as CLI --image-url). Max 16 entries; empty strings skipped.
+  repeated string image_url = 5;
+  // Vision: inline bytes → data URL parts. Max 16 entries; each data max 8 MiB (server rejects larger).
+  repeated ImageAttachment image_inline = 6;
 }
 
 // Reply to PermissionRequired (yes/no or free text, same semantics as CLI confirm).

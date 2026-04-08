@@ -25,6 +25,7 @@ This document explains the compatibility situation between OpenClaude v3 (`openc
 | `ToolCallStart` | Same field names | Preserved |
 | `ToolCallResult` | `is_error` + `output` | Same structure; v4 adds `error_message` |
 | `session_id` | Field 4 | Preserved with same semantics |
+| *(v3 image parts on user message, if any)* | `ChatRequest.image_url`, `ChatRequest.image_inline` | v4 explicit fields; same OpenAI-style multimodal wire to the model as CLI `--image-url` / files |
 
 ## Migration Guide
 

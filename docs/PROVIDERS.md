@@ -8,7 +8,7 @@ All built-in backends speak the **OpenAI Chat Completions** HTTP API (`POST /v1/
 | **ollama** | Local models via Ollama | None (placeholder key in client) | `{OLLAMA_HOST}/v1` (host default `http://127.0.0.1:11434`) | `OLLAMA_MODEL` / `ollama.model` / `provider.model` (default `llama3.2`) |
 | **gemini** | Google Gemini via **OpenAI-compatible** endpoint | `GEMINI_API_KEY` or `GOOGLE_API_KEY` | `https://generativelanguage.googleapis.com/v1beta/openai` (override with `GEMINI_BASE_URL` / `gemini.base_url`) | `GEMINI_MODEL` / `gemini.model` / `provider.model` (default `gemini-2.0-flash`) |
 | **github** | GitHub Models (Azure-hosted OpenAI-compatible API) | `GITHUB_TOKEN` or `GITHUB_PAT` | `{GITHUB_BASE_URL}` (omit for default; pattern: `https://<region>.models.ai.azure.com`) | `GITHUB_MODEL` / `github.model` / `provider.model` (default `gpt-4o`) |
-| **codex** | Reserved | — | — | Not implemented: `provider.name` is accepted by config validation, but building the stream client returns `ErrCodexNotImplemented` (chat, `serve`, and `doctor`’s client check). |
+| **codex** | Reserved | — | — | Not implemented: `config.Validate()` and building the stream client return `ErrCodexNotImplemented` (chat, `serve`, `doctor`). |
 
 ## MCP (Model Context Protocol)
 

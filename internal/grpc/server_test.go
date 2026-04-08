@@ -249,3 +249,106 @@ func TestChat_persistsSessionWhenConfigured(t *testing.T) {
 		t.Fatal("expected persisted transcript")
 	}
 }
+
+func TestChat_multimodalImageURL(t *testing.T) {
+	body := sseBody(
+		sdk.ChatCompletionStreamResponse{
+			Choices: []sdk.ChatCompletionStreamChoice{
+				{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{Content: "seen"}},
+			},
+		},
+		sdk.ChatCompletionStreamResponse{
+			Choices: []sdk.ChatCompletionStreamChoice{
+				{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{}, FinishReason: sdk.FinishReasonStop},
+			},
+		},
+	)
+
+	var lastReqBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/chat/completions" {
+			http.NotFound(w, r)
+			return
+		}
+		b, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		lastReqBody = b
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(srv.Close)
+
+	cfg := sdk.DefaultConfig("sk-test")
+	cfg.BaseURL = strings.TrimSuffix(srv.URL, "/") + "/v1"
+	client := &streamSDKClient{inner: sdk.NewClientWithConfig(cfg), model: sdk.GPT4oMini}
+
+	lis := bufconn.Listen(bufSize)
+	t.Cleanup(func() { _ = lis.Close() })
+
+	gs := grpc.NewServer()
+	Register(gs, Kernel{Client: client, Registry: tools.NewDefaultRegistry(nil), AutoApprove: true})
+	go func() {
+		if err := gs.Serve(lis); err != nil {
+			t.Logf("grpc serve: %v", err)
+		}
+	}()
+	t.Cleanup(gs.Stop)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
+
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+
+	grpcClient := openclaudev4.NewAgentServiceClient(conn)
+	stream, err := grpcClient.Chat(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	imgURL := "https://example.com/vision.png"
+	if err := stream.Send(&openclaudev4.ClientMessage{Payload: &openclaudev4.ClientMessage_ChatRequest{
+		ChatRequest: &openclaudev4.ChatRequest{
+			UserText:  "",
+			ImageUrl:  []string{imgURL},
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.CloseSend(); err != nil {
+		t.Fatal(err)
+	}
+
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ev, ok := msg.GetEvent().(*openclaudev4.ServerMessage_Error); ok {
+			t.Fatalf("unexpected error: %s", ev.Error.GetMessage())
+		}
+	}
+
+	if len(lastReqBody) == 0 {
+		t.Fatal("expected upstream HTTP request body")
+	}
+	if !strings.Contains(string(lastReqBody), "image_url") {
+		t.Fatalf("expected multimodal content in request body, got: %s", string(lastReqBody))
+	}
+	if !strings.Contains(string(lastReqBody), imgURL) {
+		t.Fatalf("expected image URL in request body: %q", imgURL)
+	}
+}
