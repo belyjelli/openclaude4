@@ -39,7 +39,7 @@ openai:
   api_key: sk-...   # prefer OPENAI_API_KEY in env instead of committing secrets
 
 provider:
-  name: openai      # openai | ollama | gemini | codex (codex not implemented yet)
+  name: openai      # openai | ollama | gemini | github | codex (codex reserved — client build fails; see Validation)
   model: gpt-4o-mini
   base_url: ""      # optional; OpenAI-compatible endpoints only
 
@@ -157,7 +157,7 @@ For manual mapping: API keys → `OPENAI_*` / `GEMINI_*` / YAML; custom OpenAI b
 
 ## Validation
 
-Invalid `provider.name` values are rejected at chat startup (`config.Validate()`). Run `openclaude doctor` to see validation and client errors in one place.
+Unknown `provider.name` values are rejected when the chat (or serve) command loads config (`config.Validate()`). The reserved name **`codex`** passes validation but **`NewStreamClient` fails** with `ErrCodexNotImplemented` until the provider is implemented ([`internal/providers/runtime.go`](../internal/providers/runtime.go)). Run `openclaude doctor` to see validation and client construction in one place.
 
 ## In-session slash commands (REPL)
 

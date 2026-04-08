@@ -4,16 +4,28 @@ Phases are **sequential**; within a phase, some work can run in parallel (e.g. p
 
 ---
 
+## Shipping status (Go CLI, April 2026)
+
+The **active product** in this repository is the **Go single binary** (`go.mod`, `cmd/openclaude`, `internal/*`). Foundation through headless gRPC, TUI, MCP, and on-disk sessions is **implemented** for that track; remaining work is **v3 parity and polish**, tracked in [TODO.md](../TODO.md) (**Gaps vs OpenClaude v3** and **Stub backlog & doc follow-ups**).
+
+The phase sections below mix **original design-time planning** with the optional **npm `packages/`** layout described in [DESIGN.md](./DESIGN.md). That TypeScript workspace is **not** present in the repo; use [TODO.md](../TODO.md) for the Go checklist and exit criteria that actually apply here.
+
+---
+
 ## Phase 0 — Foundation (weeks 1–2)
 
-**Goal:** Empty repo becomes a buildable monorepo with standards, not a feature-complete agent.
+**Goal (original design):** Empty repo becomes a buildable monorepo with standards, not a feature-complete agent.
+
+**Go track (this repo):** Done — see [TODO.md](../TODO.md) Phase 0 and [adr/0001-go-tooling-and-config.md](./adr/0001-go-tooling-and-config.md).
+
+**Optional TypeScript track (DESIGN.md only, not in tree):**
 
 - Initialize workspace (TypeScript, strict mode, shared ESLint/Prettier or Biome, CI skeleton).
 - Agree package layout (`packages/core`, `packages/providers`, …) per [DESIGN.md](./DESIGN.md).
 - Add **architecture decision records** (ADRs) for: package manager, bundler, Node version, v3 compatibility policy.
 - **No** user-facing CLI promise yet beyond ` —version` or a stub command.
 
-**Exit criteria:** `pnpm install` / `npm ci` + lint + typecheck + unit test harness green in CI.
+**Exit criteria (TS track):** `pnpm install` / `npm ci` + lint + typecheck + unit test harness green in CI.
 
 ---
 
@@ -60,7 +72,9 @@ Phases are **sequential**; within a phase, some work can run in parallel (e.g. p
 
 **Goal:** Replace stdin transport with a productive interactive CLI.
 
-- Ink/React (or chosen TUI) **only** as `transport-cli`; consume kernel events.
+**Go track:** Bubble Tea + Lipgloss TUI shipped (`internal/tui`); theme hooks exist. **`/vim`** (vim-style prompt editing) remains **stub** — see [TODO.md](../TODO.md).
+
+- Ink/React (or chosen TUI) **only** as `transport-cli`; consume kernel events. *(v3; v4 uses Bubble Tea.)*
 - Streaming markdown / diff display, permission prompts, spinner/progress for tools.
 - Optional: **vim** keybindings and **theme** hooks (lower priority than correctness).
 

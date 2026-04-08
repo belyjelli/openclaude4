@@ -8,6 +8,19 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 ---
 
+## Stub backlog & doc follow-ups
+
+Actionable items from stub/parity audits (implement in this order when prioritizing **small, user-visible** fixes before large provider work):
+
+1. **LICENSE** — Add a root `LICENSE` consistent with [OpenClaude v3](https://github.com/Gitlawb/openclaude/blob/main/LICENSE) / org policy; update [README.md](./README.md) to link it (currently points to upstream until then).
+2. **Codex failure timing** — Today `provider.name: codex` passes [`config.Validate`](./internal/config/validate.go) but [`NewStreamClient`](./internal/providers/runtime.go) returns `ErrCodexNotImplemented`. Either keep **doc-aligned** behavior (already updated in CONFIG/PROVIDERS/MIGRATION) or **fail early** in `Validate()` with the same user-facing message. **Note:** `config` must not import `providers` (import cycle); early failure needs a **shared error** in a small package (e.g. `internal/providererrs`) or a duplicated sentinel string.
+3. **`/vim` TUI** — Implement vim-style prompt editing in Bubble Tea (`internal/tui`, slash handler in [`cmd/openclaude/slash_extra.go`](./cmd/openclaude/slash_extra.go)); update [docs/SLASH_COMMANDS.md](./docs/SLASH_COMMANDS.md).
+4. **gRPC multimodal** — Extend [`internal/grpc/proto/openclaude.proto`](./internal/grpc/proto/openclaude.proto) and [`internal/grpc/server.go`](./internal/grpc/server.go) so `ChatRequest` can carry image parts; reuse [`core.BuildUserContentParts`](./internal/core/multipart.go) / `RunUserTurnMulti`; document in [docs/gRPC_COMPATIBILITY.md](./docs/gRPC_COMPATIBILITY.md).
+
+**Recommended next step after doc updates:** item **2** (small, reduces confusion) or **1** (legal clarity). Item **4** matters for extension/clients that need parity with CLI `--image-*`.
+
+---
+
 ## Gaps vs OpenClaude v3 (parity backlog)
 
 Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller alternative exists).

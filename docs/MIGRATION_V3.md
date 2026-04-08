@@ -22,7 +22,7 @@ Full precedence and file paths are in [CONFIG.md](./CONFIG.md). In short:
 
 ## Providers
 
-v4 supports **`openai`**, **`ollama`**, and **`gemini`** as documented in [PROVIDERS.md](./PROVIDERS.md). The **`codex`** provider name is recognized but returns a clear “not implemented” error until parity work lands (see [TODO.md](../TODO.md) “Gaps vs OpenClaude v3”).
+v4 supports **`openai`**, **`ollama`**, **`gemini`**, and **`github`** (GitHub Models) as documented in [PROVIDERS.md](./PROVIDERS.md). The **`codex`** provider name is accepted in config but **building the chat client** fails with a clear “not implemented” error until parity work lands (see [TODO.md](../TODO.md) “Gaps vs OpenClaude v3” and **Stub backlog & doc follow-ups**).
 
 ## gRPC and clients
 

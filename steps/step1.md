@@ -1,20 +1,8 @@
-**Review of https://github.com/belyjelli/openclaude4**
+# Step 1 — Bootstrap notes (OpenClaude v4 Go)
 
-This repo is **not yet a working project** — it is explicitly a **planning / design-stage repository** for **OpenClaude v4**, positioned as the “Golang binary” rewrite of the original OpenClaude CLI.
+**Current state (April 2026):** This repository ships a **working Go CLI** (`cmd/openclaude`), CI, GoReleaser releases, TUI (`internal/tui`), gRPC serve (`internal/grpc`), MCP, sessions, and the items tracked in [TODO.md](../TODO.md) / **Gaps vs v3**. It is **not** a docs-only scaffold.
 
-**Current state (as of April 2026):**
-- Zero published code, no binaries, no releases, no stars/forks.
-- It contains only documentation files (README, DESIGN.md, ROADMAP, etc.).
-- The goal stated in the title and docs is to create a **native single-binary Golang implementation** of OpenClaude (the popular 19k-star TS/Bun coding agent) for better performance, easier distribution, smaller footprint, and full cross-platform support without needing Node/Bun.
-
-The repo’s real value right now is its **high-quality architecture documentation**. It outlines a clean, modular design for v4 that is significantly better than the current TypeScript monolith. It emphasizes:
-- Strict separation of concerns (core engine, providers, tools, agents, UI layer).
-- Extensible provider system.
-- Tool/MCP execution sandboxing.
-- TUI + headless gRPC modes.
-- Roadmap for incremental feature parity with the current v3 TS version.
-
-**Verdict**: Excellent blueprint and motivation, but no code yet. This is the perfect reference document set if you want to build the “real” full-fledged Golang version.
+The sections below are a **contributor bootstrap recipe**: folder layout, dependency choices, phased porting context from the TypeScript v3 tree, and technical notes. For authoritative delivery status, use [README.md](../README.md), [TODO.md](../TODO.md), and [docs/ROADMAP.md](../docs/ROADMAP.md).
 
 ---
 
@@ -89,7 +77,7 @@ openclaude-go/
 | gRPC headless       | `google.golang.org/grpc`           | Drop-in |
 | Builds              | Goreleaser                         | Single binary releases |
 
-### 3. Phased Implementation Plan (follow belyjelli ROADMAP)
+### 3. Phased Implementation Plan (historical; see [docs/ROADMAP.md](../docs/ROADMAP.md) + [TODO.md](../TODO.md) for live tracking)
 
 **Phase 0 – MVP (1 weekend)**
 - Cobra CLI skeleton with `/provider` and basic chat
@@ -151,19 +139,16 @@ builds:
 
 ## Implementation status (this repository)
 
-The following items from **§1 Project Setup** and **Phase 0 – MVP** are implemented here:
-
 | Item | Status |
 |------|--------|
 | `go.mod` + Cobra + Viper + `go-openai` | Done (`github.com/gitlawb/openclaude4`) |
-| Layout: `cmd/openclaude`, `internal/config`, `internal/providers`, stubs under `internal/core`, `tools`, `tui`, `grpc`, `utils` | Done |
+| Layout: `cmd/openclaude`, `internal/config`, `internal/providers`, `internal/core`, `tools`, `tui`, `grpc`, … | Done |
 | `goreleaser.yml`, `settings.example.json`, `.github/workflows/go.yml` | Done |
 | CLI: default command = streaming chat REPL | Done |
-| `/provider` (plus `/help`, `/clear`, `/exit`) | Done |
-| `openclaude version` | Done |
-| Bubble Tea / Lipgloss TUI | Not started (Phase 3 in this doc) |
-| gRPC / `proto/` | Not started |
+| Slash commands, MCP, `Task` tool, doctor, serve | Done (see [TODO.md](../TODO.md)) |
+| Bubble Tea / Lipgloss TUI | Done (`internal/tui`) |
+| gRPC / `internal/grpc/proto` | Done (`openclaude serve`) |
 
 **Run:** set `OPENAI_API_KEY`, then `go run ./cmd/openclaude` or build per [README.md](../README.md).
 
-**Next:** Phase 1–2 Go slices live in this repo (see [steps/step2.md](./step2.md), [docs/CONFIG.md](../docs/CONFIG.md)). Roadmap **Phase 3**: MCP, slash commands, deeper tool parity ([docs/ROADMAP.md](../docs/ROADMAP.md)).
+**Parity / stubs:** Codex provider, `/vim` TUI bindings, gRPC multimodal, and other v3-depth items are listed under **Gaps vs v3** and **Stub backlog & doc follow-ups** in [TODO.md](../TODO.md). Kernel and tool notes: [steps/step2.md](./step2.md), [docs/CONFIG.md](../docs/CONFIG.md).
