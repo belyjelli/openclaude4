@@ -78,6 +78,18 @@ func TestVisibleSlashWindow(t *testing.T) {
 	}
 }
 
+func TestSlashStemFromInput(t *testing.T) {
+	if s := slashStemFromInput("/mo"); s != "mo" {
+		t.Fatalf("got %q", s)
+	}
+	if s := slashStemFromInput("/model x"); s != "model" {
+		t.Fatalf("got %q", s)
+	}
+	if s := slashStemFromInput("nope"); s != "" {
+		t.Fatalf("got %q", s)
+	}
+}
+
 func TestSuggestionBlockHeightMoreRow(t *testing.T) {
 	few := []slashEntry{{primary: "a"}, {primary: "b"}}
 	if suggestionBlockHeight(few) != slashSuggestHeaderLines+2 {

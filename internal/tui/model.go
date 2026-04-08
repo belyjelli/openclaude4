@@ -83,10 +83,9 @@ type model struct {
 	slashSel             int
 	slashEscDismiss      bool
 	slashDismissSnapshot string
-	toastText            string
-	toastKind            int
-	toastClearID         int
-	pendingToastCmd      tea.Cmd
+	toastQueue      []queuedToast
+	toastClearID    int
+	pendingToastCmd tea.Cmd
 }
 
 type permState struct {
@@ -296,9 +295,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case toastClearMsg:
-		if msg.id == m.toastClearID {
-			m.toastText = ""
-			m.reflowLayout()
+		if cmd := m.handleToastClear(msg); cmd != nil {
+			return m, cmd
 		}
 		return m, nil
 
@@ -585,7 +583,7 @@ func (m *model) reflowLayout() {
 	}
 	headerH := 1 + subLines
 	toastH := 0
-	if strings.TrimSpace(m.toastText) != "" {
+	if m.toastVisible() {
 		toastH = 1
 	}
 	suggestH := suggestionBlockHeight(m.slashMatches)
@@ -693,7 +691,8 @@ func (m *model) View() string {
 	if slashW < 12 {
 		slashW = m.width
 	}
-	slashBlock := renderSlashSuggestions(slashW, m.slashMatches, m.slashSel)
+	slashStem := slashStemFromInput(m.ti.Value())
+	slashBlock := renderSlashSuggestions(slashW, m.slashMatches, m.slashSel, slashStem)
 	if slashBlock != "" {
 		slashBlock = lipgloss.NewStyle().PaddingLeft(2).Render(slashBlock)
 	}

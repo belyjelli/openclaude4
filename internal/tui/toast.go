@@ -15,8 +15,20 @@ const (
 	toastErr
 )
 
+// Max queued in-app toasts (Crush-style backlog; each shows ~5s in order).
+const toastQueueMax = 24
+
 type toastClearMsg struct {
 	id int
+}
+
+type queuedToast struct {
+	text string
+	kind int
+}
+
+func (m *model) toastVisible() bool {
+	return len(m.toastQueue) > 0
 }
 
 func (m *model) pushToast(text string, kind int) tea.Cmd {
@@ -28,11 +40,30 @@ func (m *model) pushToast(text string, kind int) tea.Cmd {
 	if w < 1 {
 		w = 80
 	}
-	if lipgloss.Width(text) > w {
-		text = truncateVisual(text, w)
+	avail := w - 2
+	if avail < 4 {
+		avail = w - 1
+		if avail < 1 {
+			avail = 1
+		}
 	}
-	m.toastText = text
-	m.toastKind = kind
+	if lipgloss.Width(text) > avail {
+		text = truncateVisual(text, avail)
+	}
+	if len(m.toastQueue) >= toastQueueMax {
+		return nil
+	}
+	m.toastQueue = append(m.toastQueue, queuedToast{text: text, kind: kind})
+	if len(m.toastQueue) == 1 {
+		return m.scheduleToastHead()
+	}
+	return nil
+}
+
+func (m *model) scheduleToastHead() tea.Cmd {
+	if len(m.toastQueue) == 0 {
+		return nil
+	}
 	m.toastClearID++
 	id := m.toastClearID
 	m.reflowLayout()
@@ -41,15 +72,30 @@ func (m *model) pushToast(text string, kind int) tea.Cmd {
 	})
 }
 
+func (m *model) handleToastClear(msg toastClearMsg) tea.Cmd {
+	if msg.id != m.toastClearID {
+		return nil
+	}
+	if len(m.toastQueue) == 0 {
+		return nil
+	}
+	m.toastQueue = m.toastQueue[1:]
+	if len(m.toastQueue) == 0 {
+		m.reflowLayout()
+		return nil
+	}
+	return m.scheduleToastHead()
+}
+
 func (m *model) renderToastLine() string {
-	if strings.TrimSpace(m.toastText) == "" {
+	if len(m.toastQueue) == 0 {
 		return ""
 	}
+	head := m.toastQueue[0]
 	w := m.width
 	if w < 1 {
 		w = 80
 	}
-	// v3-style notification strip: inset like fullscreen PromptInput (paddingLeft≈2), single row.
 	pad := 2
 	avail := w - pad
 	if avail < 4 {
@@ -59,13 +105,13 @@ func (m *model) renderToastLine() string {
 		}
 		pad = w - avail
 	}
-	text := m.toastText
+	text := head.text
 	if lipgloss.Width(text) > avail {
 		text = truncateVisual(text, avail)
 	}
 	prefix := strings.Repeat(" ", pad)
 	plain := prefix + text
-	switch m.toastKind {
+	switch head.kind {
 	case toastErr:
 		st := lipgloss.NewStyle().Width(w).Foreground(lipgloss.Color("224"))
 		if lipgloss.HasDarkBackground() {

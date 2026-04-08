@@ -212,8 +212,49 @@ func fillRowPlain(s string, width int) string {
 	return s
 }
 
-// renderSlashSuggestions draws v3-style rows: ❯ on the selected line, padded command column, dim hint on the right, full-width inverted bar when selected (no bordered box).
-func renderSlashSuggestions(width int, matches []slashEntry, selected int) string {
+// slashStemFromInput returns the first-token stem after / for typeahead (no leading slash).
+func slashStemFromInput(val string) string {
+	if !strings.HasPrefix(val, "/") {
+		return ""
+	}
+	first := val
+	if i := strings.IndexByte(val, ' '); i >= 0 {
+		first = val[:i]
+	}
+	return strings.TrimPrefix(first, "/")
+}
+
+// styledSlashCommandName highlights the case-insensitive stem on primary (Crush completion item-style); falls back to dim only.
+func styledSlashCommandName(primary, stem string, cmdCol int) string {
+	disp := "/" + primary
+	if stem == "" || cmdCol < 2 {
+		return dimStyle.Render(truncateVisual(disp, cmdCol))
+	}
+	pr := []rune(primary)
+	sl := []rune(strings.ToLower(stem))
+	pl := []rune(strings.ToLower(primary))
+	if len(sl) == 0 || len(pl) < len(sl) || string(pl[:len(sl)]) != string(sl) {
+		return dimStyle.Render(truncateVisual(disp, cmdCol))
+	}
+	matchStr := string(pr[:len(sl)])
+	afterStr := string(pr[len(sl):])
+	left := lipgloss.JoinHorizontal(lipgloss.Left,
+		dimStyle.Render("/"),
+		slashMatchStyle.Render(matchStr),
+		dimStyle.Render(afterStr),
+	)
+	if lipgloss.Width(left) > cmdCol {
+		return dimStyle.Render(truncateVisual(disp, cmdCol))
+	}
+	pad := cmdCol - lipgloss.Width(left)
+	if pad > 0 {
+		left = lipgloss.JoinHorizontal(lipgloss.Left, left, dimStyle.Render(strings.Repeat(" ", pad)))
+	}
+	return left
+}
+
+// renderSlashSuggestions draws v3-style rows plus Crush-style stem highlighting on non-selected lines.
+func renderSlashSuggestions(width int, matches []slashEntry, selected int, stem string) string {
 	if len(matches) == 0 || width < 1 {
 		return ""
 	}
@@ -230,8 +271,13 @@ func renderSlashSuggestions(width int, matches []slashEntry, selected int) strin
 			pre = slashRowPrefixSelected
 		}
 		pre = padVisualCells(pre, prefixW)
-		name := truncateVisual("/"+e.primary, cmdCol)
-		namePad := padVisualCells(name, cmdCol)
+		var namePad string
+		if isSel {
+			name := truncateVisual("/"+e.primary, cmdCol)
+			namePad = padVisualCells(name, cmdCol)
+		} else {
+			namePad = styledSlashCommandName(e.primary, stem, cmdCol)
+		}
 		used := lipgloss.Width(pre) + lipgloss.Width(namePad)
 		descW := width - used
 		if descW < 1 {
