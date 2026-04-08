@@ -103,7 +103,15 @@ Failed servers are skipped with a message on stderr; chat still starts if built-
 | `OPENCLAUDE_SESSION_SUMMARIZE_OVER_THRESHOLD` / `session.summarize_over_threshold` | If threshold tripped, call the model for a summary instead of lossy tail trim (falls back to trim on failure) |
 | `OPENCLAUDE_SESSION_COMPACT_KEEP_MESSAGES` / `session.compact_keep_messages` | Tail size for `/compact` and lossy auto-compact (default 24 after system) |
 
+**Startup banner:**
+
+| Variable | Meaning |
+| -------- | ------- |
+| `OPENCLAUDE_NO_SPLASH` | Set to `1`, `true`, or `yes` to skip the gradient ANSI splash and use the short plain header instead (same style as non-TTY / `CI`). Applies to the plain REPL (stderr) and to the **TUI** transcript (scrollable area). |
+
 **TUI (`--tui` / `OPENCLAUDE_TUI=1`):**
+
+With `--tui`, the startup banner (ANSI or plain, per the rules above) is shown **inside the transcript** at the top, then the TUI hint line — not as a separate stderr block before the full-screen UI.
 
 | Variable | Purpose |
 |----------|--------|

@@ -99,7 +99,11 @@ func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *p
 		pendingImageFiles: append([]string(nil), cfg.ImageFiles...),
 	}
 	if cfg.Banner != "" {
-		m.committed.WriteString(dimStyle.Render(cfg.Banner))
+		if strings.ContainsRune(cfg.Banner, '\x1b') {
+			m.committed.WriteString(cfg.Banner)
+		} else {
+			m.committed.WriteString(dimStyle.Render(cfg.Banner))
+		}
 		m.committed.WriteByte('\n')
 	}
 	m.syncVP()

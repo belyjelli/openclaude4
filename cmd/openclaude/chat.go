@@ -20,6 +20,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
 	"github.com/gitlawb/openclaude4/internal/session"
 	"github.com/gitlawb/openclaude4/internal/skills"
+	"github.com/gitlawb/openclaude4/internal/startupbanner"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	"github.com/gitlawb/openclaude4/internal/tui"
 	sdk "github.com/sashabaranov/go-openai"
@@ -164,9 +165,10 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	}
 
 	if useTUI {
-		var banner strings.Builder
-		writeChatBanner(&banner, client, mcpMgr)
-		bannerStr := strings.TrimSpace(banner.String()) + "\nTUI: Ctrl+C to quit · same /commands as plain REPL."
+		mcpLine := mcpSummaryLine(mcpMgr)
+		ansi := startupbanner.UseANSISplashFor(os.Stderr)
+		bannerStr := startupbanner.BannerContent(client, version, mcpLine, ansi) +
+			"\n\nTUI: Ctrl+C to quit · same /commands as plain REPL."
 		return tui.Run(tui.Config{
 			Ctx:            ctx,
 			Client:         client,
@@ -204,7 +206,8 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		})
 	}
 
-	printChatBanner(client, mcpMgr)
+	mcpLine := mcpSummaryLine(mcpMgr)
+	_ = startupbanner.Write(os.Stderr, client, version, mcpLine)
 
 	reader := bufio.NewReader(os.Stdin)
 
@@ -537,24 +540,15 @@ func tuiMarkdownEnabled() bool {
 	return v != "0" && v != "false" && v != "no"
 }
 
-func printChatBanner(c core.StreamClient, mcp *mcpclient.Manager) {
-	writeChatBanner(os.Stderr, c, mcp)
-}
-
-func writeChatBanner(w io.Writer, c core.StreamClient, mcp *mcpclient.Manager) {
-	if info, ok := providers.AsStreamClientInfo(c); ok {
-		_, _ = fmt.Fprintf(w, "OpenClaude v4 (phase 3). Provider: %s. Model: %s. Type /help. Ctrl+D to exit.\n",
-			info.ProviderKind(), info.Model())
-	} else {
-		_, _ = fmt.Fprintln(w, "OpenClaude v4 (phase 3). Type /help. Ctrl+D to exit.")
+func mcpSummaryLine(mcp *mcpclient.Manager) string {
+	if mcp == nil || len(mcp.Servers) == 0 {
+		return ""
 	}
-	if mcp != nil && len(mcp.Servers) > 0 {
-		toolsN := 0
-		for _, s := range mcp.Servers {
-			toolsN += len(s.OpenAINames)
-		}
-		_, _ = fmt.Fprintf(w, "MCP: %d tool(s) from %d server(s) — /mcp list\n", toolsN, len(mcp.Servers))
+	toolsN := 0
+	for _, s := range mcp.Servers {
+		toolsN += len(s.OpenAINames)
 	}
+	return fmt.Sprintf("MCP: %d tool(s) from %d server(s) — /mcp list", toolsN, len(mcp.Servers))
 }
 
 func printProviderInfo(c core.StreamClient) {

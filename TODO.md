@@ -15,7 +15,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 ### Providers and auth
 
 - [ ] **Codex** provider (v4 returns `ErrCodexNotImplemented` from [`internal/providers/runtime.go`](./internal/providers/runtime.go))
-- [x] Partial: **GitHub Models** provider — [`openaicomp.NewGitHubModels`](./internal/providers/openaicomp/github.go); `OPENCLAUDE_PROVIDER=github`, `GITHUB_TOKEN` / `GITHUB_PAT`; interactive `/onboard-github` still open
+- [x] **GitHub Models** provider — [`openaicomp.NewGitHubModels`](./internal/providers/openaicomp/github.go); `OPENCLAUDE_PROVIDER=github`, `GITHUB_TOKEN` / `GITHUB_PAT`; interactive wizard in [`cmd/openclaude/slash_provider_wizard.go`](./cmd/openclaude/slash_provider_wizard.go); see [docs/PROVIDERS.md](./docs/PROVIDERS.md) for setup
 - [ ] **Atomic Chat**, **Bedrock / Vertex / Foundry** and other env-driven backends listed in [v3 README](https://github.com/Gitlawb/openclaude) “Supported Providers”
 - [ ] Optional: v3-style **secure storage / keychain** hydration for Gemini and GitHub (beyond env + `.openclaude-profile.json` merge)
 
@@ -42,7 +42,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 ### Headless gRPC and extension
 
 - [x] **CLI to start gRPC** — [`openclaude serve`](./cmd/openclaude/serve.go); kernel + tests under [`internal/grpc`](./internal/grpc/README.md)
-- [ ] **v3 proto parity** — v3 [`openclaude.v1`](https://github.com/Gitlawb/openclaude/blob/main/src/proto/openclaude.proto) uses `ActionRequired` / `FinalResponse` / `ErrorResponse`; v4 uses `openclaude.v4` and different event names; `session_id` is supported on v4 `ChatRequest` for on-disk sessions. Document migration or provide a **compatibility gateway** for existing wire-level clients
+- [x] **v3 proto parity documentation** — [`docs/gRPC_COMPATIBILITY.md`](./docs/gRPC_COMPATIBILITY.md) provides migration guide, wire-level differences table, and compatibility gateway pattern; v3 uses `openclaude.v1` with `ActionRequired` / `FinalResponse` / `ErrorResponse`; v4 uses `openclaude.v4` with different event names; `session_id` supported on v4 `ChatRequest` for on-disk sessions
 - [ ] VS Code extension plan remains Phase 6 (v3 ships [`vscode-extension/openclaude-vscode`](https://github.com/Gitlawb/openclaude/tree/main/vscode-extension/openclaude-vscode)); planning doc: [docs/VSCODE_EXTENSION.md](./docs/VSCODE_EXTENSION.md)
 
 ### Engineering / correctness (session + CLI)
