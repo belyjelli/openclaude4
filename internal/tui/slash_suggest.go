@@ -8,6 +8,42 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+func (m *model) applySuggestCompletion() {
+	if len(m.slashMatches) == 0 {
+		return
+	}
+	e := m.slashMatches[m.slashSel]
+	val := m.ti.Value()
+	switch m.compMode {
+	case compSlashArg, compFile, compSkill:
+		rs, re := m.replaceStart, m.replaceEnd
+		if rs < 0 || re < rs || rs > len(val) {
+			return
+		}
+		if re > len(val) {
+			re = len(val)
+		}
+		newVal := val[:rs] + e.primary + val[re:]
+		m.ti.SetValue(newVal)
+		m.ti.SetCursor(rs + len(e.primary))
+	case compSlashTop:
+		leading, trimmed := slashLeadingTrim(val)
+		rest := ""
+		if i := strings.IndexByte(trimmed, ' '); i >= 0 {
+			rest = trimmed[i:]
+		}
+		repl := "/" + e.primary
+		newInner := repl + rest
+		newVal := val[:leading] + newInner
+		m.ti.SetValue(newVal)
+		m.ti.SetCursor(leading + len(newInner))
+	default:
+		return
+	}
+	m.slashEscDismiss = false
+	m.syncSuggestOverlay()
+}
+
 const (
 	slashSuggestMaxRows     = 4
 	slashSuggestHeaderLines = 1
@@ -158,7 +194,7 @@ func suggestionBlockHeight(matches []slashEntry) int {
 	return h
 }
 
-func renderSlashSuggestions(width int, matches []slashEntry, selected int) string {
+func renderSlashSuggestions(width int, matches []slashEntry, selected int, argMode bool) string {
 	if len(matches) == 0 || width < 1 {
 		return ""
 	}
@@ -168,6 +204,9 @@ func renderSlashSuggestions(width int, matches []slashEntry, selected int) strin
 	for i, e := range win {
 		global := start + i
 		line := e.display()
+		if argMode {
+			line = e.primary
+		}
 		if e.hint != "" {
 			line += "  " + dimStyle.Render(e.hint)
 		}
@@ -190,32 +229,138 @@ func renderSlashSuggestions(width int, matches []slashEntry, selected int) strin
 	return lipgloss.JoinVertical(lipgloss.Left, header, box)
 }
 
-func (m *model) rebuildSlashMatches() {
-	if m.perm != nil {
+func (m *model) clearSuggestOverlay() {
+	m.slashMatches = nil
+	m.slashSel = 0
+	m.slashSuggestIsArg = false
+	m.compMode = compNone
+	m.replaceStart = -1
+	m.replaceEnd = -1
+}
+
+// fillSlashOverlay sets slash command or first-argument completions for a line starting with "/".
+func (m *model) fillSlashOverlay(leading int, trimmed string) {
+	m.slashSuggestIsArg = false
+	m.compMode = compSlashTop
+	m.replaceStart = -1
+	m.replaceEnd = -1
+	spaceIdx := strings.IndexByte(trimmed, ' ')
+	if spaceIdx < 0 {
+		first := trimmed
+		stem := strings.TrimPrefix(first, "/")
+		m.slashMatches = filterSlashEntries(m.slashAll, stem)
+		m.clampSlashSel()
+		return
+	}
+	cmdPart := strings.TrimSpace(trimmed[:spaceIdx])
+	cmd := strings.TrimPrefix(cmdPart, "/")
+	if cmd == "" {
 		m.slashMatches = nil
 		m.slashSel = 0
 		return
 	}
+	subs, ok := slashSubcommands[strings.ToLower(cmd)]
+	if !ok || len(subs) == 0 {
+		m.slashMatches = nil
+		m.slashSel = 0
+		return
+	}
+	ws, we := argWordBoundsInTrimmed(trimmed, spaceIdx)
+	stem := strings.ToLower(trimmed[ws:we])
+	var buf []slashEntry
+	for _, s := range subs {
+		lo := strings.ToLower(s)
+		if stem == "" || strings.HasPrefix(lo, stem) {
+			buf = append(buf, slashEntry{primary: s, hint: cmd})
+		}
+	}
+	m.slashMatches = buf
+	m.slashSuggestIsArg = true
+	m.compMode = compSlashArg
+	m.replaceStart = leading + ws
+	m.replaceEnd = leading + we
+	m.clampSlashSel()
+}
+
+func (m *model) syncSuggestOverlay() {
+	if m.perm != nil {
+		m.clearSuggestOverlay()
+		return
+	}
 	val := m.ti.Value()
 	if m.slashEscDismiss && val == m.slashDismissSnapshot {
-		m.slashMatches = nil
+		m.clearSuggestOverlay()
 		return
 	}
 	if val != m.slashDismissSnapshot {
 		m.slashEscDismiss = false
 	}
-	if !strings.HasPrefix(val, "/") || m.busy {
-		m.slashMatches = nil
-		m.slashSel = 0
+	leading, trimmed := slashLeadingTrim(val)
+	if strings.HasPrefix(trimmed, "/") && !m.busy {
+		m.fillSlashOverlay(leading, trimmed)
 		return
 	}
-	first := val
-	if i := strings.IndexByte(val, ' '); i >= 0 {
-		first = val[:i]
+	if m.compMode == compFile || m.compMode == compSkill {
+		m.refreshFileSkillOverlay(val)
+		return
 	}
-	stem := strings.TrimPrefix(first, "/")
-	m.slashMatches = filterSlashEntries(m.slashAll, stem)
+	m.clearSuggestOverlay()
+}
+
+func (m *model) refreshFileSkillOverlay(val string) {
+	pos := m.ti.Position()
+	ts, te, token := tokenAtCursor(val, pos)
+	if token == "" {
+		m.clearSuggestOverlay()
+		return
+	}
+	if strings.HasPrefix(token, "@") {
+		m.fillSkillOverlay(val, ts, te, token)
+		return
+	}
+	m.fillPathOverlay(val, ts, te, token)
+}
+
+func (m *model) fillPathOverlay(val string, ts, te int, token string) {
+	matches := pathCompletionMatches(token)
+	if len(matches) == 0 {
+		m.clearSuggestOverlay()
+		return
+	}
+	var buf []slashEntry
+	for _, x := range matches {
+		buf = append(buf, slashEntry{primary: x, hint: "path"})
+	}
+	m.slashMatches = buf
+	m.slashSel = 0
+	m.slashSuggestIsArg = false
+	m.compMode = compFile
+	m.replaceStart, m.replaceEnd = ts, te
 	m.clampSlashSel()
+}
+
+func (m *model) fillSkillOverlay(val string, ts, te int, token string) {
+	stem := strings.TrimPrefix(token, "@")
+	names := m.skillNamesList()
+	matches := skillNameMatches(stem, names)
+	if len(matches) == 0 {
+		m.clearSuggestOverlay()
+		return
+	}
+	var buf []slashEntry
+	for _, n := range matches {
+		buf = append(buf, slashEntry{primary: "@" + n, hint: "skill"})
+	}
+	m.slashMatches = buf
+	m.slashSel = 0
+	m.slashSuggestIsArg = false
+	m.compMode = compSkill
+	m.replaceStart, m.replaceEnd = ts, te
+	m.clampSlashSel()
+}
+
+func (m *model) rebuildSlashMatches() {
+	m.syncSuggestOverlay()
 }
 
 func (m *model) clampSlashSel() {
@@ -231,19 +376,72 @@ func (m *model) clampSlashSel() {
 	}
 }
 
-func (m *model) applySlashCompletion() {
-	if len(m.slashMatches) == 0 {
-		return
+func (m *model) tryExpandNonSlashTab() bool {
+	if m.busy || m.perm != nil {
+		return false
 	}
-	e := m.slashMatches[m.slashSel]
 	val := m.ti.Value()
-	rest := ""
-	if i := strings.IndexByte(val, ' '); i >= 0 {
-		rest = val[i:]
+	if strings.HasPrefix(strings.TrimLeft(val, " \t"), "/") {
+		return false
 	}
-	repl := "/" + e.primary
-	m.ti.SetValue(repl + rest)
-	m.ti.SetCursor(len(repl))
+	pos := m.ti.Position()
+	ts, te, token := tokenAtCursor(val, pos)
+	if token == "" {
+		return false
+	}
+	if strings.HasPrefix(token, "@") {
+		return m.tabExpandSkill(val, ts, te, token)
+	}
+	return m.tabExpandPath(val, ts, te, token)
+}
+
+func (m *model) tabExpandPath(val string, ts, te int, token string) bool {
+	matches := pathCompletionMatches(token)
+	if len(matches) == 0 {
+		return false
+	}
+	if len(matches) == 1 {
+		rep := matches[0]
+		newVal := val[:ts] + rep + val[te:]
+		m.ti.SetValue(newVal)
+		m.ti.SetCursor(ts + len(rep))
+		return true
+	}
+	var buf []slashEntry
+	for _, x := range matches {
+		buf = append(buf, slashEntry{primary: x, hint: "path"})
+	}
+	m.slashMatches = buf
+	m.slashSel = 0
+	m.slashSuggestIsArg = false
+	m.compMode = compFile
+	m.replaceStart, m.replaceEnd = ts, te
 	m.slashEscDismiss = false
-	m.rebuildSlashMatches()
+	return true
+}
+
+func (m *model) tabExpandSkill(val string, ts, te int, token string) bool {
+	stem := strings.TrimPrefix(token, "@")
+	matches := skillNameMatches(stem, m.skillNamesList())
+	if len(matches) == 0 {
+		return false
+	}
+	if len(matches) == 1 {
+		rep := "@" + matches[0]
+		newVal := val[:ts] + rep + val[te:]
+		m.ti.SetValue(newVal)
+		m.ti.SetCursor(ts + len(rep))
+		return true
+	}
+	var buf []slashEntry
+	for _, n := range matches {
+		buf = append(buf, slashEntry{primary: "@" + n, hint: "skill"})
+	}
+	m.slashMatches = buf
+	m.slashSel = 0
+	m.slashSuggestIsArg = false
+	m.compMode = compSkill
+	m.replaceStart, m.replaceEnd = ts, te
+	m.slashEscDismiss = false
+	return true
 }

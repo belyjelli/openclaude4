@@ -37,7 +37,7 @@ export GEMINI_API_KEY=...   # or GOOGLE_API_KEY
 **Flags:** `--config`, `--provider`, `--model`, `--base-url`, `--print` / `-p` (one-shot script/CI; final reply on stdout), `--tui`, `--session`, `--resume`, `--list-sessions`, `--no-session`  
 **Serve:** `--listen` or **`OPENCLAUDE_GRPC_ADDR`** (default `:50051`)  
 **In-session:** `/help`, `/doctor`, `/model`, `/provider` (incl. wizard + provider switch), `/mcp` (list, config, doctor, add hint), `/session`, `/resume`, `/btw`, `/context`, `/copy`, `/theme` (TUI), `/skills` and `/<skill>`, `/compact`, `/clear`, `/exit` — see [docs/SLASH_COMMANDS.md](./docs/SLASH_COMMANDS.md)  
-**TUI:** `./openclaude --tui` or `OPENCLAUDE_TUI=1` — full-screen Bubble Tea UI (streaming transcript, tool call/result blocks, permission prompts). Kernel uses [`OnEvent`](./internal/core/event.go) only; model text is not duplicated to stdout.
+**TUI:** `./openclaude --tui` or `OPENCLAUDE_TUI=1` — full-screen Bubble Tea UI (streaming transcript with optional markdown highlighting, tool call/result blocks, permission prompts). Kernel uses [`OnEvent`](./internal/core/event.go) only; model text is not duplicated to stdout.
 
 ### Install (release binaries)
 
@@ -72,7 +72,7 @@ Tagged releases (semver, e.g. `v0.1.0`) publish archives via [GoReleaser](./gore
 
 ## Status
 
-**Phase 4** — **TUI** ([`internal/tui`](./internal/tui/)): Bubble Tea + Lipgloss, streaming + tool panels + permission UI from kernel events; **`Task`** sub-agent streams through the same `OnEvent` path. **`--tui`** / **`OPENCLAUDE_TUI`**. Release install story: GoReleaser + GitHub Releases (see above).
+**Phase 4** — **TUI** ([`internal/tui`](./internal/tui/)): Bubble Tea + Lipgloss, **streaming + finished** assistant markdown (Goldmark + Chroma), tool panels + permission UI from kernel events; **`Task`** sub-agent streams through the same `OnEvent` path. **`--tui`** / **`OPENCLAUDE_TUI`**. Release install story: GoReleaser + GitHub Releases (see above).
 
 **Phase 3 (complete for Go CLI roadmap)** — **MCP** stdio client ([`github.com/modelcontextprotocol/go-sdk`](https://github.com/modelcontextprotocol/go-sdk)), **`Task`** sub-agent tool, slash router (`/compact`, `/mcp`, …). Code: `internal/mcpclient`, `internal/core/task_tool.go`, `cmd/openclaude/slash.go`.
 

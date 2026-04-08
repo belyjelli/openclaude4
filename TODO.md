@@ -44,6 +44,42 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 - [x] Optional: **concurrent session registry** / `ps`-style listing — [`<dir>/running/<pid>.json`](./internal/session/running.go) on chat/TUI start; [`openclaude sessions`](./cmd/openclaude/sessions.go); [`/session running`](./cmd/openclaude/slash.go) / `/session ps`
 - [x] Partial: **slash commands** — [`/onboard`](./cmd/openclaude/slash.go) / `/setup`, [`/mcp help`](./cmd/openclaude/slash.go); v3-deep items still open (e.g. `/onboard-github`, full MCP config from REPL)
 
+### TUI, prompt line, and hinting (v3 Ink → v4 Bubble Tea)
+
+v3 reference: Ink [`PromptInput`](https://github.com/Gitlawb/openclaude/tree/main/src/components/PromptInput), [`useTypeahead`](https://github.com/Gitlawb/openclaude/tree/main/src/hooks/useTypeahead.tsx), [`usePromptInputPlaceholder`](https://github.com/Gitlawb/openclaude/tree/main/src/components/PromptInput/usePromptInputPlaceholder.ts). v4 baseline: [`internal/tui/README.md`](./internal/tui/README.md), [`model.go`](./internal/tui/model.go), [`prompt_row.go`](./internal/tui/prompt_row.go), [`footer.go`](./internal/tui/footer.go), [`slash_suggest.go`](./internal/tui/slash_suggest.go).
+
+**Already in v4 (short list):** `❯` prompt, rounded prompt panel, horizontal rules, optional vim `(vim NOR)` / `(vim INS)`, footer (Shift+Tab auto-approve copy, MCP non-`ask` summary, `% until auto-compact`), slash-command overlay with per-command hints + Tab complete, **first-send placeholder** + **`?` → `/help`** + **input history (↑↓)** + **`/cmd` first-arg completion** + **Tab path / `@skill` completion** ([`prompt_state.go`](./internal/tui/prompt_state.go), [`suggest_extra.go`](./internal/tui/suggest_extra.go), [`slash_suggest.go`](./internal/tui/slash_suggest.go)).
+
+**UI — closer to v3**
+
+- [ ] Prompt **mode** row or chip (`!` bash vs default, etc.) when the session supports multiple input modes; optional one-line status beside `❯` when non-default
+- [x] Partial: **Status subtitle** — TUI status line includes redacted **API key summary** (via [`RedactedAPIKeySummary`](./internal/providers/openaicomp/client.go)) + **MCP tool/server counts** ([`buildTUIStatusLine`](./cmd/openclaude/chat.go)); **Ollama** shows `local`. Optional task/coordinator counts: still open.
+- [ ] Richer **transcript chrome**: collapsible or tightened tool diff blocks, inline images where multimodal applies (v3 per-message components → v4 `applyKernel` / render path)
+
+**Prompt line**
+
+- [x] Partial: **Contextual placeholder** — first-user example string via [`syncPlaceholder`](./internal/tui/prompt_state.go) + `userSubmitCount` (queue/teammate copy when those features exist: still open)
+- [x] **`?` on empty input** → runs [`/help`](./internal/tui/suggest_extra.go) (`tryQuestionMarkHelp`)
+- [x] **Input history** + **Up/Down** — [`prompt_state.go`](./internal/tui/prompt_state.go); **prefix + ↑** filters history (case-insensitive line prefix, newest first); **↓** steps newer / restores draft; typing clears browse state. Optional dedicated “search prefix” UI (v3 `isSearchingHistory`): not needed for this behavior.
+
+**Hinting / completion**
+
+- [x] **Tab path completion** (token under cursor, local filesystem) — [`pathCompletionMatches`](./internal/tui/suggest_extra.go) + [`tryExpandNonSlashTab`](./internal/tui/slash_suggest.go)
+- [x] **`@skill` prefix** completions — [`tabExpandSkill`](./internal/tui/slash_suggest.go) + [`SkillNames`](./internal/tui/model.go) config
+- [ ] Optional: **MCP resource** completion when the manager exposes list/search
+- [ ] Optional: **footer suggestion row** or ghost text for non-slash completions (may need richer than bubbles `textinput` alone)
+- [x] **Slash argument completion** after `/cmd ` — [`slashSubcommands`](./internal/tui/suggest_extra.go) + [`fillSlashOverlay`](./internal/tui/slash_suggest.go)
+
+**Suggested implementation order**
+
+1. ~~Contextual placeholder + `?` help~~  
+2. ~~Input history + Up/Down~~  
+3. ~~Slash argument completion~~  
+4. ~~Tab file completion + `@skill`~~  
+5. ~~Footer/status/API-key on subtitle~~ (partial); history-search mode; MCP resource completion; ghost/footer row; task/coordinator counts (remaining polish)
+
+**Architecture note:** v3’s UI is tied to React app state (agents, MCP, coordinator, IDE bridge). v4’s TUI is **kernel [`core.Event`](./internal/core/event.go)-driven**. Prefer plumbing new data through [`tui.Config`](./internal/tui/model.go) and `model` fields (e.g. history deque, placeholder context, path completer) rather than porting `PromptInput.tsx` line-for-line.
+
 ### MCP
 
 - [x] **MCP subcommands** — [`openclaude mcp list`](./cmd/openclaude/mcp.go), [`mcp doctor`](./cmd/openclaude/mcp.go), [`mcp add`](./cmd/openclaude/mcp.go) (append to config via [`AppendMCPServerToConfigFile`](./internal/config/mcp_configfile.go)); REPL [`/mcp list`](./cmd/openclaude/slash.go) / [`/mcp doctor`](./cmd/openclaude/slash.go)
@@ -107,7 +143,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 - [x] Rich streaming + tool call/result panels (vs plain stdout today)
 - [x] Interactive permission prompts polished for TUI
 - [x] Published `bin` / install story (goreleaser releases, semver)
-- [x] TUI polish: status line (provider · model · session), **PgUp/PgDn/Home/End** transcript scroll with stick-to-bottom on new output ([`internal/tui/model.go`](./internal/tui/model.go)), **glamour** markdown on finished assistant turns ([`internal/tui/render.go`](./internal/tui/render.go); `OPENCLAUDE_TUI_MARKDOWN=0` to disable), diff-like **tool result** coloring, configurable tool preview (`OPENCLAUDE_TUI_TOOL_PREVIEW` rune cap, default 4000)
+- [x] TUI polish: status line (provider · model · session), **PgUp/PgDn/Home/End** transcript scroll with stick-to-bottom on new output ([`internal/tui/model.go`](./internal/tui/model.go)), **Goldmark + Chroma** markdown on **streaming and finished** assistant text ([`internal/tui/md_chroma.go`](./internal/tui/md_chroma.go), [`internal/tui/render.go`](./internal/tui/render.go); `OPENCLAUDE_TUI_MARKDOWN=0` to disable), diff-like **tool result** coloring, configurable tool preview (`OPENCLAUDE_TUI_TOOL_PREVIEW` rune cap, default 4000)
 
 ## Phase 5 — Sessions & compaction
 

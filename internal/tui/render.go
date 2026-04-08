@@ -4,40 +4,19 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 )
 
-// renderAssistantMarkdown renders assistant markdown for the terminal; returns "" on failure or when disabled.
-// glamourStyle is "light" or "dark" (for glamour.WithStandardStyle).
-func renderAssistantMarkdown(width int, text string, enabled bool, glamourStyle string) string {
+// renderAssistantMarkdown renders assistant markdown for the terminal; returns "" when disabled or empty.
+// themeStyle is "light" or "dark" (from ThemeHolder.MarkdownStyle); drives Chroma palette and contrast.
+func renderAssistantMarkdown(width int, text string, enabled bool, themeStyle string) string {
 	text = strings.TrimSpace(text)
 	if text == "" || !enabled {
 		return ""
 	}
-	w := width
-	if w < 40 {
-		w = 40
-	}
-	if w > 120 {
-		w = 120
-	}
-	style := strings.ToLower(strings.TrimSpace(glamourStyle))
-	if style != "light" && style != "dark" {
-		style = "dark"
-	}
-	r, err := glamour.NewTermRenderer(
-		glamour.WithWordWrap(w),
-		glamour.WithStandardStyle(style),
-	)
-	if err != nil {
-		return ""
-	}
-	out, err := r.Render(text)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimRight(out, "\n")
+	style := strings.ToLower(strings.TrimSpace(themeStyle))
+	dark := style != "light"
+	return renderAssistantMarkdownChroma(width, text, dark, true)
 }
 
 func truncateRunes(s string, max int) string {

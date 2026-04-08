@@ -61,7 +61,7 @@ In **`openclaude --tui`**, the prompt offers **slash typeahead**: after `/`, mat
 | `/btw <question>` | [`core.SideQuestion`](../internal/core/sidechat.go): isolated completion, **not** appended to main transcript. TUI: blocked while busy |
 | `/cost`, `/usage` | Transcript stats; **no** dollar billing |
 | `/copy` | Last assistant message → clipboard (`pbcopy` / `xclip` / `wl-copy`) or print excerpt |
-| `/theme light\|dark\|auto` | **TUI only:** [`ApplyTheme`](../internal/tui/styles.go) + glamour profile |
+| `/theme light\|dark\|auto` | **TUI only:** [`ApplyTheme`](../internal/tui/styles.go) + Chroma style profile (light vs dark) for assistant markdown |
 | `/vim` | **TUI:** toggles vim-style prompt editing (`Esc` → normal, `i`/`I`/`a`/`A` → insert, `h`/`l`/`0`/`^`/`$`, `x`, `Enter` sends). **Plain REPL:** prints TUI-only hint |
 | Unknown | Error unless matched as a skill name |
 

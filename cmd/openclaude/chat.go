@@ -177,7 +177,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		themeHolder := tui.NewThemeHolder()
 		vimKeysHolder := tui.NewVimKeysHolder()
 		statusFn := func() string {
-			return buildTUIStatusLine(live.Client(), persist)
+			return buildTUIStatusLine(live.Client(), persist, mcpMgr)
 		}
 		var autoApproveTUI atomic.Bool
 		autoApproveTUI.Store(autoApprove)
@@ -190,7 +190,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			AutoApprove:    &autoApproveTUI,
 			MCPManager:     mcpMgr,
 			Banner:         bannerStr,
-			StatusLine:     buildTUIStatusLine(client, persist),
+			StatusLine:     buildTUIStatusLine(client, persist, mcpMgr),
 			StatusLineFunc: statusFn,
 			Live:           live,
 			Busy:           &busyFlag,
@@ -528,12 +528,46 @@ func envTruthy(key string) bool {
 	return strings.EqualFold(v, "1") || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 }
 
-func buildTUIStatusLine(client core.StreamClient, persist *chatPersist) string {
+// tuiAuthStatusFragment is a compact, non-secret credential hint for the TUI subtitle (v3-style status).
+func tuiAuthStatusFragment(info providers.StreamClientInfo) string {
+	switch strings.ToLower(info.ProviderKind()) {
+	case "ollama":
+		return "local"
+	default:
+		s := info.RedactedAPIKeySummary()
+		const maxLen = 36
+		if len(s) > maxLen {
+			return s[:maxLen-1] + "…"
+		}
+		return s
+	}
+}
+
+// tuiMCPStatusFragment returns a short MCP summary or empty when none.
+func tuiMCPStatusFragment(m *mcpclient.Manager) string {
+	if m == nil || len(m.Servers) == 0 {
+		return ""
+	}
+	tools := 0
+	for _, s := range m.Servers {
+		tools += len(s.OpenAINames)
+	}
+	if tools > 0 {
+		return fmt.Sprintf("MCP %d tools · %d srv", tools, len(m.Servers))
+	}
+	return fmt.Sprintf("MCP %d srv", len(m.Servers))
+}
+
+func buildTUIStatusLine(client core.StreamClient, persist *chatPersist, mcp *mcpclient.Manager) string {
 	var b strings.Builder
 	if info, ok := providers.AsStreamClientInfo(client); ok {
 		b.WriteString(info.ProviderKind())
 		b.WriteString(" · ")
 		b.WriteString(info.Model())
+		if frag := tuiAuthStatusFragment(info); frag != "" {
+			b.WriteString(" · ")
+			b.WriteString(frag)
+		}
 	} else {
 		b.WriteString("provider unknown")
 	}
@@ -542,6 +576,10 @@ func buildTUIStatusLine(client core.StreamClient, persist *chatPersist) string {
 		b.WriteString(persist.store.ID)
 	} else {
 		b.WriteString(" · no disk session")
+	}
+	if frag := tuiMCPStatusFragment(mcp); frag != "" {
+		b.WriteString(" · ")
+		b.WriteString(frag)
 	}
 	return b.String()
 }

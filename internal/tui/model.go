@@ -39,7 +39,7 @@ type Config struct {
 	StatusLine string
 	// ToolPreviewMax is the max UTF-8 runes of tool stdout in the transcript (0 = default 4000).
 	ToolPreviewMax int
-	// MarkdownAssist renders finished assistant turns with glamour (disable with OPENCLAUDE_TUI_MARKDOWN=0).
+	// MarkdownAssist renders finished assistant turns with goldmark + Chroma (disable with OPENCLAUDE_TUI_MARKDOWN=0).
 	MarkdownAssist bool
 	// ImageURLs and ImageFiles apply to the first non-slash user message (vision); then cleared on success.
 	ImageURLs  []string
@@ -81,8 +81,19 @@ type model struct {
 	slashAll             []slashEntry
 	slashMatches         []slashEntry
 	slashSel             int
+	slashSuggestIsArg    bool // true = first-arg completion; render primary without leading /
 	slashEscDismiss      bool
 	slashDismissSnapshot string
+	compMode             int
+	replaceStart         int // byte offsets into ti.Value for arg/path/skill replace; -1 when unused
+	replaceEnd           int
+	inputHistory         []string
+	historyIdx           int // -1 = editing; else index into inputHistory (newest at len-1)
+	historyDraft         string
+	historyFilterActive  bool   // prefix search mode (non-empty line + ↑)
+	historyFilterMatches []int  // indices into inputHistory, newest-first
+	historyFilterPos     int    // position in historyFilterMatches
+	userSubmitCount      int // non-slash user messages sent to the model
 	toastText            string
 	toastKind            int
 	toastClearID         int
@@ -109,7 +120,6 @@ type runTurnErrMsg struct {
 
 func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *permBridge) *model {
 	ti := textinput.New()
-	ti.Placeholder = "Message… · Enter send · Shift+Tab approvals · PgUp/PgDn scroll · /help"
 	ti.Focus()
 	ti.CharLimit = 0
 	ti.Width = 72
@@ -128,7 +138,10 @@ func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *p
 		pendingImageURLs:  append([]string(nil), cfg.ImageURLs...),
 		pendingImageFiles: append([]string(nil), cfg.ImageFiles...),
 		slashAll:          buildSlashIndex(cfg.SkillNames),
+		historyIdx:        -1,
+		replaceStart:      -1,
 	}
+	m.syncPlaceholder()
 	if cfg.Banner != "" {
 		if strings.ContainsRune(cfg.Banner, '\x1b') {
 			m.committed.WriteString(cfg.Banner)
@@ -173,17 +186,29 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelDown && m.vp.AtBottom() {
 				m.stickBottom = true
 			}
+			oldInput := m.ti.Value()
 			m.ti, cmd = m.ti.Update(msg)
-			m.rebuildSlashMatches()
+			if m.ti.Value() != oldInput {
+				m.resetHistoryNavigationOnEdit()
+				if m.compMode == compFile || m.compMode == compSkill {
+					m.clearSuggestOverlay()
+				}
+			}
+			m.syncSuggestOverlay()
 			m.reflowLayout()
 			return m, cmd
 		}
 
 	case tea.KeyMsg:
+		if m.tryQuestionMarkHelp(msg) {
+			m.syncSuggestOverlay()
+			m.reflowLayout()
+			return m, textinput.Blink
+		}
 		if m.slashSuggestActive() {
 			switch msg.Type { //nolint:exhaustive
 			case tea.KeyTab:
-				m.applySlashCompletion()
+				m.applySuggestCompletion()
 				m.reflowLayout()
 				return m, textinput.Blink
 			case tea.KeyShiftTab:
@@ -237,6 +262,39 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, nil
+		}
+		vimNor := m.cfg.VimKeys != nil && m.cfg.VimKeys.Enabled() && m.vimNormal
+		if msg.Type == tea.KeyTab && !m.busy && m.perm == nil && !m.slashSuggestActive() && !vimNor {
+			if m.tryExpandNonSlashTab() {
+				m.syncSuggestOverlay()
+				m.reflowLayout()
+				return m, textinput.Blink
+			}
+		}
+		if !m.slashSuggestActive() && m.perm == nil && !m.busy {
+			vimBlockHist := m.cfg.VimKeys != nil && m.cfg.VimKeys.Enabled() && m.vimNormal
+			if !vimBlockHist {
+				if msg.Type == tea.KeyUp {
+					if ok, hcmd := m.historyUp(); ok {
+						m.syncSuggestOverlay()
+						m.reflowLayout()
+						if hcmd != nil {
+							return m, tea.Batch(textinput.Blink, hcmd)
+						}
+						return m, textinput.Blink
+					}
+				}
+				if msg.Type == tea.KeyDown {
+					if ok, hcmd := m.historyDown(); ok {
+						m.syncSuggestOverlay()
+						m.reflowLayout()
+						if hcmd != nil {
+							return m, tea.Batch(textinput.Blink, hcmd)
+						}
+						return m, textinput.Blink
+					}
+				}
+			}
 		}
 		switch msg.Type {
 		case tea.KeyPgUp:
@@ -340,9 +398,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	if m.perm == nil {
+		oldInput := m.ti.Value()
 		m.vp, cmd = m.vp.Update(msg)
 		m.ti, cmd = m.ti.Update(msg)
-		m.rebuildSlashMatches()
+		if m.ti.Value() != oldInput {
+			m.resetHistoryNavigationOnEdit()
+			if m.compMode == compFile || m.compMode == compSkill {
+				m.clearSuggestOverlay()
+			}
+		}
+		m.syncSuggestOverlay()
 		m.reflowLayout()
 	}
 	return m, cmd
@@ -369,6 +434,8 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 	if line == "" {
 		return m, textinput.Blink
 	}
+	m.appendHistory(line)
+	m.resetHistoryNavigation()
 	if strings.HasPrefix(line, "/") {
 		if m.cfg.Slash == nil {
 			m.commitLine(errStyle.Render("slash handler not configured"))
@@ -431,6 +498,9 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 		}
 		return m, textinput.Blink
 	}
+
+	m.userSubmitCount++
+	m.syncPlaceholder()
 
 	go func(parts []sdk.ChatMessagePart, clear bool) {
 		var err error
@@ -614,8 +684,25 @@ func (m *model) commitLine(s string) {
 	m.syncVP()
 }
 
+func (m *model) assistantMarkdownTheme() string {
+	if m.cfg.Theme == nil {
+		return "dark"
+	}
+	return m.cfg.Theme.MarkdownStyle()
+}
+
 func (m *model) syncVP() {
-	m.vp.SetContent(m.committed.String() + m.liveAsst.String())
+	committed := m.committed.String()
+	liveRaw := m.liveAsst.String()
+	live := liveRaw
+	if m.cfg.MarkdownAssist && strings.TrimSpace(liveRaw) != "" {
+		s := strings.ToLower(strings.TrimSpace(m.assistantMarkdownTheme()))
+		dark := s != "light"
+		if md := renderAssistantMarkdownChroma(m.vp.Width, liveRaw, dark, false); md != "" {
+			live = md
+		}
+	}
+	m.vp.SetContent(committed + live)
 	if m.stickBottom {
 		m.vp.GotoBottom()
 	}
@@ -633,9 +720,9 @@ func (m *model) View() string {
 		}
 	}
 	if status == "" {
-		status = "Ctrl+C quit · PgUp/PgDn Home/End scroll · /help"
+		status = "Ctrl+C quit · PgUp/PgDn Home/End · ↑↓ history · prefix+↑ · Tab paths · ? · /help"
 	} else {
-		status = status + "    PgUp/PgDn Home/End · /help"
+		status = status + "    PgUp/PgDn Home/End · ↑↓ hist · prefix+↑ · Tab · ? · /help"
 	}
 	sub := dimStyle.Width(m.width).Render(status)
 	if m.busy || m.runningTool != "" {
@@ -689,7 +776,7 @@ func (m *model) View() string {
 	hintRow := formatFooterRow(left, right, m.width)
 	promptStack := lipgloss.JoinVertical(lipgloss.Left, rule, inputLine, rule, hintRow)
 
-	slashBlock := renderSlashSuggestions(m.width, m.slashMatches, m.slashSel)
+	slashBlock := renderSlashSuggestions(m.width, m.slashMatches, m.slashSel, m.slashSuggestIsArg)
 
 	rows := []string{header, sub}
 	if toastLine != "" {

@@ -75,7 +75,7 @@ The phase sections below mix **original design-time planning** with the optional
 **Go track:** Bubble Tea + Lipgloss TUI shipped (`internal/tui`); theme hooks exist; **`/vim`** provides a **subset** of vim-style prompt keys (see [SLASH_COMMANDS.md](./SLASH_COMMANDS.md)).
 
 - Ink/React (or chosen TUI) **only** as `transport-cli`; consume kernel events. *(v3; v4 uses Bubble Tea.)*
-- Streaming markdown / diff display, permission prompts, spinner/progress for tools.
+- **Streaming markdown** (Goldmark + Chroma + Lipgloss in the TUI viewport while tokens arrive) / diff display, permission prompts, spinner/progress for tools.
 - Optional: **vim** keybindings and **theme** hooks (lower priority than correctness).
 
 **Exit criteria:** Interactive session feels comparable to v3 for common flows; no business logic in UI components.

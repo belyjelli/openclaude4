@@ -45,7 +45,7 @@ func (h *ThemeHolder) Get() string {
 	return h.v
 }
 
-// MarkdownStyle returns a glamour profile name ("light" or "dark").
+// MarkdownStyle returns terminal contrast for markdown ("light" or "dark"); used for Chroma style selection.
 func (h *ThemeHolder) MarkdownStyle() string {
 	switch h.Get() {
 	case "light":
