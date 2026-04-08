@@ -151,4 +151,4 @@ builds:
 
 **Run:** set `OPENAI_API_KEY`, then `go run ./cmd/openclaude` or build per [README.md](../README.md).
 
-**Parity / stubs:** Codex provider, `/vim` TUI bindings, gRPC multimodal, and other v3-depth items are listed under **Gaps vs v3** and **Stub backlog & doc follow-ups** in [TODO.md](../TODO.md). Kernel and tool notes: [steps/step2.md](./step2.md), [docs/CONFIG.md](../docs/CONFIG.md).
+**Parity / stubs:** Codex provider and other v3-depth items are under **Gaps vs v3** in [TODO.md](../TODO.md). gRPC multimodal and TUI `/vim` subset are implemented; kernel notes: [steps/step2.md](./step2.md), [docs/CONFIG.md](../docs/CONFIG.md).

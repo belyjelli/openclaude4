@@ -72,7 +72,7 @@ The phase sections below mix **original design-time planning** with the optional
 
 **Goal:** Replace stdin transport with a productive interactive CLI.
 
-**Go track:** Bubble Tea + Lipgloss TUI shipped (`internal/tui`); theme hooks exist. **`/vim`** (vim-style prompt editing) remains **stub** — see [TODO.md](../TODO.md).
+**Go track:** Bubble Tea + Lipgloss TUI shipped (`internal/tui`); theme hooks exist; **`/vim`** provides a **subset** of vim-style prompt keys (see [SLASH_COMMANDS.md](./SLASH_COMMANDS.md)).
 
 - Ink/React (or chosen TUI) **only** as `transport-cli`; consume kernel events. *(v3; v4 uses Bubble Tea.)*
 - Streaming markdown / diff display, permission prompts, spinner/progress for tools.

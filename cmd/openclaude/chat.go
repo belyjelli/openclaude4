@@ -636,7 +636,7 @@ func printChatHelpTo(w io.Writer) {
   /cost, /usage Transcript stats; billing not tracked in v4
   /copy        Copy last assistant message to clipboard (macOS/Linux when pbcopy/xclip/wl-copy exist)
   /theme light|dark|auto   TUI only: palette + markdown style
-  /vim         TUI: reports vim-style input is not implemented
+  /vim         TUI: toggle vim-style prompt (Esc normal · i/a insert · hjkl · Enter send); plain REPL: hint only
   /compact     Drop older messages (keeps system + tail; count from config)
   /clear       Clear conversation history for this session
   /help        Show this help

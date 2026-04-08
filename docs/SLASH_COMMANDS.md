@@ -22,7 +22,7 @@ v4 has a **fixed set** of built-in local slash commands plus **dynamic** `/<skil
 | Side question | **`/btw`** (one-shot, no main transcript) | `/btw` (local-jsx side question) |
 | Model | **`/model`**, flags, config | `/model`, … |
 | Context / cost | **`/context`**, **`/tokens`**, **`/cost`**, **`/usage`** | `/context`, `/cost`, `/usage`, … |
-| Clipboard / chrome | **`/copy`**, **`/theme`** (TUI), **`/vim`** (stub) | `/copy`, `/theme`, `/vim`, … |
+| Clipboard / chrome | **`/copy`**, **`/theme`** (TUI), **`/vim`** (TUI: vim-style prompt subset) | `/copy`, `/theme`, `/vim`, … |
 | **Most other v3 commands** | Shell: `openclaude …`, config file, MCP tools + **`/config`**, **`/export`**, **`/init`**, **`/permissions`**, **`/version`** | `/review`, … |
 
 ## openclaude4 — full list
@@ -60,7 +60,7 @@ v4 has a **fixed set** of built-in local slash commands plus **dynamic** `/<skil
 | `/cost`, `/usage` | Transcript stats; **no** dollar billing |
 | `/copy` | Last assistant message → clipboard (`pbcopy` / `xclip` / `wl-copy`) or print excerpt |
 | `/theme light\|dark\|auto` | **TUI only:** [`ApplyTheme`](../internal/tui/styles.go) + glamour profile |
-| `/vim` | **TUI:** message that vim keybindings are not implemented |
+| `/vim` | **TUI:** toggles vim-style prompt editing (`Esc` → normal, `i`/`I`/`a`/`A` → insert, `h`/`l`/`0`/`^`/`$`, `x`, `Enter` sends). **Plain REPL:** prints TUI-only hint |
 | Unknown | Error unless matched as a skill name |
 
 ## openclaude3 — built-in names (`COMMANDS()`)

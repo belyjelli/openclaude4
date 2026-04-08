@@ -3,6 +3,8 @@ package core
 import (
 	"strings"
 	"testing"
+
+	sdk "github.com/sashabaranov/go-openai"
 )
 
 func TestBuildUserContentPartsFromGRPC_URLOnly(t *testing.T) {
@@ -13,10 +15,10 @@ func TestBuildUserContentPartsFromGRPC_URLOnly(t *testing.T) {
 	if len(parts) < 2 {
 		t.Fatalf("want text + image parts, got %d", len(parts))
 	}
-	if parts[0].Type != "text" {
+	if parts[0].Type != sdk.ChatMessagePartTypeText {
 		t.Fatalf("first part type = %q", parts[0].Type)
 	}
-	if parts[1].Type != "image_url" || parts[1].ImageURL == nil || !strings.Contains(parts[1].ImageURL.URL, "example.com") {
+	if parts[1].Type != sdk.ChatMessagePartTypeImageURL || parts[1].ImageURL == nil || !strings.Contains(parts[1].ImageURL.URL, "example.com") {
 		t.Fatalf("bad image part: %+v", parts[1])
 	}
 }

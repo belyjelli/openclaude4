@@ -12,7 +12,7 @@ Track implementation progress. Aligns with [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 - [x] **LICENSE** — root [LICENSE](./LICENSE) + [README.md](./README.md) link.
 - [x] **Codex early validation** — [`internal/providererrs`](./internal/providererrs/codex.go) + [`config.Validate`](./internal/config/validate.go) returns `ErrCodexNotImplemented` for `provider.name: codex` (same sentinel as [`NewStreamClient`](./internal/providers/runtime.go)).
-- [ ] **`/vim` TUI** — vim-style prompt subset in Bubble Tea; [docs/SLASH_COMMANDS.md](./docs/SLASH_COMMANDS.md).
+- [x] **`/vim` TUI** — vim-style prompt subset in Bubble Tea; [docs/SLASH_COMMANDS.md](./docs/SLASH_COMMANDS.md).
 - [x] **gRPC multimodal** — `ChatRequest.image_url` / `image_inline` + [`internal/grpc/server.go`](./internal/grpc/server.go) → `RunUserTurnMulti`; [docs/gRPC_COMPATIBILITY.md](./docs/gRPC_COMPATIBILITY.md).
 
 ---
