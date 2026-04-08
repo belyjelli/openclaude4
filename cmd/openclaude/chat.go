@@ -19,6 +19,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/providers"
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
 	"github.com/gitlawb/openclaude4/internal/session"
+	"github.com/gitlawb/openclaude4/internal/skills"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	"github.com/gitlawb/openclaude4/internal/tui"
 	sdk "github.com/sashabaranov/go-openai"
@@ -87,7 +88,12 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	}
 	ctx = tools.WithWorkDir(ctx, wd)
 
-	reg := tools.NewDefaultRegistry()
+	skillCat, err := skills.Load(config.SkillDirs())
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "openclaude: skills: %v (continuing without skills)\n", err)
+		skillCat = skills.EmptyCatalog()
+	}
+	reg := tools.NewDefaultRegistry(skillCat)
 	mcpMgr := mcpclient.ConnectAndRegister(ctx, reg, config.MCPServers(), os.Stderr)
 	defer mcpMgr.Close()
 
@@ -142,8 +148,13 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
+	imgURLs, _ := cmd.Flags().GetStringSlice("image-url")
+	imgFiles, _ := cmd.Flags().GetStringSlice("image-file")
+	pendingImgURLs := imgURLs
+	pendingImgFiles := imgFiles
+
 	if printMode {
-		if err := runPrintTurn(ctx, cmd, client, reg, &messages, beforeUserTurn, autoApprove, &agent); err != nil {
+		if err := runPrintTurn(ctx, cmd, client, reg, &messages, beforeUserTurn, autoApprove, &agent, pendingImgURLs, pendingImgFiles); err != nil {
 			return err
 		}
 		return nil
@@ -163,6 +174,8 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			StatusLine:     buildTUIStatusLine(client, persist),
 			ToolPreviewMax: tuiToolPreviewMax(),
 			MarkdownAssist: tuiMarkdownEnabled(),
+			ImageURLs:      pendingImgURLs,
+			ImageFiles:     pendingImgFiles,
 			BeforeUserTurn: beforeUserTurn,
 			AfterTurn: func() error {
 				if persist != nil {
@@ -210,6 +223,9 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		},
 	}
 
+	pendingURLs := pendingImgURLs
+	pendingFiles := pendingImgFiles
+
 	for {
 		_, _ = fmt.Fprint(os.Stdout, "> ")
 		line, err := reader.ReadString('\n')
@@ -246,9 +262,26 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
 		}
-		if err := agent.RunUserTurn(ctx, &messages, line); err != nil {
+		urls := append([]string(nil), pendingURLs...)
+		files := append([]string(nil), pendingFiles...)
+		hasVis := len(urls) > 0 || len(files) > 0
+		parts, err := core.BuildUserContentParts(line, urls, files)
+		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
+		}
+		if len(parts) == 1 && parts[0].Type == sdk.ChatMessagePartTypeText {
+			err = agent.RunUserTurn(ctx, &messages, parts[0].Text)
+		} else {
+			err = agent.RunUserTurnMulti(ctx, &messages, parts)
+		}
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			continue
+		}
+		if hasVis {
+			pendingURLs = nil
+			pendingFiles = nil
 		}
 		if persist != nil {
 			if err := persist.Save(); err != nil {
@@ -267,6 +300,8 @@ func runPrintTurn(
 	beforeUserTurn func() error,
 	autoApprove bool,
 	agent **core.Agent,
+	imageURLs []string,
+	imageFiles []string,
 ) error {
 	printArg, _ := cmd.Flags().GetString("print")
 	var prompt string
@@ -287,6 +322,11 @@ func runPrintTurn(
 		return err
 	}
 
+	parts, err := core.BuildUserContentParts(prompt, imageURLs, imageFiles)
+	if err != nil {
+		return err
+	}
+
 	*agent = &core.Agent{
 		Client:   client,
 		Registry: reg,
@@ -300,7 +340,12 @@ func runPrintTurn(
 			return false
 		},
 	}
-	if err := (*agent).RunUserTurn(ctx, messages, prompt); err != nil {
+	if len(parts) == 1 && parts[0].Type == sdk.ChatMessagePartTypeText {
+		err = (*agent).RunUserTurn(ctx, messages, parts[0].Text)
+	} else {
+		err = (*agent).RunUserTurnMulti(ctx, messages, parts)
+	}
+	if err != nil {
 		return err
 	}
 	reply := lastAssistantReply(*messages)

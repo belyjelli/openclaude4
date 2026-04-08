@@ -42,6 +42,8 @@ func init() {
 
 	rootCmd.PersistentFlags().Bool("tui", false, "Full-screen Bubble Tea UI (kernel events: streaming, tools, permissions)")
 	rootCmd.PersistentFlags().StringP("print", "p", "", "One-shot: run a single user message, print only the final assistant reply to stdout (use -p - to read prompt from stdin). Incompatible with --tui; use OPENCLAUDE_AUTO_APPROVE_TOOLS for tools in CI")
+	rootCmd.PersistentFlags().StringSlice("image-url", nil, "HTTP(S) image URL for the next user message (vision models; repeatable). First REPL/TUI line or -p consumes.")
+	rootCmd.PersistentFlags().StringSlice("image-file", nil, "Local image path for the next user message (repeatable; max 8MiB each). First REPL/TUI line or -p consumes.")
 
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
 		path, _ := cmd.Flags().GetString("config")

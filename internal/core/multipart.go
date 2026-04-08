@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"encoding/base64"
@@ -12,9 +12,28 @@ import (
 
 const maxImageFileBytes = 8 << 20 // 8 MiB
 
-// buildUserContentParts returns OpenAI-style multimodal parts: text first, then image_url entries.
-func buildUserContentParts(text string, imageURLs []string, imageFiles []string) ([]sdk.ChatMessagePart, error) {
+// BuildUserContentParts builds OpenAI-style multimodal parts: text first, then image_url entries.
+// Empty text with images gets a short placeholder so the API always sees a text part.
+func BuildUserContentParts(text string, imageURLs []string, imageFiles []string) ([]sdk.ChatMessagePart, error) {
 	text = strings.TrimSpace(text)
+	hasImg := false
+	for _, u := range imageURLs {
+		if strings.TrimSpace(u) != "" {
+			hasImg = true
+			break
+		}
+	}
+	if !hasImg {
+		for _, f := range imageFiles {
+			if strings.TrimSpace(f) != "" {
+				hasImg = true
+				break
+			}
+		}
+	}
+	if text == "" && hasImg {
+		text = "Answer based on the attached image(s)."
+	}
 	var parts []sdk.ChatMessagePart
 	if text != "" {
 		parts = append(parts, sdk.ChatMessagePart{

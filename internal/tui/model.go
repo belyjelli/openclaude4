@@ -34,6 +34,9 @@ type Config struct {
 	ToolPreviewMax int
 	// MarkdownAssist renders finished assistant turns with glamour (disable with OPENCLAUDE_TUI_MARKDOWN=0).
 	MarkdownAssist bool
+	// ImageURLs and ImageFiles apply to the first non-slash user message (vision); then cleared on success.
+	ImageURLs  []string
+	ImageFiles []string
 }
 
 type model struct {
@@ -49,6 +52,8 @@ type model struct {
 	getAgent    func() *core.Agent
 	stickBottom bool
 	runningTool string
+	pendingImageURLs  []string
+	pendingImageFiles []string
 	// transcript
 	committed strings.Builder
 	liveAsst  strings.Builder
@@ -64,7 +69,9 @@ type kernelMsg struct {
 	e core.Event
 }
 
-type runTurnDoneMsg struct{}
+type runTurnDoneMsg struct {
+	clearImages bool
+}
 
 type runTurnErrMsg struct {
 	err error
@@ -81,13 +88,15 @@ func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *p
 	vp.MouseWheelEnabled = true
 
 	m := &model{
-		cfg:         cfg,
-		send:        send,
-		vp:          vp,
-		ti:          ti,
-		permBr:      pb,
-		getAgent:    getAgent,
-		stickBottom: true,
+		cfg:               cfg,
+		send:              send,
+		vp:                vp,
+		ti:                ti,
+		permBr:            pb,
+		getAgent:          getAgent,
+		stickBottom:       true,
+		pendingImageURLs:  append([]string(nil), cfg.ImageURLs...),
+		pendingImageFiles: append([]string(nil), cfg.ImageFiles...),
 	}
 	if cfg.Banner != "" {
 		m.committed.WriteString(dimStyle.Render(cfg.Banner))
@@ -207,6 +216,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case runTurnDoneMsg:
 		m.busy = false
 		m.runningTool = ""
+		if msg.clearImages {
+			m.pendingImageURLs = nil
+			m.pendingImageFiles = nil
+		}
 		if m.cfg.AfterTurn != nil {
 			if err := m.cfg.AfterTurn(); err != nil {
 				m.commitLine(errStyle.Render("session save: ") + err.Error())
@@ -288,14 +301,29 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 
 	send := m.send
 	ctx := m.cfg.Ctx
-	go func(user string) {
-		err := ag.RunUserTurn(ctx, msgs, user)
+	urls := append([]string(nil), m.pendingImageURLs...)
+	files := append([]string(nil), m.pendingImageFiles...)
+	hasVis := len(urls) > 0 || len(files) > 0
+	parts, err := core.BuildUserContentParts(line, urls, files)
+	if err != nil {
+		m.busy = false
+		m.commitLine(errStyle.Render("Error: ") + err.Error())
+		return m, textinput.Blink
+	}
+
+	go func(parts []sdk.ChatMessagePart, clear bool) {
+		var err error
+		if len(parts) == 1 && parts[0].Type == sdk.ChatMessagePartTypeText {
+			err = ag.RunUserTurn(ctx, msgs, parts[0].Text)
+		} else {
+			err = ag.RunUserTurnMulti(ctx, msgs, parts)
+		}
 		if err != nil {
 			send(runTurnErrMsg{err: err})
 			return
 		}
-		send(runTurnDoneMsg{})
-	}(line)
+		send(runTurnDoneMsg{clearImages: clear})
+	}(parts, hasVis)
 
 	return m, nil
 }

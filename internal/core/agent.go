@@ -86,6 +86,9 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 	}
 
 	user.Role = sdk.ChatMessageRoleUser
+	if strings.TrimSpace(user.Content) == "" && len(user.MultiContent) == 0 {
+		return errors.New("agent: empty user message")
+	}
 	*messages = append(*messages, user)
 	a.emit(Event{Kind: KindUserMessage, UserText: UserMessageSummary(user)})
 

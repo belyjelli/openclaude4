@@ -85,7 +85,7 @@ func TestChat_streamingText(t *testing.T) {
 	t.Cleanup(func() { _ = lis.Close() })
 
 	gs := grpc.NewServer()
-	Register(gs, Kernel{Client: client, Registry: tools.NewDefaultRegistry(), AutoApprove: true})
+	Register(gs, Kernel{Client: client, Registry: tools.NewDefaultRegistry(nil), AutoApprove: true})
 	go func() {
 		if err := gs.Serve(lis); err != nil {
 			t.Logf("grpc serve: %v", err)
@@ -193,7 +193,7 @@ func TestChat_persistsSessionWhenConfigured(t *testing.T) {
 	gs := grpc.NewServer()
 	Register(gs, Kernel{
 		Client:      client,
-		Registry:    tools.NewDefaultRegistry(),
+		Registry:    tools.NewDefaultRegistry(nil),
 		AutoApprove: true,
 		Session:     SessionOpts{Disabled: false, Dir: dir},
 	})

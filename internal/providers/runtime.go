@@ -16,12 +16,14 @@ func NewStreamClient() (core.StreamClient, error) {
 		return openaicomp.NewOllama()
 	case "gemini":
 		return openaicomp.NewGemini()
+	case "github":
+		return openaicomp.NewGitHubModels()
 	case "codex":
 		return nil, ErrCodexNotImplemented
 	default:
 		name := config.ProviderName()
 		if name != "" && name != "openai" {
-			return nil, fmt.Errorf("unknown provider %q (try openai, ollama, or gemini)", name)
+			return nil, fmt.Errorf("unknown provider %q (try openai, ollama, gemini, or ollama)", name)
 		}
 		return openaicomp.New()
 	}

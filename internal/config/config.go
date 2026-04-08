@@ -19,7 +19,7 @@ const DefaultGeminiOpenAIBase = "https://generativelanguage.googleapis.com/v1bet
 func ProviderName() string {
 	v := strings.ToLower(strings.TrimSpace(viper.GetString("provider.name")))
 	switch v {
-	case "ollama", "gemini", "openai", "codex":
+	case "ollama", "gemini", "openai", "codex", "github":
 		return v
 	case "":
 		return "openai"

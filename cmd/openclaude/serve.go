@@ -16,6 +16,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/providers"
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
+	"github.com/gitlawb/openclaude4/internal/skills"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -69,7 +70,12 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	}
 	ctx = tools.WithWorkDir(ctx, wd)
 
-	reg := tools.NewDefaultRegistry()
+	skillCat, err := skills.Load(config.SkillDirs())
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "openclaude: skills: %v (continuing without skills)\n", err)
+		skillCat = skills.EmptyCatalog()
+	}
+	reg := tools.NewDefaultRegistry(skillCat)
 	mcpMgr := mcpclient.ConnectAndRegister(ctx, reg, config.MCPServers(), os.Stderr)
 	defer mcpMgr.Close()
 
