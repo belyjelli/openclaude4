@@ -90,38 +90,55 @@ func buildCompactMeterRight(msgs *[]sdk.ChatCompletionMessage, threshold int) st
 	return fmt.Sprintf("%d%% until auto-compact", pct)
 }
 
-// formatFooterRow lays out left and right strings in exactly totalWidth terminal columns using lipgloss.
-// On very narrow widths, truncates the left side first so the right (compact meter) can remain visible.
+// formatFooterRow lays out left and right in at most totalWidth cells (lipgloss-measured).
+// Truncates right first to cap its width, then left; falls back to right-only when too narrow.
 func formatFooterRow(left, right string, totalWidth int) string {
 	if totalWidth < 1 {
 		return ""
 	}
-	wLeft := lipgloss.Width(left)
-	wRight := lipgloss.Width(right)
-	gap := totalWidth - wLeft - wRight
-	if gap < 1 {
-		// Reserve at least a minimal gap, truncate left to fit right + "  "
-		priorityRight := right
-		wPR := lipgloss.Width(priorityRight)
-		maxLeft := totalWidth - wPR - 1
-		if maxLeft < 4 {
-			// Too narrow: stack is awkward; show right only if non-empty else left truncated
-			if priorityRight != "" {
-				left = ""
-				return lipgloss.Place(totalWidth, 1, lipgloss.Right, lipgloss.Top, dimStyle.Render(priorityRight))
-			}
-			left = truncateFooterCells(left, max(1, totalWidth-1))
-			return lipgloss.Place(totalWidth, 1, lipgloss.Left, lipgloss.Top, dimStyle.Render(left))
-		}
-		left = truncateVisual(left, maxLeft)
-		wLeft = lipgloss.Width(left)
-		gap = totalWidth - wLeft - wPR
-		if gap < 1 {
-			gap = 1
+	const gapMin = 1
+	wR := lipgloss.Width(right)
+	maxRight := wR
+	if maxRight > totalWidth-gapMin {
+		maxRight = totalWidth - gapMin
+	}
+	if maxRight < 0 {
+		maxRight = 0
+	}
+	rightPart := right
+	if wR > maxRight {
+		rightPart = truncateVisual(right, maxRight)
+	}
+	wR = lipgloss.Width(rightPart)
+
+	maxLeft := totalWidth - wR - gapMin
+	if maxLeft < 1 {
+		rp := truncateVisual(rightPart, totalWidth)
+		return lipgloss.Place(totalWidth, 1, lipgloss.Right, lipgloss.Top, dimStyle.Render(rp))
+	}
+
+	leftPart := left
+	if lipgloss.Width(left) > maxLeft {
+		leftPart = truncateVisual(left, maxLeft)
+	}
+	wL := lipgloss.Width(leftPart)
+	gap := totalWidth - wL - wR
+	if gap < gapMin {
+		leftPart = truncateVisual(leftPart, max(1, maxLeft-(gapMin-gap)))
+		wL = lipgloss.Width(leftPart)
+		gap = totalWidth - wL - wR
+		if gap < gapMin {
+			gap = gapMin
 		}
 	}
+
 	spacer := strings.Repeat(" ", gap)
-	return lipgloss.JoinHorizontal(lipgloss.Top, dimStyle.Render(left), spacer, dimStyle.Render(right))
+	line := lipgloss.JoinHorizontal(lipgloss.Top, dimStyle.Render(leftPart), spacer, dimStyle.Render(rightPart))
+	if lipgloss.Width(line) > totalWidth {
+		rp := truncateVisual(right, totalWidth)
+		return lipgloss.Place(totalWidth, 1, lipgloss.Right, lipgloss.Top, dimStyle.Render(rp))
+	}
+	return line
 }
 
 func truncateVisual(s string, maxCells int) string {
@@ -148,19 +165,3 @@ func truncateVisual(s string, maxCells int) string {
 	return s + "…"
 }
 
-func truncateFooterCells(s string, maxCells int) string {
-	if maxCells < 1 {
-		return ""
-	}
-	if lipgloss.Width(s) <= maxCells {
-		return s
-	}
-	for len(s) > 0 && lipgloss.Width(s) > maxCells {
-		_, size := utf8.DecodeLastRuneInString(s)
-		if size == 0 {
-			break
-		}
-		s = s[:len(s)-size]
-	}
-	return s
-}

@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 	sdk "github.com/sashabaranov/go-openai"
@@ -21,8 +22,8 @@ func TestHorizontalRuleWidth(t *testing.T) {
 		if lipgloss.Width(s) != w {
 			t.Fatalf("w=%d: lipgloss width got %d", w, lipgloss.Width(s))
 		}
-		if len(s) != w {
-			t.Fatalf("w=%d: rune len got %d", w, len([]rune(s)))
+		if utf8.RuneCountInString(s) != w {
+			t.Fatalf("w=%d: rune count got %d", w, utf8.RuneCountInString(s))
 		}
 	}
 }

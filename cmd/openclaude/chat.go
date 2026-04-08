@@ -180,9 +180,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			return buildTUIStatusLine(live.Client(), persist)
 		}
 		var autoApproveTUI atomic.Bool
-		if autoApprove {
-			autoApproveTUI.Store(true)
-		}
+		autoApproveTUI.Store(autoApprove)
 		return tui.Run(tui.Config{
 			Ctx:            ctx,
 			Client:         client,
