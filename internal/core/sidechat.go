@@ -32,7 +32,7 @@ func SideQuestion(ctx context.Context, client StreamClient, question string) (st
 	}
 	defer func() { _ = stream.Close() }()
 
-	assistant, err := consumeAssistantStream(stream, io.Discard, nil, 1)
+	assistant, err := consumeAssistantStream(stream, io.Discard, nil, 1, streamClientModel(client))
 	if err != nil {
 		return "", err
 	}

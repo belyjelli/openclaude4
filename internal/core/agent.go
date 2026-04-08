@@ -103,7 +103,8 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 			return fmt.Errorf("stream: %w", err)
 		}
 
-		assistant, err := consumeAssistantStream(stream, a.Out, emit, modelRound)
+		model := streamClientModel(a.Client)
+		assistant, err := consumeAssistantStream(stream, a.Out, emit, modelRound, model)
 		_ = stream.Close()
 		if err != nil {
 			*messages = (*messages)[:len(*messages)-1]
@@ -225,7 +226,18 @@ type toolCallAcc struct {
 	args strings.Builder
 }
 
-func consumeAssistantStream(stream *sdk.ChatCompletionStream, out io.Writer, emit func(Event), modelRound int) (sdk.ChatCompletionMessage, error) {
+// streamClientModel returns the configured model id when the client exposes Model() (e.g. *openaicomp.Client).
+func streamClientModel(c StreamClient) string {
+	type modeler interface {
+		Model() string
+	}
+	if x, ok := c.(modeler); ok {
+		return x.Model()
+	}
+	return ""
+}
+
+func consumeAssistantStream(stream *sdk.ChatCompletionStream, out io.Writer, emit func(Event), modelRound int, model string) (sdk.ChatCompletionMessage, error) {
 	if emit == nil {
 		emit = func(Event) {}
 	}
@@ -290,15 +302,24 @@ func consumeAssistantStream(stream *sdk.ChatCompletionStream, out io.Writer, emi
 
 	_, _ = out.Write([]byte("\n"))
 
+	rawContent := content.String()
 	toolCalls := flattenToolCalls(acc)
+	assistantText := rawContent
+	if len(toolCalls) == 0 && xmlToolFallbackEnabledForModel(model) {
+		if extracted := extractXMLToolCallsFromContent(rawContent); len(extracted) > 0 {
+			toolCalls = extracted
+			assistantText = strings.TrimSpace(cleanToolCallMarkupFromContent(stripReasoningBlocks(rawContent)))
+		}
+	}
+
 	msg := sdk.ChatCompletionMessage{
 		Role:      sdk.ChatMessageRoleAssistant,
-		Content:   content.String(),
+		Content:   assistantText,
 		ToolCalls: toolCalls,
 	}
 	emit(Event{
 		Kind:            KindAssistantFinished,
-		AssistantText:   content.String(),
+		AssistantText:   assistantText,
 		ToolCallCount:   len(toolCalls),
 		FinishReason:    string(finish),
 		AssistantRounds: modelRound,

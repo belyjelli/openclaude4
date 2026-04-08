@@ -38,6 +38,8 @@ func (c *streamSDKClient) StreamChatWithTools(ctx context.Context, messages []sd
 	})
 }
 
+func (c *streamSDKClient) Model() string { return c.model }
+
 func newTestStreamClient(t *testing.T, server *httptest.Server) *streamSDKClient {
 	t.Helper()
 	return newTestStreamClientWithAuth(t, server, sdk.GPT4oMini, "sk-test")
@@ -273,6 +275,133 @@ func TestRunUserTurn_ToolThenText(t *testing.T) {
 	}
 	if messages[3].Role != sdk.ChatMessageRoleTool || !strings.Contains(messages[3].Content, "inside") {
 		t.Fatalf("tool message = %#v", messages[3])
+	}
+}
+
+func TestRunUserTurn_XMLToolCallsInContentSplitChunks_Qwen(t *testing.T) {
+	tmp := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmp, "hello.txt"), []byte("inside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	part1 := sdk.ChatCompletionStreamResponse{
+		Choices: []sdk.ChatCompletionStreamChoice{
+			{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{Content: `I'll read.<tool_call>`}},
+		},
+	}
+	part2 := sdk.ChatCompletionStreamResponse{
+		Choices: []sdk.ChatCompletionStreamChoice{
+			{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{Content: `{"name":"FileRead","arguments":{"file_path":"hello.txt"}}</tool_call>`}},
+		},
+	}
+	finish1 := sdk.ChatCompletionStreamResponse{
+		Choices: []sdk.ChatCompletionStreamChoice{
+			{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{}, FinishReason: sdk.FinishReasonStop},
+		},
+	}
+	textChunks := sseBody(
+		sdk.ChatCompletionStreamResponse{
+			Choices: []sdk.ChatCompletionStreamChoice{
+				{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{Content: "Done"}},
+			},
+		},
+		sdk.ChatCompletionStreamResponse{
+			Choices: []sdk.ChatCompletionStreamChoice{
+				{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{}, FinishReason: sdk.FinishReasonStop},
+			},
+		},
+	)
+
+	var n atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		switch n.Add(1) {
+		case 1:
+			_, _ = w.Write(sseBody(part1, part2, finish1))
+		case 2:
+			_, _ = w.Write(textChunks)
+		default:
+			t.Error("unexpected request")
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	ctx := tools.WithWorkDir(context.Background(), tmp)
+	reg := tools.NewRegistry()
+	reg.Register(tools.FileRead{})
+
+	var out bytes.Buffer
+	agent := &Agent{
+		Client:   newTestStreamClientWithAuth(t, srv, "qwen3-35b-a3b", "sk-test"),
+		Registry: reg,
+		Out:      &out,
+	}
+
+	var messages []sdk.ChatCompletionMessage
+	if err := agent.RunUserTurn(ctx, &messages, "read the file"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "Done") {
+		t.Fatalf("stdout = %q", out.String())
+	}
+	if len(messages) != 5 {
+		t.Fatalf("len(messages) = %d, want 5", len(messages))
+	}
+	if strings.Contains(messages[2].Content, "<tool_call") {
+		t.Fatalf("assistant content should be cleaned: %q", messages[2].Content)
+	}
+	if len(messages[2].ToolCalls) != 1 || messages[2].ToolCalls[0].Function.Name != "FileRead" {
+		t.Fatalf("assistant tool calls = %#v", messages[2].ToolCalls)
+	}
+	if messages[3].Role != sdk.ChatMessageRoleTool || !strings.Contains(messages[3].Content, "inside") {
+		t.Fatalf("tool message = %#v", messages[3])
+	}
+}
+
+func TestRunUserTurn_XMLInContent_NoFallbackNonQwen(t *testing.T) {
+	xmlBody := sseBody(
+		sdk.ChatCompletionStreamResponse{
+			Choices: []sdk.ChatCompletionStreamChoice{
+				{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{Content: `<tool_call>{"name":"FileRead","arguments":{}}</tool_call>`}},
+			},
+		},
+		sdk.ChatCompletionStreamResponse{
+			Choices: []sdk.ChatCompletionStreamChoice{
+				{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{}, FinishReason: sdk.FinishReasonStop},
+			},
+		},
+	)
+
+	var n atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if n.Add(1) != 1 {
+			t.Error("unexpected extra request")
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write(xmlBody)
+	}))
+	t.Cleanup(srv.Close)
+
+	reg := tools.NewRegistry()
+	reg.Register(tools.FileRead{})
+
+	var out bytes.Buffer
+	agent := &Agent{
+		Client:   newTestStreamClient(t, srv),
+		Registry: reg,
+		Out:      &out,
+	}
+
+	var messages []sdk.ChatCompletionMessage
+	if err := agent.RunUserTurn(context.Background(), &messages, "hi"); err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 3 {
+		t.Fatalf("len(messages) = %d, want 3 (no tool execution)", len(messages))
+	}
+	if len(messages[2].ToolCalls) != 0 {
+		t.Fatalf("expected no tool calls, got %#v", messages[2].ToolCalls)
 	}
 }
 

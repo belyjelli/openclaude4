@@ -72,6 +72,51 @@ Alphabetical **primary** `name` values from modules wired in [`commands.ts`](htt
 
 Login/logout, Claude.ai flows, `/review` / security-review pipelines, GitHub app install, remote bridge, voice, plugins, workflows, heapdump, and most Ink-heavy wizards are **not** targeted in v4. Use **`openclaude` subcommands**, **config**, and **MCP** instead.
 
+## Recommended refinements (v3 → v4)
+
+Below is a **prioritized** subset of v3 built-ins that are still missing in v4 but align with the **terminal agent + config + tools** shape. Names match v3 where it helps muscle memory; behavior can be a smaller Go implementation.
+
+### Tier A — high value, fits v4 without a new product surface
+
+| v3-style command | Why | v4-shaped implementation |
+|------------------|-----|---------------------------|
+| **`/config`** | Users constantly ask “what is actually loaded?” | Print config **search order**, resolved file path(s), merged `provider.*` / session flags / MCP server **names** only (no secrets). Optionally `openclaude.yaml` path from [`WritableConfigPath`](../internal/config/mcp_configfile.go) when relevant. |
+| **`/version`** | Matches `/exit`-style discoverability | Alias for `openclaude version` output (embed `version`/`commit` from main). |
+| **`/export`** | Share or archive a conversation | Dump current in-memory transcript as **JSON** (and optionally a minimal **Markdown** turn list) to stdout or a user-given path; redact or warn on secrets. |
+| **`/permissions`** | Clarifies tool policy | Print `OPENCLAUDE_AUTO_APPROVE_TOOLS`, MCP `approval` summary from config, workspace rule one-liner (see [SECURITY.md](./SECURITY.md)). |
+| **`/init`** | Onboarding for new repos | Print a **starter `openclaude.yaml`** snippet + pointer to `openclaude.example.yaml` / CONFIG.md (no interactive Ink). |
+
+### Tier B — useful, more design or plumbing
+
+| v3-style command | Why | Notes |
+|------------------|-----|--------|
+| **`/files`** | Quick workspace picture without invoking the model | Thin wrapper: list cwd top-level, or `git ls-files` when `.git` exists (cap lines); same boundary rules as tools. |
+| **`/stats`** | Deeper than `/cost` | Count messages by role, tool-call count from transcript, last compact time — no billing until APIs expose usage headers. |
+| **`/session rename <new>`** (or **`/rename`**) | v3 users rename sessions | Add `Store.Rename` / file move under session dir + update in-memory id; watch collisions. |
+| **`/release-notes` / `/upgrade`** | Discoverability | Static text: link to GitHub Releases + `go install` / binary install blurb (no auto-upgrade unless explicitly scoped later). |
+| **`/diff`** | “What changed?” | Optional: `git diff --stat` or last N lines when repo is git; keep sandbox same as Bash tool. |
+| **`/review` / `/security-review`** | Common workflows | **Prompt templates** only: expand to a **user message** (or print template to paste) — not a full v3 pipeline unless gRPC/CI integration is added. |
+
+### Tier C — defer or keep out of slash router
+
+| Area | Examples from v3 | Reason |
+|------|------------------|--------|
+| Auth / 1P product | `/login`, `/logout`, `/extra-usage`, rate-limit pickers | Tied to Claude.ai / billing UIs. |
+| IDE / desktop | `/ide`, `/desktop`, `/chrome` | v4 is terminal-first; use MCP or external tools. |
+| Plugins / dynamic UI | `/plugin`, `/reload-plugins`, `/hooks` | No v4 plugin host yet. |
+| Memory / tags / tasks | `/memory`, `/tag`, `/tasks` | Needs persistent product model beyond session JSON. |
+| Plan mode / effort knobs | `/plan`, `/effort`, `/fast` | Requires agreed semantics on top of OpenAI-compat parameters and agent loop. |
+| Remote / voice / buddy | `/remote-control`, `/voice`, `/buddy`, … | Different binary features and feature flags. |
+
+### Ordering suggestion for implementation
+
+1. **`/config`** + **`/permissions`** (pure text, builds trust).  
+2. **`/version`** + **`/init`** + **`/release-notes`** (small, mostly static).  
+3. **`/export`** (high utility for support and migration).  
+4. **`/files`**, **`/stats`**, **`/session rename`**, then prompt-template **`/review`** if desired.
+
+When adding any of these, extend [`slash.go`](../cmd/openclaude/slash.go), [`printChatHelpTo`](../cmd/openclaude/chat.go), and this document’s v4 table.
+
 ## Maintenance
 
 When adding or renaming a v4 slash command, update:

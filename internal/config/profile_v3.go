@@ -10,6 +10,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+// MergedV3ProfilePath is the path of the v3 profile JSON merged into viper by the last
+// [MergeV3Profile] call, or empty if none was merged.
+var MergedV3ProfilePath string
+
 // v3ProfileJSON matches OpenClaude v3 [.openclaude-profile.json](https://github.com/Gitlawb/openclaude).
 type v3ProfileJSON struct {
 	Profile string         `json:"profile"`
@@ -19,6 +23,7 @@ type v3ProfileJSON struct {
 // MergeV3Profile loads the first existing v3 profile and merges it into viper (lowest priority:
 // overridden by openclaude.yaml and by environment variables). Search order: cwd, then home.
 func MergeV3Profile(cwd, home string) {
+	MergedV3ProfilePath = ""
 	const name = ".openclaude-profile.json"
 	paths := make([]string, 0, 2)
 	if cwd != "" {
@@ -123,6 +128,7 @@ func mergeOneV3Profile(path string) bool {
 		_, _ = fmt.Fprintf(os.Stderr, "openclaude: profile merge: %v\n", err)
 		return false
 	}
+	MergedV3ProfilePath = path
 	return true
 }
 
