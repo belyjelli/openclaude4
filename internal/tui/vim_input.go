@@ -67,15 +67,19 @@ func (m *model) handleVimNormalKey(msg tea.KeyMsg) {
 			m.vimDeleteChar()
 		case 'i':
 			m.vimNormal = false
+			m.reflowLayout()
 		case 'I':
 			m.ti.CursorStart()
 			m.vimNormal = false
+			m.reflowLayout()
 		case 'a':
 			m.vimMoveRune(1)
 			m.vimNormal = false
+			m.reflowLayout()
 		case 'A':
 			m.ti.CursorEnd()
 			m.vimNormal = false
+			m.reflowLayout()
 		}
 		return
 	}

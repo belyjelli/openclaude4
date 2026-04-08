@@ -97,7 +97,7 @@ type runTurnErrMsg struct {
 
 func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *permBridge) *model {
 	ti := textinput.New()
-	ti.Placeholder = "Message… (Enter · PgUp/PgDn scroll transcript · /help)"
+	ti.Placeholder = "Message… · Enter send · Shift+Tab approvals · PgUp/PgDn scroll · /help"
 	ti.Focus()
 	ti.CharLimit = 0
 	ti.Width = 72
@@ -227,10 +227,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		vimOn := m.cfg.VimKeys != nil && m.cfg.VimKeys.Enabled() && !m.busy
 		if !vimOn {
-			m.vimNormal = false
+			if m.vimNormal {
+				m.vimNormal = false
+				m.reflowLayout()
+			}
 		}
 		if vimOn && !m.vimNormal && msg.Type == tea.KeyEsc {
 			m.vimNormal = true
+			m.reflowLayout()
 			return m, textinput.Blink
 		}
 		if vimOn && m.vimNormal {
@@ -507,7 +511,7 @@ func (m *model) reflowLayout() {
 	}
 	m.vp.Width = vpW
 	m.vp.Height = vpH
-	m.ti.Width = max(1, vpW-2)
+	m.ti.Width = m.textInputWidth()
 	m.syncVP()
 }
 
@@ -572,15 +576,16 @@ func (m *model) View() string {
 			Render(box)
 	}
 
-	inputLabel := "> "
+	var vimSeg string
 	if m.cfg.VimKeys != nil && m.cfg.VimKeys.Enabled() {
 		if m.vimNormal {
-			inputLabel = "> " + dimStyle.Render("(vim NOR) ")
+			vimSeg = dimStyle.Render("(vim NOR) ")
 		} else {
-			inputLabel = "> " + dimStyle.Render("(vim INS) ")
+			vimSeg = dimStyle.Render("(vim INS) ")
 		}
 	}
-	inputLine := lipgloss.NewStyle().Width(m.width).Render(inputLabel + m.ti.View())
+	inner := lipgloss.JoinHorizontal(lipgloss.Left, vimSeg, m.promptCharRendered(), m.ti.View())
+	inputLine := promptBoxStyle.Width(m.width).Render(inner)
 	rule := dimStyle.Width(m.width).Render(horizontalRule(m.width))
 	th := config.SessionCompactTokenThreshold()
 	left := buildFooterLeft(autoApproveEnabled(m.cfg.AutoApprove), m.cfg.MCPManager)

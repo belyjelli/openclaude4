@@ -15,6 +15,15 @@ var (
 	errStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 	dimStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	border     = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+
+	// Rich prompt row (v3 PromptInput-style): rounded frame around ❯ + text field.
+	promptBoxStyle = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("238")).
+		Background(lipgloss.Color("235")).
+		Padding(0, 1)
+	promptCharStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("214")) // v3 user / pointer line
+	promptCharBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 )
 
 // ApplyTheme updates lipgloss palette presets. Mode is light, dark, or auto (uses terminal background).
@@ -29,6 +38,13 @@ func ApplyTheme(mode string) {
 		errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("160"))
 		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 		border = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1).Foreground(lipgloss.Color("240"))
+		promptBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("252")).
+			Background(lipgloss.Color("254")).
+			Padding(0, 1)
+		promptCharStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("130"))
+		promptCharBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	default:
 		titleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
 		userStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
@@ -38,6 +54,13 @@ func ApplyTheme(mode string) {
 		errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 		border = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+		promptBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("238")).
+			Background(lipgloss.Color("235")).
+			Padding(0, 1)
+		promptCharStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+		promptCharBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	}
 }
 

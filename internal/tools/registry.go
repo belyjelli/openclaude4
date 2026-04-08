@@ -21,5 +21,6 @@ func NewDefaultRegistry(skillCatalog *skills.Catalog) *Registry {
 	r.Register(SkillsList{Cat: skillCatalog})
 	r.Register(SkillsRead{Cat: skillCatalog})
 	r.Register(GoOutline{})
+	r.Register(SpiderScrape{})
 	return r
 }
