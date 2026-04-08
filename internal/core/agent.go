@@ -46,8 +46,26 @@ const DefaultSystemPrompt = `You are OpenClaude v4, a terminal coding agent. Use
 	`Prefer reading files before editing. Keep shell commands short; respect the workspace boundary. ` +
 	`Explain briefly what you are doing when using dangerous tools.`
 
-// RunUserTurn appends the user message, then loops model→tools until the model responds without tool calls.
+// RunUserTurn appends a text-only user message, then loops model→tools until the model responds without tool calls.
 func (a *Agent) RunUserTurn(ctx context.Context, messages *[]sdk.ChatCompletionMessage, userText string) error {
+	return a.runUserTurnWithUserMessage(ctx, messages, sdk.ChatCompletionMessage{
+		Role:    sdk.ChatMessageRoleUser,
+		Content: userText,
+	})
+}
+
+// RunUserTurnMulti appends a multimodal user message (e.g. text + image_url parts), then runs the same loop as [Agent.RunUserTurn].
+func (a *Agent) RunUserTurnMulti(ctx context.Context, messages *[]sdk.ChatCompletionMessage, parts []sdk.ChatMessagePart) error {
+	if len(parts) == 0 {
+		return errors.New("agent: empty multimodal user message")
+	}
+	return a.runUserTurnWithUserMessage(ctx, messages, sdk.ChatCompletionMessage{
+		Role:         sdk.ChatMessageRoleUser,
+		MultiContent: parts,
+	})
+}
+
+func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.ChatCompletionMessage, user sdk.ChatCompletionMessage) error {
 	if a.Client == nil || a.Registry == nil {
 		return errors.New("agent: missing client or registry")
 	}
@@ -67,11 +85,9 @@ func (a *Agent) RunUserTurn(ctx context.Context, messages *[]sdk.ChatCompletionM
 		return fmt.Errorf("openai tools: %w", err)
 	}
 
-	*messages = append(*messages, sdk.ChatCompletionMessage{
-		Role:    sdk.ChatMessageRoleUser,
-		Content: userText,
-	})
-	a.emit(Event{Kind: KindUserMessage, UserText: userText})
+	user.Role = sdk.ChatMessageRoleUser
+	*messages = append(*messages, user)
+	a.emit(Event{Kind: KindUserMessage, UserText: UserMessageSummary(user)})
 
 	emit := func(e Event) { a.emit(e) }
 

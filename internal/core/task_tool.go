@@ -7,6 +7,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/gitlawb/openclaude4/internal/config"
+	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
 )
@@ -83,8 +85,15 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 
 	childReg := tools.CloneRegistryOmit(parent.Registry, "Task")
 
+	subClient := parent.Client
+	if m := config.TaskAgentModel(); m != "" {
+		if oc, ok := parent.Client.(*openaicomp.Client); ok {
+			subClient = oc.WithModel(m)
+		}
+	}
+
 	sub := &Agent{
-		Client:        parent.Client,
+		Client:        subClient,
 		Registry:      childReg,
 		Confirm:       parent.Confirm,
 		Out:           io.Discard,

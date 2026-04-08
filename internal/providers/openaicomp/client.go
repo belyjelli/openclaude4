@@ -3,6 +3,7 @@ package openaicomp
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/gitlawb/openclaude4/internal/config"
 	sdk "github.com/sashabaranov/go-openai"
@@ -99,6 +100,20 @@ func (c *Client) StreamChatWithTools(ctx context.Context, messages []sdk.ChatCom
 		Tools:    toolList,
 		Stream:   true,
 	})
+}
+
+// WithModel returns a shallow copy of the client using a different model id (same credentials and base URL).
+func (c *Client) WithModel(model string) *Client {
+	if c == nil {
+		return nil
+	}
+	m := strings.TrimSpace(model)
+	if m == "" {
+		return c
+	}
+	cp := *c
+	cp.model = m
+	return &cp
 }
 
 // Model returns the configured model name.

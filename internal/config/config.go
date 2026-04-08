@@ -116,3 +116,34 @@ func GeminiModel() string {
 	}
 	return defaultGeminiModel
 }
+
+// GitHubToken returns GITHUB_TOKEN or GITHUB_PAT (merged via viper).
+func GitHubToken() string {
+	if v := viper.GetString("github.token"); v != "" {
+		return v
+	}
+	return ""
+}
+
+// GitHubModelsBaseURL returns the OpenAI-compatible base URL for GitHub Models.
+func GitHubModelsBaseURL() string {
+	if v := strings.TrimSpace(viper.GetString("github.base_url")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	// GitHub Models uses the Azure-compatible endpoint
+	// Pattern: https://{region}.models.ai.azure.com
+	// Users can set GITHUB_BASE_URL to customize
+	return ""
+}
+
+// GitHubModelsModel returns the GitHub Models model id.
+func GitHubModelsModel() string {
+	if v := viper.GetString("github.model"); v != "" {
+		return v
+	}
+	if v := viper.GetString("provider.model"); v != "" {
+		return v
+	}
+	// Default to a common GitHub Models model
+	return "gpt-4o"
+}

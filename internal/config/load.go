@@ -79,4 +79,8 @@ func bindViperEnv() {
 	_ = viper.BindEnv("session.compact_token_threshold", "OPENCLAUDE_SESSION_COMPACT_TOKEN_THRESHOLD")
 	_ = viper.BindEnv("session.summarize_over_threshold", "OPENCLAUDE_SESSION_SUMMARIZE_OVER_THRESHOLD")
 	_ = viper.BindEnv("session.compact_keep_messages", "OPENCLAUDE_SESSION_COMPACT_KEEP_MESSAGES")
+	_ = viper.BindEnv("github.token", "GITHUB_TOKEN", "GITHUB_PAT")
+	_ = viper.BindEnv("github.model", "GITHUB_MODEL")
+	_ = viper.BindEnv("github.base_url", "GITHUB_BASE_URL")
+	_ = viper.BindEnv("agent_routing.task_model", "OPENCLAUDE_AGENT_TASK_MODEL")
 }

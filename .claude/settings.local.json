@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -rn TODO --include=*.go /Users/hesdx/Documents/clawhost/openclaude4)",
+      "Bash(grep -rni \"todo\\\\|fixme\\\\|hack\\\\|XXX\\\\|incomplete\" --include=*.go /Users/hesdx/Documents/clawhost/openclaude4)",
+      "Bash(grep -rn --include=*.go -ni \"todo\\\\|fixme\\\\|xxx\\\\|XXX\\\\|unimplemented\\\\|panic\\\\|todo:\" .)",
+      "Bash(grep -rn --include=*.go -niE \"todo|fixme|xxx|XxX|XXX|TODO|FIXME|XXX|panic|notyetimplemented|notimplemented|unimplemented\" .)",
+      "Bash(grep -rn --include=*.go -nE \"return\\\\s+nil|return\\\\s+NotImplemented|func\\\\s+\\\\\\(\\\\s*\\\\\\)|func\\\\s+[A-Z][a-zA-Z0-9]*\\\\s*\\\\\\([^\\)]*\\\\\\)\\\\s*\\\\{\" .)",
+      "Bash(grep -rn --include=*.go -nE panics*\\\\\\(.)",
+      "Bash(grep -rn --include=*.go -nE \"^func\\\\s+\\\\w+\\\\s*\\\\\\([^\\)]*\\\\\\)\\\\s*\\(\\\\\\(|[^{]+\\\\{\\\\}\\)\" .)",
+      "Bash(find . -type f -name \"*.go\" -not -path \"./.git/*\" -not -path \"./.cursor/*\" -exec grep -l \"^func\" {})",
+      "Bash(grep -rn \"TODO\\\\|FIXME\\\\|XXX\\\\|HACK\\\\|NOTE\" --include=*.go --include=*.yaml --include=*.yml --include=*.json --include=*.md /Users/hesdx/Documents/clawhost/openclaude4/)"
+    ]
+  }
+}
