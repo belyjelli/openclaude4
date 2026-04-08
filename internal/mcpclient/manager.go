@@ -28,6 +28,9 @@ type ServerTools struct {
 	approval    string
 }
 
+// Approval returns the normalized approval mode: ask, always, or never.
+func (s ServerTools) Approval() string { return s.approval }
+
 // ConnectAndRegister starts stdio MCP servers from cfg, lists tools (with pagination), and registers them on reg.
 // Servers that fail to start are skipped; messages are written to log (e.g. os.Stderr).
 func ConnectAndRegister(ctx context.Context, reg *tools.Registry, servers []config.MCPServer, log io.Writer) *Manager {

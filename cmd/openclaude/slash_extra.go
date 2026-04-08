@@ -159,8 +159,12 @@ func slashTheme(st chatState, args []string, out io.Writer) error {
 	}
 }
 
-func slashVim(out io.Writer) {
-	_, _ = fmt.Fprintln(out, "Vim-style input for the prompt is not implemented in v4 TUI (future work).")
+func slashVim(st chatState, out io.Writer) {
+	if st.vimKeys != nil {
+		_, _ = fmt.Fprintln(out, st.vimKeys.Toggle())
+		return
+	}
+	_, _ = fmt.Fprintln(out, "Vim-style prompt keys are TUI-only — run with --tui (or OPENCLAUDE_TUI=1).")
 }
 
 func printSkillEntry(out io.Writer, e skills.Entry) {

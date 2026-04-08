@@ -175,6 +175,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			"\n\nTUI: Ctrl+C to quit · same /commands as plain REPL."
 		var busyFlag int32
 		themeHolder := tui.NewThemeHolder()
+		vimKeysHolder := tui.NewVimKeysHolder()
 		statusFn := func() string {
 			return buildTUIStatusLine(live.Client(), persist)
 		}
@@ -190,6 +191,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			Live:           live,
 			Busy:           &busyFlag,
 			Theme:          themeHolder,
+			VimKeys:        vimKeysHolder,
 			ToolPreviewMax: tuiToolPreviewMax(),
 			MarkdownAssist: tuiMarkdownEnabled(),
 			ImageURLs:      pendingImgURLs,
@@ -215,6 +217,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 					ctx:                     ctx,
 					isBusy:                  func() bool { return atomic.LoadInt32(&busyFlag) != 0 },
 					themeHolder:             themeHolder,
+					vimKeys:                 vimKeysHolder,
 				}, &out)
 				if errors.Is(err, errSlashExitChat) {
 					return out.String(), true, nil

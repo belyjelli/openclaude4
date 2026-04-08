@@ -3,18 +3,24 @@ package tui
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type permBridge struct {
-	mu          sync.Mutex
-	prog        *tea.Program
-	ctx         context.Context
-	autoApprove bool
+	mu   sync.Mutex
+	prog *tea.Program
+	ctx  context.Context
+	// autoApprove is read on every Confirm; toggled at runtime in the TUI (Shift+Tab).
+	autoApprove *atomic.Bool
 }
 
-func newPermBridge(ctx context.Context, autoApprove bool) *permBridge {
+func newPermBridge(ctx context.Context, autoApprove *atomic.Bool) *permBridge {
+	if autoApprove == nil {
+		v := new(atomic.Bool)
+		autoApprove = v
+	}
 	return &permBridge{ctx: ctx, autoApprove: autoApprove}
 }
 
@@ -25,7 +31,7 @@ func (b *permBridge) setProgram(p *tea.Program) {
 }
 
 func (b *permBridge) Confirm(toolName string, args map[string]any) bool {
-	if b.autoApprove {
+	if b.autoApprove.Load() {
 		return true
 	}
 	b.mu.Lock()

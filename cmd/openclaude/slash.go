@@ -34,6 +34,7 @@ type chatState struct {
 	ctx                     context.Context
 	isBusy                  func() bool
 	themeHolder             *tui.ThemeHolder
+	vimKeys                 *tui.VimKeysHolder
 }
 
 func handleSlashLine(line string, st chatState, out io.Writer) error {
@@ -82,7 +83,7 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 	case "theme":
 		return slashTheme(st, args, out)
 	case "vim":
-		slashVim(out)
+		slashVim(st, out)
 	case "mcp":
 		if len(args) > 0 && strings.EqualFold(args[0], "help") {
 			printMCPHelp(out)

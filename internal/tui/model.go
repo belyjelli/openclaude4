@@ -222,6 +222,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.submitLine(line)
 		}
 
+		vimOn := m.cfg.VimKeys != nil && m.cfg.VimKeys.Enabled() && !m.busy
+		if !vimOn {
+			m.vimNormal = false
+		}
+		if vimOn && !m.vimNormal && msg.Type == tea.KeyEsc {
+			m.vimNormal = true
+			return m, textinput.Blink
+		}
+		if vimOn && m.vimNormal {
+			_ = m.handleVimNormalKey(msg)
+			return m, textinput.Blink
+		}
+
 	case kernelMsg:
 		m.applyKernel(msg.e)
 		return m, nil
@@ -516,6 +529,13 @@ func (m *model) View() string {
 	}
 
 	inputLabel := "> "
+	if m.cfg.VimKeys != nil && m.cfg.VimKeys.Enabled() {
+		if m.vimNormal {
+			inputLabel = "> " + dimStyle.Render("(vim NOR) ")
+		} else {
+			inputLabel = "> " + dimStyle.Render("(vim INS) ")
+		}
+	}
 	inputLine := inputLabel + m.ti.View()
 	footer := lipgloss.NewStyle().Width(m.width).Render(inputLine)
 
