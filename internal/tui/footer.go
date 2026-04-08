@@ -27,11 +27,11 @@ func horizontalRule(totalWidth int) string {
 	return strings.Repeat("─", totalWidth)
 }
 
-func autoApproveEnabled(auto *atomic.Bool, legacy bool) bool {
-	if auto != nil {
-		return auto.Load()
+func autoApproveEnabled(auto *atomic.Bool) bool {
+	if auto == nil {
+		return false
 	}
-	return legacy
+	return auto.Load()
 }
 
 // buildFooterLeft returns the permission-style left segment (plain text before styling).
@@ -40,7 +40,7 @@ func buildFooterLeft(autoOn bool, mcp *mcpclient.Manager) string {
 	if autoOn {
 		b.WriteString("⏵⏵ accept edits on (shift+tab to cycle)")
 	} else {
-		b.WriteString("⏸⏸ default on (shift+tab to cycle)")
+		b.WriteString("⏸⏸ prompt for approvals (shift+tab to cycle)")
 	}
 	if suf := mcpNonAskSummary(mcp); suf != "" {
 		b.WriteString(" · ")
@@ -110,7 +110,7 @@ func formatFooterRow(left, right string, totalWidth int) string {
 				left = ""
 				return lipgloss.Place(totalWidth, 1, lipgloss.Right, lipgloss.Top, dimStyle.Render(priorityRight))
 			}
-			left = truncateRunes(left, max(1, totalWidth-1))
+			left = truncateFooterCells(left, max(1, totalWidth-1))
 			return lipgloss.Place(totalWidth, 1, lipgloss.Left, lipgloss.Top, dimStyle.Render(left))
 		}
 		left = truncateVisual(left, maxLeft)
@@ -148,7 +148,7 @@ func truncateVisual(s string, maxCells int) string {
 	return s + "…"
 }
 
-func truncateRunes(s string, maxCells int) string {
+func truncateFooterCells(s string, maxCells int) string {
 	if maxCells < 1 {
 		return ""
 	}

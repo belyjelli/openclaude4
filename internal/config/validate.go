@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Known providers accepted by [ProviderName] / the CLI (codex is recognized but not wired yet).
+// Known providers accepted by [ProviderName] / the CLI (codex fails Validate with providererrs.ErrCodexNotImplemented).
 var knownProviders = map[string]struct{}{
 	"":        {},
 	"openai":  {},

@@ -179,12 +179,17 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		statusFn := func() string {
 			return buildTUIStatusLine(live.Client(), persist)
 		}
+		var autoApproveTUI atomic.Bool
+		if autoApprove {
+			autoApproveTUI.Store(true)
+		}
 		return tui.Run(tui.Config{
 			Ctx:            ctx,
 			Client:         client,
 			Registry:       reg,
 			Messages:       &messages,
-			AutoApprove:    autoApprove,
+			AutoApprove:    &autoApproveTUI,
+			MCPManager:     mcpMgr,
 			Banner:         bannerStr,
 			StatusLine:     buildTUIStatusLine(client, persist),
 			StatusLineFunc: statusFn,

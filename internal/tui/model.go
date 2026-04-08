@@ -12,7 +12,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gitlawb/openclaude4/internal/chatlive"
+	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
+	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
 )
@@ -23,8 +25,11 @@ type Config struct {
 	Client      core.StreamClient
 	Registry    *tools.Registry
 	Messages    *[]sdk.ChatCompletionMessage
-	AutoApprove bool
+	// AutoApprove toggles dangerous-tool and MCP ask-path approval (Shift+Tab in TUI). If nil, treated as off.
+	AutoApprove *atomic.Bool
 	Banner      string
+	// MCPManager is optional; used for footer hints when servers use non-ask approval.
+	MCPManager *mcpclient.Manager
 	Slash       func(line string) (appendOut string, exitChat bool, err error)
 	// BeforeUserTurn runs before each user-authored model turn (optional; e.g. auto-compact).
 	BeforeUserTurn func() error
@@ -139,24 +144,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		subLines := 1
-		if m.busy || m.runningTool != "" {
-			subLines = 2
-		}
-		headerH := 1 + subLines
-		footerH := 4
-		vpH := msg.Height - headerH - footerH
-		if vpH < 6 {
-			vpH = 6
-		}
-		vpW := msg.Width - 2
-		if vpW < 20 {
-			vpW = 20
-		}
-		m.vp.Width = vpW
-		m.vp.Height = vpH
-		m.ti.Width = vpW - 2
-		m.syncVP()
+		m.reflowLayout()
 		return m, nil
 
 	case tea.MouseMsg:
@@ -181,13 +169,28 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch strings.ToLower(msg.String()) {
 			case "y":
 				m.answerPerm(true)
+				m.reflowLayout()
 				return m, nil
 			case "n":
 				m.answerPerm(false)
+				m.reflowLayout()
 				return m, nil
 			case "esc", "q":
 				m.answerPerm(false)
+				m.reflowLayout()
 				return m, nil
+			}
+			return m, nil
+		}
+		if msg.Type == tea.KeyShiftTab && !m.busy {
+			if m.cfg.AutoApprove != nil {
+				v := !m.cfg.AutoApprove.Load()
+				m.cfg.AutoApprove.Store(v)
+				if v {
+					m.commitLine(dimStyle.Render("auto-approve: on"))
+				} else {
+					m.commitLine(dimStyle.Render("auto-approve: off"))
+				}
 			}
 			return m, nil
 		}
@@ -231,7 +234,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, textinput.Blink
 		}
 		if vimOn && m.vimNormal {
-			_ = m.handleVimNormalKey(msg)
+			m.handleVimNormalKey(msg)
 			return m, textinput.Blink
 		}
 
@@ -241,11 +244,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case permPromptMsg:
 		m.perm = &permState{tool: msg.tool, args: msg.args, ch: msg.result}
+		m.reflowLayout()
 		return m, nil
 
 	case runTurnDoneMsg:
-		m.setBusy(false)
 		m.runningTool = ""
+		m.setBusy(false)
 		if msg.clearImages {
 			m.pendingImageURLs = nil
 			m.pendingImageFiles = nil
@@ -258,8 +262,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, textinput.Blink
 
 	case runTurnErrMsg:
-		m.setBusy(false)
 		m.runningTool = ""
+		m.setBusy(false)
 		return m, textinput.Blink
 	}
 
@@ -358,7 +362,15 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *model) headerSubLines() int {
+	if m.busy || m.runningTool != "" {
+		return 2
+	}
+	return 1
+}
+
 func (m *model) applyKernel(e core.Event) {
+	sub0 := m.headerSubLines()
 	switch e.Kind {
 	case core.KindUserMessage:
 		m.commitLine(userStyle.Render("You") + ": " + e.UserText)
@@ -400,7 +412,7 @@ func (m *model) applyKernel(e core.Event) {
 		// Interactive modal is driven by permPromptMsg from Confirm; no extra line.
 	case core.KindPermissionResult:
 		switch {
-		case m.cfg.AutoApprove && e.PermissionApproved:
+		case autoApproveEnabled(m.cfg.AutoApprove) && e.PermissionApproved:
 			m.commitLine(dimStyle.Render(fmt.Sprintf("[auto-approved] %s", e.PermissionTool)))
 		case e.PermissionApproved:
 			m.commitLine(okStyle.Render("Approved: ") + e.PermissionTool)
@@ -424,6 +436,9 @@ func (m *model) applyKernel(e core.Event) {
 		m.commitLine(errStyle.Render("Refused: ") + e.Message)
 	case core.KindTurnComplete:
 		m.runningTool = ""
+	}
+	if m.headerSubLines() != sub0 {
+		m.reflowLayout()
 	}
 }
 
@@ -465,6 +480,35 @@ func (m *model) setBusy(v bool) {
 			atomic.StoreInt32(m.cfg.Busy, 0)
 		}
 	}
+	m.reflowLayout()
+}
+
+// reflowLayout recomputes viewport and input width from m.width/m.height and current chrome (permission panel, busy line).
+func (m *model) reflowLayout() {
+	if m.width <= 0 || m.height <= 0 {
+		return
+	}
+	subLines := 1
+	if m.busy || m.runningTool != "" {
+		subLines = 2
+	}
+	headerH := 1 + subLines
+	footerH := promptChromeLines
+	if m.perm != nil {
+		footerH += permPanelReserveLines
+	}
+	vpH := m.height - headerH - footerH
+	if vpH < 6 {
+		vpH = 6
+	}
+	vpW := m.width - 2
+	if vpW < 20 {
+		vpW = 20
+	}
+	m.vp.Width = vpW
+	m.vp.Height = vpH
+	m.ti.Width = max(1, vpW-2)
+	m.syncVP()
 }
 
 func (m *model) commitLine(s string) {
@@ -536,13 +580,21 @@ func (m *model) View() string {
 			inputLabel = "> " + dimStyle.Render("(vim INS) ")
 		}
 	}
-	inputLine := inputLabel + m.ti.View()
-	footer := lipgloss.NewStyle().Width(m.width).Render(inputLine)
+	inputLine := lipgloss.NewStyle().Width(m.width).Render(inputLabel + m.ti.View())
+	rule := dimStyle.Width(m.width).Render(horizontalRule(m.width))
+	th := config.SessionCompactTokenThreshold()
+	left := buildFooterLeft(autoApproveEnabled(m.cfg.AutoApprove), m.cfg.MCPManager)
+	right := buildCompactMeterRight(m.cfg.Messages, th)
+	if th <= 0 {
+		right = "auto-compact off"
+	}
+	hintRow := formatFooterRow(left, right, m.width)
+	promptStack := lipgloss.JoinVertical(lipgloss.Left, rule, inputLine, rule, hintRow)
 
 	rows := []string{header, sub, body}
 	if permBlock != "" {
 		rows = append(rows, permBlock)
 	}
-	rows = append(rows, footer)
+	rows = append(rows, promptStack)
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
