@@ -13,6 +13,7 @@ var (
 	toolStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("141"))
 	okStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 	errStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+	warnStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 	dimStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	border     = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 
@@ -36,6 +37,7 @@ func ApplyTheme(mode string) {
 		toolStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("56"))
 		okStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("28"))
 		errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("160"))
+		warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("130"))
 		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 		border = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1).Foreground(lipgloss.Color("240"))
 		promptBoxStyle = lipgloss.NewStyle().
@@ -52,6 +54,7 @@ func ApplyTheme(mode string) {
 		toolStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("141"))
 		okStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 		errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+		warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 		border = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 		promptBoxStyle = lipgloss.NewStyle().

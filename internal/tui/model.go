@@ -54,6 +54,8 @@ type Config struct {
 	Theme *ThemeHolder
 	// VimKeys toggles vim-style prompt editing (/vim in TUI); nil disables.
 	VimKeys *VimKeysHolder
+	// SkillNames returns loaded skill names for /-completion (optional).
+	SkillNames func() []string
 }
 
 type model struct {
@@ -75,6 +77,16 @@ type model struct {
 	// transcript
 	committed strings.Builder
 	liveAsst  strings.Builder
+
+	slashAll             []slashEntry
+	slashMatches         []slashEntry
+	slashSel             int
+	slashEscDismiss      bool
+	slashDismissSnapshot string
+	toastText            string
+	toastKind            int
+	toastClearID         int
+	pendingToastCmd      tea.Cmd
 }
 
 type permState struct {
@@ -115,6 +127,7 @@ func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *p
 		stickBottom:       true,
 		pendingImageURLs:  append([]string(nil), cfg.ImageURLs...),
 		pendingImageFiles: append([]string(nil), cfg.ImageFiles...),
+		slashAll:          buildSlashIndex(cfg.SkillNames),
 	}
 	if cfg.Banner != "" {
 		if strings.ContainsRune(cfg.Banner, '\x1b') {
@@ -161,10 +174,41 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.stickBottom = true
 			}
 			m.ti, cmd = m.ti.Update(msg)
+			m.rebuildSlashMatches()
+			m.reflowLayout()
 			return m, cmd
 		}
 
 	case tea.KeyMsg:
+		if m.slashSuggestActive() {
+			switch msg.Type { //nolint:exhaustive
+			case tea.KeyTab:
+				m.applySlashCompletion()
+				m.reflowLayout()
+				return m, textinput.Blink
+			case tea.KeyShiftTab:
+				if len(m.slashMatches) > 1 {
+					m.slashSel = (m.slashSel - 1 + len(m.slashMatches)) % len(m.slashMatches)
+				}
+				return m, nil
+			case tea.KeyUp:
+				if len(m.slashMatches) > 1 {
+					m.slashSel = (m.slashSel - 1 + len(m.slashMatches)) % len(m.slashMatches)
+				}
+				return m, nil
+			case tea.KeyDown:
+				if len(m.slashMatches) > 1 {
+					m.slashSel = (m.slashSel + 1) % len(m.slashMatches)
+				}
+				return m, nil
+			case tea.KeyEsc:
+				m.slashEscDismiss = true
+				m.slashDismissSnapshot = m.ti.Value()
+				m.rebuildSlashMatches()
+				m.reflowLayout()
+				return m, nil
+			}
+		}
 		if m.perm != nil {
 			switch strings.ToLower(msg.String()) {
 			case "y":
@@ -182,7 +226,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		if msg.Type == tea.KeyShiftTab && !m.busy {
+		if msg.Type == tea.KeyShiftTab && !m.busy && !m.slashSuggestActive() {
 			if m.cfg.AutoApprove != nil {
 				v := !m.cfg.AutoApprove.Load()
 				m.cfg.AutoApprove.Store(v)
@@ -244,10 +288,23 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case kernelMsg:
 		m.applyKernel(msg.e)
+		c := m.pendingToastCmd
+		m.pendingToastCmd = nil
+		if c != nil {
+			return m, tea.Batch(textinput.Blink, c)
+		}
+		return m, nil
+
+	case toastClearMsg:
+		if msg.id == m.toastClearID {
+			m.toastText = ""
+			m.reflowLayout()
+		}
 		return m, nil
 
 	case permPromptMsg:
 		m.perm = &permState{tool: msg.tool, args: msg.args, ch: msg.result}
+		m.rebuildSlashMatches()
 		m.reflowLayout()
 		return m, nil
 
@@ -261,6 +318,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.cfg.AfterTurn != nil {
 			if err := m.cfg.AfterTurn(); err != nil {
 				m.commitLine(errStyle.Render("session save: ") + err.Error())
+				if c := m.pushToast(err.Error(), toastErr); c != nil {
+					return m, tea.Batch(textinput.Blink, c)
+				}
 			}
 		}
 		return m, textinput.Blink
@@ -268,6 +328,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case runTurnErrMsg:
 		m.runningTool = ""
 		m.setBusy(false)
+		var c tea.Cmd
+		if msg.err != nil {
+			c = m.pushToast(msg.err.Error(), toastErr)
+		}
+		if c != nil {
+			return m, tea.Batch(textinput.Blink, c)
+		}
 		return m, textinput.Blink
 	}
 
@@ -275,8 +342,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.perm == nil {
 		m.vp, cmd = m.vp.Update(msg)
 		m.ti, cmd = m.ti.Update(msg)
+		m.rebuildSlashMatches()
+		m.reflowLayout()
 	}
 	return m, cmd
+}
+
+func (m *model) slashSuggestActive() bool {
+	return len(m.slashMatches) > 0
 }
 
 func (m *model) answerPerm(ok bool) {
@@ -289,6 +362,7 @@ func (m *model) answerPerm(ok bool) {
 	case ch <- ok:
 	default:
 	}
+	m.rebuildSlashMatches()
 }
 
 func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
@@ -306,6 +380,9 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 		}
 		if err != nil {
 			m.commitLine(errStyle.Render("Error: ") + err.Error())
+			if c := m.pushToast(err.Error(), toastErr); c != nil {
+				return m, c
+			}
 			return m, nil
 		}
 		if strings.TrimSpace(out) != "" {
@@ -333,6 +410,9 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 		if err := m.cfg.BeforeUserTurn(); err != nil {
 			m.setBusy(false)
 			m.commitLine(errStyle.Render("before turn: ") + err.Error())
+			if c := m.pushToast(err.Error(), toastErr); c != nil {
+				return m, tea.Batch(textinput.Blink, c)
+			}
 			return m, textinput.Blink
 		}
 	}
@@ -346,6 +426,9 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 	if err != nil {
 		m.setBusy(false)
 		m.commitLine(errStyle.Render("Error: ") + err.Error())
+		if c := m.pushToast(err.Error(), toastErr); c != nil {
+			return m, tea.Batch(textinput.Blink, c)
+		}
 		return m, textinput.Blink
 	}
 
@@ -374,6 +457,7 @@ func (m *model) headerSubLines() int {
 }
 
 func (m *model) applyKernel(e core.Event) {
+	m.pendingToastCmd = nil
 	sub0 := m.headerSubLines()
 	switch e.Kind {
 	case core.KindUserMessage:
@@ -422,6 +506,7 @@ func (m *model) applyKernel(e core.Event) {
 			m.commitLine(okStyle.Render("Approved: ") + e.PermissionTool)
 		default:
 			m.commitLine(errStyle.Render("Declined: ") + e.PermissionTool)
+			m.pendingToastCmd = m.pushToast("Declined: "+e.PermissionTool, toastWarn)
 		}
 	case core.KindToolResult:
 		m.runningTool = ""
@@ -436,8 +521,10 @@ func (m *model) applyKernel(e core.Event) {
 	case core.KindError:
 		m.runningTool = ""
 		m.commitLine(errStyle.Render("Error: ") + e.Message)
+		m.pendingToastCmd = m.pushToast(e.Message, toastErr)
 	case core.KindModelRefusal:
 		m.commitLine(errStyle.Render("Refused: ") + e.Message)
+		m.pendingToastCmd = m.pushToast(e.Message, toastWarn)
 	case core.KindTurnComplete:
 		m.runningTool = ""
 	}
@@ -497,11 +584,16 @@ func (m *model) reflowLayout() {
 		subLines = 2
 	}
 	headerH := 1 + subLines
-	footerH := promptChromeLines
+	toastH := 0
+	if strings.TrimSpace(m.toastText) != "" {
+		toastH = 1
+	}
+	suggestH := suggestionBlockHeight(m.slashMatches)
+	footerH := promptChromeLines + suggestH
 	if m.perm != nil {
 		footerH += permPanelReserveLines
 	}
-	vpH := m.height - headerH - footerH
+	vpH := m.height - headerH - toastH - footerH
 	if vpH < 6 {
 		vpH = 6
 	}
@@ -555,6 +647,7 @@ func (m *model) View() string {
 		}
 		sub = lipgloss.JoinVertical(lipgloss.Left, sub, dimStyle.Width(m.width).Render(w.String()))
 	}
+	toastLine := m.renderToastLine()
 	body := border.Width(m.width - 2).Render(m.vp.View())
 
 	var permBlock string
@@ -596,9 +689,18 @@ func (m *model) View() string {
 	hintRow := formatFooterRow(left, right, m.width)
 	promptStack := lipgloss.JoinVertical(lipgloss.Left, rule, inputLine, rule, hintRow)
 
-	rows := []string{header, sub, body}
+	slashBlock := renderSlashSuggestions(m.width, m.slashMatches, m.slashSel)
+
+	rows := []string{header, sub}
+	if toastLine != "" {
+		rows = append(rows, toastLine)
+	}
+	rows = append(rows, body)
 	if permBlock != "" {
 		rows = append(rows, permBlock)
+	}
+	if slashBlock != "" {
+		rows = append(rows, slashBlock)
 	}
 	rows = append(rows, promptStack)
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
