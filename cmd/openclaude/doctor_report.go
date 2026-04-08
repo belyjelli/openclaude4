@@ -1,53 +1,103 @@
 package main
 
 import (
+	"bufio"
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
+	"strings"
+	"time"
+	"unicode"
 
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/providers"
+	"github.com/gitlawb/openclaude4/internal/startupbanner"
+	"github.com/mattn/go-isatty"
 )
+
+const doctorReleaseAPI = "https://api.github.com/repos/gitlawb/openclaude4/releases/latest"
 
 // PrintDoctorReport writes the same diagnostics as the doctor subcommand.
 func PrintDoctorReport(w io.Writer, ver, cmt string) {
 	if w == nil {
 		w = io.Discard
 	}
-	_, _ = fmt.Fprintf(w, "openclaude %s (%s)\n", ver, cmt)
-	_, _ = fmt.Fprintf(w, "Go runtime: %s\n", runtime.Version())
+
+	streamClient, clientErr := providers.NewStreamClient()
+	bannerClient := streamClient
+	if clientErr != nil {
+		bannerClient = providers.DoctorBannerClient()
+	}
+
+	mcpLine := mcpDoctorSummaryLine()
+	ansi := startupbanner.UseANSISplashFor(w)
+	shell := shellDisplayName()
+	banner := startupbanner.BannerContent(bannerClient, ver, mcpLine, ansi, shell)
+	_, _ = fmt.Fprintln(w, banner)
+
+	tty := startupbanner.WriterIsTerminal(w)
+	bold, reset := "", ""
+	if tty {
+		bold = "\x1b[1m"
+		reset = "\x1b[0m"
+	}
+
+	installKind, installDetail := doctorInstallationKind(ver, cmt)
+	wd, _ := os.Getwd()
+	if wd == "" {
+		wd = "."
+	}
+	invoked := doctorInvokedBinary()
+
+	_, _ = fmt.Fprintf(w, "%sDiagnostics%s\n", bold, reset)
+	_, _ = fmt.Fprintf(w, "└ Currently running: %s (%s)\n", installKind, installDetail)
+	_, _ = fmt.Fprintf(w, "└ Path: %s\n", wd)
+	_, _ = fmt.Fprintf(w, "└ Invoked: %s\n", invoked)
+	_, _ = fmt.Fprintf(w, "└ Config install method: unknown\n")
 
 	if err := config.Validate(); err != nil {
-		_, _ = fmt.Fprintf(w, "Config validation: %v\n", err)
+		_, _ = fmt.Fprintf(w, "└ Config validation: %v\n", err)
 	}
 
 	if _, err := exec.LookPath("rg"); err != nil {
-		_, _ = fmt.Fprintf(w, "ripgrep (rg): not found on PATH (Grep tool uses Go regexp only)\n")
+		_, _ = fmt.Fprintln(w, "└ Search: Not working (Grep tool uses Go regexp only)")
 	} else {
-		_, _ = fmt.Fprintln(w, "ripgrep (rg): found")
+		_, _ = fmt.Fprintln(w, "└ Search: OK (system ripgrep on PATH)")
 	}
 
-	if p, err := exec.LookPath("spider"); err != nil {
+	_, _ = fmt.Fprintf(w, "\n%sUpdates%s\n", bold, reset)
+	if installKind == "development" {
+		_, _ = fmt.Fprintln(w, "└ Auto-updates: disabled (development build)")
+	} else {
+		_, _ = fmt.Fprintln(w, "└ Auto-updates: disabled (use your install channel)")
+	}
+	_, _ = fmt.Fprintln(w, "└ Auto-update channel: latest")
+	if tag, ok := tryLatestReleaseTag(); ok {
+		_, _ = fmt.Fprintf(w, "└ Latest release: %s\n", tag)
+	} else {
+		if tty {
+			_, _ = fmt.Fprint(w, "\x1b[2m")
+		}
+		_, _ = fmt.Fprintln(w, "└ Failed to fetch versions")
+		if tty {
+			_, _ = fmt.Fprint(w, reset)
+		}
+	}
+
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintf(w, "Go runtime: %s\n", runtime.Version())
+
+	if _, err := exec.LookPath("spider"); err != nil {
 		_, _ = fmt.Fprintf(w, "spider (spider_cli): not found on PATH (optional SpiderScrape tool not registered; cargo install spider_cli)\n")
 	} else {
+		p, _ := exec.LookPath("spider")
 		_, _ = fmt.Fprintf(w, "spider (spider_cli): found at %s — SpiderScrape tool enabled\n", p)
-	}
-
-	_, _ = fmt.Fprintf(w, "Active provider: %s\n", config.ProviderName())
-	_, _ = fmt.Fprintf(w, "Model: %s\n", config.Model())
-
-	switch config.ProviderName() {
-	case "ollama":
-		_, _ = fmt.Fprintf(w, "Ollama API base: %s\n", config.OllamaChatBase())
-	case "gemini":
-		_, _ = fmt.Fprintf(w, "Gemini OpenAI-compat base: %s\n", config.GeminiBaseURL())
-	case "github":
-		_, _ = fmt.Fprintf(w, "GitHub Models base: %s\n", config.GitHubModelsBaseURL())
-	default:
-		if b := config.BaseURL(); b != "" {
-			_, _ = fmt.Fprintf(w, "OpenAI base URL: %s\n", b)
-		}
 	}
 
 	_, _ = fmt.Fprintf(w, "%s\n", providers.PingProviderBestEffort())
@@ -70,9 +120,90 @@ func PrintDoctorReport(w io.Writer, ver, cmt string) {
 		}
 	}
 
-	if _, err := providers.NewStreamClient(); err != nil {
-		_, _ = fmt.Fprintf(w, "Client: error — %v\n", err)
+	if clientErr != nil {
+		_, _ = fmt.Fprintf(w, "Client: error — %v\n", clientErr)
 	} else {
 		_, _ = fmt.Fprintln(w, "Client: configuration OK for chat")
 	}
+
+	if tty && isatty.IsTerminal(uintptr(os.Stdin.Fd())) && os.Getenv("CI") == "" &&
+		!envTruthy("OPENCLAUDE_DOCTOR_NO_WAIT") {
+		_, _ = fmt.Fprintln(w, "\nPress Enter to continue...")
+		_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
+	}
+}
+
+func mcpDoctorSummaryLine() string {
+	cfg := config.MCPServers()
+	if len(cfg) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("MCP: %d server(s) in config — /mcp list", len(cfg))
+}
+
+func doctorInstallationKind(ver, cmt string) (kind, detail string) {
+	detail = cmt
+	if detail == "" {
+		detail = "unknown"
+	}
+	if strings.Contains(strings.ToLower(ver), "dev") || cmt == "" || cmt == "unknown" {
+		return "development", detail
+	}
+	return "native", detail
+}
+
+func doctorInvokedBinary() string {
+	ex, err := os.Executable()
+	if err != nil {
+		return os.Args[0]
+	}
+	if r, err := filepath.EvalSymlinks(ex); err == nil {
+		return r
+	}
+	return ex
+}
+
+func shellDisplayName() string {
+	s := strings.TrimSpace(os.Getenv("SHELL"))
+	if s == "" {
+		return ""
+	}
+	base := filepath.Base(s)
+	if base == "." || base == "/" || base == "" {
+		return ""
+	}
+	r := []rune(base)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
+}
+
+func tryLatestReleaseTag() (string, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, doctorReleaseAPI, nil)
+	if err != nil {
+		return "", false
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "openclaude-doctor/1")
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", false
+	}
+	var body struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
+		return "", false
+	}
+	tag := strings.TrimSpace(body.TagName)
+	if tag == "" {
+		return "", false
+	}
+	return tag, true
 }

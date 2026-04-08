@@ -116,7 +116,7 @@ With `--tui`, the startup banner (ANSI or plain, per the rules above) is shown *
 | Variable | Purpose |
 |----------|--------|
 | `OPENCLAUDE_TUI_TOOL_PREVIEW` | Max UTF-8 **runes** of each tool’s stdout shown in the transcript (default 4000; `0` = default; invalid = 400) |
-| `OPENCLAUDE_TUI_MARKDOWN` | Set `0` / `false` / `no` for plain assistant text while **streaming** and on **finished** turns (default: Goldmark + Chroma terminal markdown) |
+| `OPENCLAUDE_TUI_MARKDOWN` | Set `0` / `false` / `no` for plain assistant text while **streaming** and on **finished** turns (default: Goldmark + Chroma terminal markdown). While streaming, an **unclosed** fenced code block (` ``` ` / `~~~`) is shown **plain** from its opening line until the closing fence, so the prefix above it can still render as markdown. |
 
 **Running registry:** each interactive chat writes `<session-dir>/running/<pid>.json` (removed on clean exit). Inspect with **`openclaude sessions`** or **`/session running`** in the REPL/TUI.
 

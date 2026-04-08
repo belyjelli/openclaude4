@@ -177,10 +177,11 @@ func providerLabel(kind, baseURL, model string) (name string, isLocal bool) {
 }
 
 // Render builds the full ANSI splash (trailing newline not included).
-func Render(client core.StreamClient, version, mcpLine string) string {
+// shellSuffix is appended after the version (e.g. "Bash" from $SHELL); pass empty to omit.
+func Render(client core.StreamClient, version, mcpLine, shellSuffix string) string {
 	info, ok := providers.AsStreamClientInfo(client)
 	if !ok {
-		return plainFallback(client, version, mcpLine)
+		return plainFallback(client, version, mcpLine, shellSuffix)
 	}
 
 	pName, isLocal := providerLabel(info.ProviderKind(), info.BaseURL(), info.Model())
@@ -254,7 +255,11 @@ func Render(client core.StreamClient, version, mcpLine string) string {
 	out = append(out, boxRow(sRow, W, sLen))
 
 	out = append(out, borderC.ansiFG()+"╚"+strings.Repeat("═", W-2)+"╝"+reset)
-	out = append(out, "  "+dim+dimCol.ansiFG()+"openclaude "+reset+accent.ansiFG()+"v"+version+reset)
+	verLine := "  " + dim + dimCol.ansiFG() + "openclaude " + reset + accent.ansiFG() + "v" + version + reset
+	if s := strings.TrimSpace(shellSuffix); s != "" {
+		verLine += " " + dim + dimCol.ansiFG() + s + reset
+	}
+	out = append(out, verLine)
 
 	if strings.TrimSpace(mcpLine) != "" {
 		out = append(out, "")
@@ -265,14 +270,18 @@ func Render(client core.StreamClient, version, mcpLine string) string {
 	return strings.Join(out, "\n")
 }
 
-func plainFallback(client core.StreamClient, version, mcpLine string) string {
+func plainFallback(client core.StreamClient, version, mcpLine, shellSuffix string) string {
 	var b strings.Builder
+	shellPart := ""
+	if s := strings.TrimSpace(shellSuffix); s != "" {
+		shellPart = " " + s
+	}
 	if info, ok := providers.AsStreamClientInfo(client); ok {
 		pretty, _ := providerLabel(info.ProviderKind(), info.BaseURL(), info.Model())
-		_, _ = fmt.Fprintf(&b, "OpenClaude %s (phase 3). Provider: %s. Model: %s. Type /help. Ctrl+D to exit.\n",
-			version, pretty, info.Model())
+		_, _ = fmt.Fprintf(&b, "OpenClaude %s (phase 3). Provider: %s. Model: %s. Type /help. Ctrl+D to exit.%s\n",
+			version, pretty, info.Model(), shellPart)
 	} else {
-		_, _ = fmt.Fprintf(&b, "OpenClaude %s (phase 3). Type /help. Ctrl+D to exit.\n", version)
+		_, _ = fmt.Fprintf(&b, "OpenClaude %s (phase 3). Type /help. Ctrl+D to exit.%s\n", version, shellPart)
 	}
 	if strings.TrimSpace(mcpLine) != "" {
 		_, _ = fmt.Fprintln(&b, mcpLine)
@@ -286,6 +295,11 @@ func writerIsTTY(w io.Writer) bool {
 		return false
 	}
 	return isatty.IsTerminal(uintptr(f.Fd()))
+}
+
+// WriterIsTerminal reports whether w is an *os.File attached to a terminal (for ANSI / prompts).
+func WriterIsTerminal(w io.Writer) bool {
+	return writerIsTTY(w)
 }
 
 // SplashDisabled is true when OPENCLAUDE_NO_SPLASH requests a plain one-line banner (no ANSI art).
@@ -307,16 +321,17 @@ func UseANSISplashFor(w io.Writer) bool {
 }
 
 // BannerContent returns either the full ANSI splash or the plain one-line header, matching Write’s rules when ansi matches UseANSISplashFor(os.Stderr).
-func BannerContent(client core.StreamClient, version, mcpLine string, ansi bool) string {
+// shellSuffix is optional (e.g. "Bash"); pass "" to omit.
+func BannerContent(client core.StreamClient, version, mcpLine string, ansi bool, shellSuffix string) string {
 	if !ansi {
-		return plainFallback(client, version, mcpLine)
+		return plainFallback(client, version, mcpLine, shellSuffix)
 	}
-	return Render(client, version, mcpLine)
+	return Render(client, version, mcpLine, shellSuffix)
 }
 
 // Write renders the splash to w using the same ansi vs plain rules as UseANSISplashFor(w).
-func Write(w io.Writer, client core.StreamClient, version, mcpLine string) error {
+func Write(w io.Writer, client core.StreamClient, version, mcpLine string, shellSuffix string) error {
 	ansi := UseANSISplashFor(w)
-	_, err := fmt.Fprintln(w, BannerContent(client, version, mcpLine, ansi))
+	_, err := fmt.Fprintln(w, BannerContent(client, version, mcpLine, ansi, shellSuffix))
 	return err
 }

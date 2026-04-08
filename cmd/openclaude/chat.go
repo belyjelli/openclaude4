@@ -171,7 +171,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	if useTUI {
 		mcpLine := mcpSummaryLine(mcpMgr)
 		ansi := startupbanner.UseANSISplashFor(os.Stderr)
-		bannerStr := startupbanner.BannerContent(client, version, mcpLine, ansi) +
+		bannerStr := startupbanner.BannerContent(client, version, mcpLine, ansi, "") +
 			"\n\nTUI: Ctrl+C to quit · same /commands as plain REPL."
 		var busyFlag int32
 		themeHolder := tui.NewThemeHolder()
@@ -232,7 +232,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	}
 
 	mcpLine := mcpSummaryLine(mcpMgr)
-	_ = startupbanner.Write(os.Stderr, client, version, mcpLine)
+	_ = startupbanner.Write(os.Stderr, client, version, mcpLine, "")
 
 	reader := bufio.NewReader(os.Stdin)
 

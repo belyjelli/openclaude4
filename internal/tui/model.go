@@ -698,8 +698,23 @@ func (m *model) syncVP() {
 	if m.cfg.MarkdownAssist && strings.TrimSpace(liveRaw) != "" {
 		s := strings.ToLower(strings.TrimSpace(m.assistantMarkdownTheme()))
 		dark := s != "light"
-		if md := renderAssistantMarkdownChroma(m.vp.Width, liveRaw, dark, false); md != "" {
-			live = md
+		before, suf := splitUnclosedFenceSuffix(liveRaw)
+		switch {
+		case suf == "":
+			if md := renderAssistantMarkdownChroma(m.vp.Width, liveRaw, dark, false); md != "" {
+				live = md
+			}
+		case strings.TrimSpace(before) == "":
+			live = suf
+		default:
+			md := renderAssistantMarkdownChroma(m.vp.Width, before, dark, false)
+			if md == "" {
+				live = suf
+			} else if !strings.HasSuffix(md, "\n") {
+				live = md + "\n" + suf
+			} else {
+				live = md + suf
+			}
 		}
 	}
 	m.vp.SetContent(committed + live)
