@@ -11,7 +11,11 @@
       "Bash(find . -type f -name \"*.go\" -not -path \"./.git/*\" -not -path \"./.cursor/*\" -exec grep -l \"^func\" {})",
       "Bash(grep -rn \"TODO\\\\|FIXME\\\\|XXX\\\\|HACK\\\\|NOTE\" --include=*.go --include=*.yaml --include=*.yml --include=*.json --include=*.md /Users/hesdx/Documents/clawhost/openclaude4/)",
       "Bash(go build:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(env)",
+      "Bash(env -i PATH=\"$PATH\" HOME=\"$HOME\" go test ./internal/config/... 2>&1)",
+      "Bash(env -i PATH=\"$PATH\" HOME=\"$HOME\" go test ./... 2>&1)",
+      "Bash(./openclaude --help 2>&1)"
     ]
   }
 }

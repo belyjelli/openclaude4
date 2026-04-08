@@ -54,6 +54,7 @@ Tagged releases (semver, e.g. `v0.1.0`) publish archives via [GoReleaser](./gore
 | Doc | Purpose |
 |-----|---------|
 | [docs/CONFIG.md](./docs/CONFIG.md) | Env, YAML, flags, precedence, v3 profile merge |
+| [docs/SLASH_COMMANDS.md](./docs/SLASH_COMMANDS.md) | REPL `/` commands: v4 Go vs v3 TypeScript |
 | [docs/PROVIDERS.md](./docs/PROVIDERS.md) | OpenAI / Ollama / Gemini — APIs, env, defaults |
 | [docs/adr/0001-go-tooling-and-config.md](./docs/adr/0001-go-tooling-and-config.md) | ADR: Go version, releases, v3 config compatibility |
 | [docs/SECURITY.md](./docs/SECURITY.md) | Workspace boundary, dangerous tools, caveats |
