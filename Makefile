@@ -5,6 +5,8 @@
 	tag bump-tag-patch bump-tag-minor bump-tag-major
 
 BINARY   := occli
+BINDIR   := bin
+BINOUT   := $(BINDIR)/$(BINARY)
 PACKAGE  := ./cmd/openclaude
 COMMIT   := $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 # Version baked into binaries; override when cutting a release, e.g. VERSION=1.2.3 make build
@@ -21,11 +23,12 @@ all: ci build ## CI checks then build
 
 ci: test vet lint ## Same checks as documented for contributors (test, vet, golangci-lint)
 
-build: ## Build occli binary in repo root
-	go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) $(PACKAGE)
+build: ## Build occli into ./bin
+	@mkdir -p $(BINDIR)
+	go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINOUT) $(PACKAGE)
 
 run: build ## Run built binary; pass extra CLI args with ARGS='...'
-	./$(BINARY) $(ARGS)
+	./$(BINOUT) $(ARGS)
 
 run-live: ## go run with release-style ldflags (no local binary file)
 	go run -trimpath -ldflags "$(LDFLAGS)" $(PACKAGE) $(ARGS)
@@ -45,8 +48,8 @@ lint: ## golangci-lint run (install with: make lint-install)
 lint-install: ## Install golangci-lint v2.9.0 into GOPATH/bin (override GOLANGCI_VERSION=)
 	bash -c 'curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$$(go env GOPATH)/bin" $(GOLANGCI_VERSION)'
 
-clean: ## Remove ./occli binary
-	rm -f $(BINARY)
+clean: ## Remove ./bin/occli
+	rm -f $(BINOUT)
 
 # --- Version tags (semver, v-prefix on the tag) ---
 # Create a specific tag: make tag VER=1.2.3

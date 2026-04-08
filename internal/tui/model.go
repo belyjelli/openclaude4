@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gitlawb/openclaude4/internal/chatlive"
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
@@ -37,6 +39,14 @@ type Config struct {
 	// ImageURLs and ImageFiles apply to the first non-slash user message (vision); then cleared on success.
 	ImageURLs  []string
 	ImageFiles []string
+	// Live binds the agent for /model and /provider swaps (optional).
+	Live *chatlive.LiveChat
+	// Busy, if non-nil, is set to 1 while a model turn runs (for slash guards).
+	Busy *int32
+	// StatusLineFunc, if set, overrides StatusLine each render (e.g. after /model).
+	StatusLineFunc func() string
+	// Theme drives lipgloss + markdown rendering (optional).
+	Theme *ThemeHolder
 }
 
 type model struct {
@@ -218,7 +228,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case runTurnDoneMsg:
-		m.busy = false
+		m.setBusy(false)
 		m.runningTool = ""
 		if msg.clearImages {
 			m.pendingImageURLs = nil
@@ -232,7 +242,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, textinput.Blink
 
 	case runTurnErrMsg:
-		m.busy = false
+		m.setBusy(false)
 		m.runningTool = ""
 		return m, textinput.Blink
 	}
@@ -281,23 +291,23 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 	}
 
 	m.stickBottom = true
-	m.busy = true
+	m.setBusy(true)
 	ag := m.getAgent()
 	if ag == nil {
-		m.busy = false
+		m.setBusy(false)
 		m.commitLine(errStyle.Render("Error: agent not ready"))
 		return m, nil
 	}
 	msgs := m.cfg.Messages
 	if msgs == nil {
-		m.busy = false
+		m.setBusy(false)
 		m.commitLine(errStyle.Render("Error: messages buffer nil"))
 		return m, nil
 	}
 
 	if m.cfg.BeforeUserTurn != nil {
 		if err := m.cfg.BeforeUserTurn(); err != nil {
-			m.busy = false
+			m.setBusy(false)
 			m.commitLine(errStyle.Render("before turn: ") + err.Error())
 			return m, textinput.Blink
 		}
@@ -310,7 +320,7 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 	hasVis := len(urls) > 0 || len(files) > 0
 	parts, err := core.BuildUserContentParts(line, urls, files)
 	if err != nil {
-		m.busy = false
+		m.setBusy(false)
 		m.commitLine(errStyle.Render("Error: ") + err.Error())
 		return m, textinput.Blink
 	}
@@ -352,7 +362,11 @@ func (m *model) applyKernel(e core.Event) {
 		}
 		m.stickBottom = true
 		label := asstStyle.Render("Assistant") + ":"
-		md := renderAssistantMarkdown(m.vp.Width, txt, m.cfg.MarkdownAssist)
+		glam := "dark"
+		if m.cfg.Theme != nil {
+			glam = m.cfg.Theme.MarkdownStyle()
+		}
+		md := renderAssistantMarkdown(m.vp.Width, txt, m.cfg.MarkdownAssist, glam)
 		if md != "" {
 			m.committed.WriteString(lipgloss.JoinVertical(lipgloss.Left, label, md))
 		} else {
@@ -426,6 +440,17 @@ func max(a, b int) int {
 	return b
 }
 
+func (m *model) setBusy(v bool) {
+	m.busy = v
+	if m.cfg.Busy != nil {
+		if v {
+			atomic.StoreInt32(m.cfg.Busy, 1)
+		} else {
+			atomic.StoreInt32(m.cfg.Busy, 0)
+		}
+	}
+}
+
 func (m *model) commitLine(s string) {
 	m.stickBottom = true
 	m.committed.WriteString(s)
@@ -446,6 +471,11 @@ func (m *model) View() string {
 	}
 	header := titleStyle.Width(m.width).Render("OpenClaude v4 — TUI")
 	status := strings.TrimSpace(m.cfg.StatusLine)
+	if m.cfg.StatusLineFunc != nil {
+		if s := strings.TrimSpace(m.cfg.StatusLineFunc()); s != "" {
+			status = s
+		}
+	}
 	if status == "" {
 		status = "Ctrl+C quit · PgUp/PgDn Home/End scroll · /help"
 	} else {

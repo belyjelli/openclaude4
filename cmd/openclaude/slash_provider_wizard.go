@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/gitlawb/openclaude4/internal/config"
@@ -15,14 +17,50 @@ func handleProviderWizard(st chatState, out io.Writer) error {
 	if out == nil {
 		out = io.Discard
 	}
+	client := effectiveClient(st)
 	if st.providerWizardIn == nil {
-		_, _ = fmt.Fprintln(out, "Interactive /provider wizard needs the plain REPL (run without --tui). Current session:")
-		printProviderInfoTo(st.client, out)
+		if st.allowConfigEditorWizard {
+			return runProviderWizardOpenEditor(out, client)
+		}
+		_, _ = fmt.Fprintln(out, "Stdin wizard needs the plain REPL. Current session:")
+		printProviderInfoTo(client, out)
 		_, _ = fmt.Fprintln(out)
 		printProviderSetupGuide(out)
 		return nil
 	}
-	return runProviderInteractiveWizard(out, st.providerWizardIn, st.client)
+	return runProviderInteractiveWizard(out, st.providerWizardIn, client)
+}
+
+func runProviderWizardOpenEditor(out io.Writer, client core.StreamClient) error {
+	path, err := config.WritableConfigPath()
+	if err != nil {
+		_, _ = fmt.Fprintf(out, "Could not resolve writable config path: %v\n\n", err)
+		printProviderInfoTo(client, out)
+		_, _ = fmt.Fprintln(out)
+		printProviderSetupGuide(out)
+		return nil
+	}
+	_, _ = fmt.Fprintln(out, "=== Provider setup (config file) ===")
+	printProviderInfoTo(client, out)
+	_, _ = fmt.Fprintln(out)
+	printProviderSetupGuide(out)
+	_, _ = fmt.Fprintf(out, "\nOpening %q in your editor (create or edit, save, then restart openclaude).\n", path)
+	ed := strings.TrimSpace(os.Getenv("VISUAL"))
+	if ed == "" {
+		ed = strings.TrimSpace(os.Getenv("EDITOR"))
+	}
+	if ed == "" {
+		ed = "vi"
+	}
+	cmd := exec.Command(ed, path)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("editor %q: %w", ed, err)
+	}
+	_, _ = fmt.Fprintln(out, "(editor closed — restart openclaude after saving config changes)")
+	return nil
 }
 
 func printProviderSetupGuide(out io.Writer) {

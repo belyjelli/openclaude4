@@ -9,7 +9,8 @@ import (
 )
 
 // renderAssistantMarkdown renders assistant markdown for the terminal; returns "" on failure or when disabled.
-func renderAssistantMarkdown(width int, text string, enabled bool) string {
+// glamourStyle is "light" or "dark" (for glamour.WithStandardStyle).
+func renderAssistantMarkdown(width int, text string, enabled bool, glamourStyle string) string {
 	text = strings.TrimSpace(text)
 	if text == "" || !enabled {
 		return ""
@@ -21,9 +22,13 @@ func renderAssistantMarkdown(width int, text string, enabled bool) string {
 	if w > 120 {
 		w = 120
 	}
+	style := strings.ToLower(strings.TrimSpace(glamourStyle))
+	if style != "light" && style != "dark" {
+		style = "dark"
+	}
 	r, err := glamour.NewTermRenderer(
 		glamour.WithWordWrap(w),
-		glamour.WithStandardStyle("dark"),
+		glamour.WithStandardStyle(style),
 	)
 	if err != nil {
 		return ""

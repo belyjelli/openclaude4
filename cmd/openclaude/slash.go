@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,11 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gitlawb/openclaude4/internal/chatlive"
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/session"
 	"github.com/gitlawb/openclaude4/internal/skills"
+	"github.com/gitlawb/openclaude4/internal/tui"
 	sdk "github.com/sashabaranov/go-openai"
 )
 
@@ -20,12 +23,17 @@ import (
 var errSlashExitChat = errors.New("slash exit chat")
 
 type chatState struct {
-	messages         *[]sdk.ChatCompletionMessage
-	mcpMgr           *mcpclient.Manager
-	client           core.StreamClient
-	persist          *chatPersist
-	providerWizardIn io.Reader // stdin in plain REPL; nil in TUI (wizard prints static guide only)
-	skillCat         *skills.Catalog
+	messages                *[]sdk.ChatCompletionMessage
+	mcpMgr                  *mcpclient.Manager
+	client                  core.StreamClient
+	live                    *chatlive.LiveChat
+	persist                 *chatPersist
+	providerWizardIn        io.Reader
+	allowConfigEditorWizard bool
+	skillCat                *skills.Catalog
+	ctx                     context.Context
+	isBusy                  func() bool
+	themeHolder             *tui.ThemeHolder
 }
 
 func handleSlashLine(line string, st chatState, out io.Writer) error {
@@ -47,9 +55,35 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 		printChatHelpTo(out)
 	case "onboard", "setup":
 		printOnboardHints(out)
+	case "doctor":
+		PrintDoctorReport(out, version, commit)
+	case "context", "tokens":
+		printContextUsage(st, out)
+	case "btw":
+		return slashBtw(st, args, out)
+	case "resume":
+		return handleResumeSlash(args, st, out)
+	case "model":
+		return slashSetModel(st, strings.Join(args, " "), out)
+	case "copy":
+		return slashCopyLastAssistant(st, out)
+	case "cost", "usage":
+		slashCostOrUsage(st, out)
+	case "theme":
+		return slashTheme(st, args, out)
+	case "vim":
+		slashVim(out)
 	case "mcp":
 		if len(args) > 0 && strings.EqualFold(args[0], "help") {
 			printMCPHelp(out)
+			return nil
+		}
+		if len(args) > 0 && strings.EqualFold(args[0], "config") {
+			PrintMCPConfigList(out)
+			return nil
+		}
+		if len(args) > 0 && strings.EqualFold(args[0], "add") {
+			_, _ = fmt.Fprintf(out, "Add servers from a shell (argv parsing):\n  %s\n", mcpAddShellHint())
 			return nil
 		}
 		if len(args) == 0 || args[0] == "list" {
@@ -61,7 +95,7 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 			_, _ = fmt.Fprintln(out, "\nTip: for a fresh connect test from config (new processes), run: openclaude mcp doctor")
 			return nil
 		}
-		return fmt.Errorf("unknown /mcp subcommand %q (try /mcp list, /mcp doctor, /mcp help)", args[0])
+		return fmt.Errorf("unknown /mcp subcommand %q (try /mcp list, config, doctor, add, help)", args[0])
 	case "clear":
 		*st.messages = nil
 		if st.persist != nil {
@@ -87,24 +121,33 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 		return handleSkillsSlash(args, st, out)
 	case "provider":
 		if len(args) == 0 {
-			printProviderInfoTo(st.client, out)
+			printProviderInfoTo(effectiveClient(st), out)
 			return nil
 		}
 		sub := strings.ToLower(strings.TrimSpace(args[0]))
 		switch sub {
 		case "show", "status":
-			printProviderInfoTo(st.client, out)
+			printProviderInfoTo(effectiveClient(st), out)
 		case "wizard":
 			return handleProviderWizard(st, out)
 		case "help":
 			_, _ = fmt.Fprint(out, `/provider              Show active provider, model, base URL, credential hint
-/provider wizard      Step through setup (plain REPL only; restart openclaude to apply)
+/provider wizard      Setup hints (stdin REPL) or open $EDITOR on config (TUI)
 /provider show        Same as bare /provider
+/provider <name>     Switch provider: openai | ollama | gemini | github (in-memory; also sets provider.name)
 `)
+		case "openai", "ollama", "gemini", "github":
+			return slashSetProvider(st, sub, out)
 		default:
-			return fmt.Errorf("unknown /provider %q — try /provider wizard or /provider help", args[0])
+			return fmt.Errorf("unknown /provider %q — try /provider wizard, /provider <openai|ollama|gemini|github>, or /provider help", args[0])
 		}
 	default:
+		if st.skillCat != nil {
+			if e, ok := st.skillCat.GetFold(cmd); ok {
+				printSkillEntry(out, e)
+				return nil
+			}
+		}
 		return fmt.Errorf("unknown command %q - try /help", fields[0])
 	}
 	return nil
@@ -238,13 +281,7 @@ func handleSkillsSlash(args []string, st chatState, out io.Writer) error {
 		if !ok {
 			return fmt.Errorf("unknown skill %q", args[1])
 		}
-		if e.Description != "" {
-			_, _ = fmt.Fprintf(out, "# %s\n\n%s\n\n---\n\n", e.Name, e.Description)
-		}
-		_, _ = fmt.Fprint(out, e.Body)
-		if !strings.HasSuffix(e.Body, "\n") {
-			_, _ = fmt.Fprintln(out)
-		}
+		printSkillEntry(out, e)
 		return nil
 	default:
 		return fmt.Errorf("unknown /skills %q — try /skills list, /skills read <name>", args[0])
@@ -253,8 +290,10 @@ func handleSkillsSlash(args []string, st chatState, out io.Writer) error {
 
 func printMCPHelp(w io.Writer) {
 	const text = `/mcp list    Tools from MCP servers connected in this process
-/mcp doctor Same output plus a tip to run: openclaude mcp doctor
-/mcp help   This text
+/mcp config MCP servers as defined in config file (no subprocess)
+/mcp doctor Same as list + tip to run: openclaude mcp doctor
+/mcp add     Print shell hint to run: openclaude mcp add ...
+/mcp help    This text
 
 Shell: openclaude mcp list | doctor | add
 `

@@ -32,6 +32,12 @@ func Run(cfg Config) error {
 			p.Send(kernelMsg{e: e})
 		},
 	}
+	if cfg.Live != nil {
+		cfg.Live.BindAgent(agent)
+	}
+	if cfg.Theme != nil {
+		ApplyTheme(cfg.Theme.Get())
+	}
 
 	_, err := p.Run()
 	return err

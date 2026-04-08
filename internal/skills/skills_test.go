@@ -54,4 +54,8 @@ func TestLoad(t *testing.T) {
 	if !ok || e.Body != "body" {
 		t.Fatalf("%+v", e)
 	}
+	e2, ok2 := cat.GetFold("ALPHA")
+	if !ok2 || e2.Name != "alpha" {
+		t.Fatalf("GetFold: %+v ok=%v", e2, ok2)
+	}
 }

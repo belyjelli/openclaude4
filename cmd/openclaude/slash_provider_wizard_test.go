@@ -15,7 +15,7 @@ func TestHandleProviderWizard_NoStdin_StaticGuide(t *testing.T) {
 	}
 	s := buf.String()
 	if !strings.Contains(s, "plain REPL") || !strings.Contains(s, "Copy-paste reference") {
-		t.Fatalf("expected static guide, got:\n%s", s)
+		t.Fatalf("expected static guide when stdin wizard unavailable, got:\n%s", s)
 	}
 }
 

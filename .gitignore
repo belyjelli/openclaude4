@@ -1,3 +1,5 @@
 /openclaude
 /dist/
 *.exe
+/bin/
+/occli

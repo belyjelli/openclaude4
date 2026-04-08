@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	"github.com/gitlawb/openclaude4/internal/chatlive"
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
@@ -81,6 +83,8 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	live := chatlive.New(client)
+
 	ctx := cmd.Context()
 	if ctx == nil {
 		ctx = context.Background()
@@ -121,7 +125,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	}
 
 	beforeUserTurn := func() error {
-		return session.ApplyTokenThreshold(ctx, client, &messages,
+		return session.ApplyTokenThreshold(ctx, live.Client(), &messages,
 			config.SessionCompactTokenThreshold(),
 			config.SessionSummarizeOverThreshold(),
 			config.SessionCompactKeepMessages(),
@@ -169,6 +173,11 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		ansi := startupbanner.UseANSISplashFor(os.Stderr)
 		bannerStr := startupbanner.BannerContent(client, version, mcpLine, ansi) +
 			"\n\nTUI: Ctrl+C to quit · same /commands as plain REPL."
+		var busyFlag int32
+		themeHolder := tui.NewThemeHolder()
+		statusFn := func() string {
+			return buildTUIStatusLine(live.Client(), persist)
+		}
 		return tui.Run(tui.Config{
 			Ctx:            ctx,
 			Client:         client,
@@ -177,6 +186,10 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			AutoApprove:    autoApprove,
 			Banner:         bannerStr,
 			StatusLine:     buildTUIStatusLine(client, persist),
+			StatusLineFunc: statusFn,
+			Live:           live,
+			Busy:           &busyFlag,
+			Theme:          themeHolder,
 			ToolPreviewMax: tuiToolPreviewMax(),
 			MarkdownAssist: tuiMarkdownEnabled(),
 			ImageURLs:      pendingImgURLs,
@@ -191,12 +204,17 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			Slash: func(line string) (string, bool, error) {
 				var out bytes.Buffer
 				err := handleSlashLine(line, chatState{
-					messages:         &messages,
-					mcpMgr:           mcpMgr,
-					client:           client,
-					persist:          persist,
-					providerWizardIn: nil, // TUI: /provider wizard prints static guide only
-					skillCat:         skillCat,
+					messages:                &messages,
+					mcpMgr:                  mcpMgr,
+					client:                  client,
+					live:                    live,
+					persist:                 persist,
+					providerWizardIn:        nil,
+					allowConfigEditorWizard: true,
+					skillCat:                skillCat,
+					ctx:                     ctx,
+					isBusy:                  func() bool { return atomic.LoadInt32(&busyFlag) != 0 },
+					themeHolder:             themeHolder,
 				}, &out)
 				if errors.Is(err, errSlashExitChat) {
 					return out.String(), true, nil
@@ -212,7 +230,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	reader := bufio.NewReader(os.Stdin)
 
 	agent = &core.Agent{
-		Client:   client,
+		Client:   live.Client(),
 		Registry: reg,
 		Out:      os.Stdout,
 		Confirm: func(toolName string, args map[string]any) bool {
@@ -229,6 +247,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			return line == "y" || line == "yes"
 		},
 	}
+	live.BindAgent(agent)
 
 	pendingURLs := pendingImgURLs
 	pendingFiles := pendingImgFiles
@@ -250,12 +269,17 @@ func runChat(cmd *cobra.Command, _ []string) error {
 
 		if strings.HasPrefix(line, "/") {
 			err := handleSlashLine(line, chatState{
-				messages:         &messages,
-				mcpMgr:           mcpMgr,
-				client:           client,
-				persist:          persist,
-				providerWizardIn: os.Stdin,
-				skillCat:         skillCat,
+				messages:                &messages,
+				mcpMgr:                  mcpMgr,
+				client:                  client,
+				live:                    live,
+				persist:                 persist,
+				providerWizardIn:        os.Stdin,
+				allowConfigEditorWizard: false,
+				skillCat:                skillCat,
+				ctx:                     ctx,
+				isBusy:                  nil,
+				themeHolder:             nil,
 			}, os.Stdout)
 			if errors.Is(err, errSlashExitChat) {
 				return nil
@@ -582,24 +606,33 @@ func printChatHelpTo(w io.Writer) {
 	}
 	const help = `Commands:
   /onboard, /setup Quick env hints (same themes as doctor)
-  /provider         Show active provider, model, base URL, credential hint
-  /provider wizard  Interactive setup (YAML/env hints; plain REPL only — use /provider help)
-  /mcp list    List connected MCP servers and tool names (see openclaude.yaml mcp.servers)
-  /mcp doctor  Show same as list + tip to run openclaude mcp doctor for a fresh check
-  /mcp help    Subcommands summary + shell equivalents
-  /session     Show active session file path (when sessions enabled)
-  /session list    List saved session files on disk
-  /session running, /session ps   List local openclaude PIDs (registry; works even if disk session off)
-  /skills list     List loaded skills (SKILL.md under skills dirs)
-  /skills read <n> Print one skill body (model can also use SkillsList / SkillsRead tools)
-  /session load <id>   Switch to another session (saves current first)
-  /session new <id>    New empty session under id (saves current first)
-  /session save    Force write current transcript to disk
-  /compact     Drop older messages (keeps system + last 24); lossy — use before long sessions
+  /doctor       Same diagnostics as: openclaude doctor
+  /context, /tokens  Rough token estimate + message count + compact settings
+  /model [<id>] Show or set model for the active provider (updates session; TUI: not while busy)
+  /provider     Show active provider, model, base URL, credential hint
+  /provider wizard  Plain REPL: stdin wizard. TUI: opens $EDITOR on config file + YAML/env guide
+  /provider <openai|ollama|gemini|github>  Switch provider (in-memory viper + new client)
+  /provider show|status|help
+  /mcp list    MCP tools connected in this process
+  /mcp config  MCP servers from config file only (no subprocess)
+  /mcp doctor  Same as list + tip: openclaude mcp doctor
+  /mcp add     Print shell hint for openclaude mcp add ...
+  /mcp help    Subcommands summary
+  /session     Show active session path (when sessions enabled)
+  /session list|load|new|save|running|ps  (see /session help via trying /session)
+  /resume [<id>]  List saved sessions or load one (same as /session load)
+  /skills list     List loaded skills
+  /skills read <n> Print one skill body
+  /<skill>     If name matches a loaded skill (case-insensitive), same as /skills read
+  /btw <text>  Side question: one-shot answer, not added to main transcript
+  /cost, /usage Transcript stats; billing not tracked in v4
+  /copy        Copy last assistant message to clipboard (macOS/Linux when pbcopy/xclip/wl-copy exist)
+  /theme light|dark|auto   TUI only: palette + markdown style
+  /vim         TUI: reports vim-style input is not implemented
+  /compact     Drop older messages (keeps system + tail; count from config)
   /clear       Clear conversation history for this session
   /help        Show this help
-  /exit        Exit (same as /quit)
-  /quit        Exit
+  /exit, /quit Exit
 
 Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch, WebFetch, GoOutline (Go AST outline), SkillsList, SkillsRead, SpiderScrape (only if spider CLI on PATH; no Firecrawl), Task (sub-agent), plus MCP tools (mcp_<server>__<tool>).
 Vision: --image-url and --image-file attach to the first user message (REPL/TUI) or to -p one-shot; needs a vision-capable model.
