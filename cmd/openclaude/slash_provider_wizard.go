@@ -102,8 +102,10 @@ func runProviderInteractiveWizard(out io.Writer, in io.Reader, client core.Strea
 		return wizardOllama(out, r)
 	case "3":
 		return wizardGemini(out, r)
+	case "4":
+		return wizardGitHub(out, r)
 	default:
-		_, _ = fmt.Fprintln(out, "Unrecognized choice — try 1, 2, or 3.")
+		_, _ = fmt.Fprintln(out, "Unrecognized choice — try 1, 2, 3, or 4.")
 		return nil
 	}
 }
@@ -147,6 +149,48 @@ func wizardOpenAI(out io.Writer, r *bufio.Reader) error {
 	_, _ = fmt.Fprintln(out)
 	_, _ = fmt.Fprintln(out, "Add to openclaude.yaml (or set env equivalents). Use OPENAI_API_KEY in the environment.")
 	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprint(out, b.String())
+	_, _ = fmt.Fprintln(out)
+	return nil
+}
+
+func wizardGitHub(out io.Writer, r *bufio.Reader) error {
+	defModel := "gpt-4o"
+	if config.ProviderName() == "github" {
+		if m := strings.TrimSpace(config.GitHubModelsModel()); m != "" {
+			defModel = m
+		}
+	}
+	_, _ = fmt.Fprintf(out, "GitHub Models model [%s]: ", defModel)
+	line, err := readWizardLine(r)
+	if err != nil {
+		return err
+	}
+	model := strings.TrimSpace(line)
+	if model == "" {
+		model = defModel
+	}
+	_, _ = fmt.Fprint(out, "Base URL (empty = omit; use https://<region>.models.ai.azure.com if needed): ")
+	line, err = readWizardLine(r)
+	if err != nil {
+		return err
+	}
+	base := strings.TrimSpace(line)
+	base = strings.TrimRight(base, "/")
+
+	var b strings.Builder
+	_, _ = fmt.Fprintf(&b, "provider:\n  name: github\ngithub:\n  model: %q\n", model)
+	if base != "" {
+		_, _ = fmt.Fprintf(&b, "  base_url: %q\n", base)
+	}
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, "Set GITHUB_TOKEN or GITHUB_PAT in the environment, then merge YAML or use:")
+	_, _ = fmt.Fprintf(out, "  export OPENCLAUDE_PROVIDER=github\n  export GITHUB_MODEL=%q\n", model)
+	if base != "" {
+		_, _ = fmt.Fprintf(out, "  export GITHUB_BASE_URL=%q\n", base)
+	}
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, "YAML snippet:")
 	_, _ = fmt.Fprint(out, b.String())
 	_, _ = fmt.Fprintln(out)
 	return nil
