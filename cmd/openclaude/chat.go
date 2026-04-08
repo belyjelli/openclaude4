@@ -63,6 +63,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	if printMode && (useTUIEarly || envTruthy("OPENCLAUDE_TUI")) {
 		return fmt.Errorf("openclaude: --print (-p) cannot be used with --tui or OPENCLAUDE_TUI=1")
 	}
+	useTUI := useTUIEarly || envTruthy("OPENCLAUDE_TUI")
 
 	client, err := providers.NewStreamClient()
 	if err != nil {
@@ -106,7 +107,10 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	defer mcpMgr.Close()
 
 	var agent *core.Agent
-	reg.Register(core.NewTaskTool(func() *core.Agent { return agent }))
+	// TUI builds its own [core.Agent] in [tui.Run] and registers Task there with the correct lazy pointer.
+	if !useTUI {
+		reg.Register(core.NewTaskTool(func() *core.Agent { return agent }))
+	}
 
 	var messages []sdk.ChatCompletionMessage
 	persist, err := resolveChatPersistence(cmd, wd, &messages)
@@ -135,8 +139,6 @@ func runChat(cmd *cobra.Command, _ []string) error {
 
 	autoApprove := strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "1") ||
 		strings.EqualFold(os.Getenv("OPENCLAUDE_AUTO_APPROVE_TOOLS"), "true")
-
-	useTUI := useTUIEarly || envTruthy("OPENCLAUDE_TUI")
 
 	if !printMode {
 		meta := session.RunningMeta{
