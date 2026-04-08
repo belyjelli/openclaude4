@@ -198,6 +198,27 @@ func (c *Catalog) Get(name string) (Entry, bool) {
 	return e, ok
 }
 
+// GetFold returns a skill by case-insensitive name match.
+func (c *Catalog) GetFold(name string) (Entry, bool) {
+	if c == nil {
+		return Entry{}, false
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Entry{}, false
+	}
+	if e, ok := c.Get(name); ok {
+		return e, true
+	}
+	lower := strings.ToLower(name)
+	for _, n := range c.order {
+		if strings.ToLower(n) == lower {
+			return c.byName[n], true
+		}
+	}
+	return Entry{}, false
+}
+
 // List returns entries in stable name order.
 func (c *Catalog) List() []Entry {
 	if c == nil {

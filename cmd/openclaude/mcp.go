@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -67,20 +68,29 @@ func init() {
 }
 
 func runMCPList(_ *cobra.Command, _ []string) error {
+	PrintMCPConfigList(os.Stdout)
+	return nil
+}
+
+// PrintMCPConfigList prints MCP servers as defined in config (no subprocesses).
+func PrintMCPConfigList(w io.Writer) {
+	if w == nil {
+		w = io.Discard
+	}
 	srv := config.MCPServers()
 	if len(srv) == 0 {
-		_, _ = fmt.Fprintln(os.Stdout, "(no MCP servers in mcp.servers — see docs/CONFIG.md)")
-		return nil
+		_, _ = fmt.Fprintln(w, "(no MCP servers in mcp.servers — see docs/CONFIG.md)")
+		return
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "%d MCP server(s) in config:\n", len(srv))
+	_, _ = fmt.Fprintf(w, "%d MCP server(s) in config:\n", len(srv))
 	for _, s := range srv {
 		ap := strings.TrimSpace(s.Approval)
 		if ap == "" {
 			ap = "ask"
 		}
-		_, _ = fmt.Fprintf(os.Stdout, "\n- name: %s\n  approval: %s\n", s.Name, ap)
+		_, _ = fmt.Fprintf(w, "\n- name: %s\n  approval: %s\n", s.Name, ap)
 		if len(s.Command) > 0 {
-			_, _ = fmt.Fprintf(os.Stdout, "  command: %q\n", s.Command)
+			_, _ = fmt.Fprintf(w, "  command: %q\n", s.Command)
 		}
 		if len(s.Env) > 0 {
 			keys := make([]string, 0, len(s.Env))
@@ -88,13 +98,12 @@ func runMCPList(_ *cobra.Command, _ []string) error {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
-			_, _ = fmt.Fprintln(os.Stdout, "  env:")
+			_, _ = fmt.Fprintln(w, "  env:")
 			for _, k := range keys {
-				_, _ = fmt.Fprintf(os.Stdout, "    %s: %q\n", k, s.Env[k])
+				_, _ = fmt.Fprintf(w, "    %s: %q\n", k, s.Env[k])
 			}
 		}
 	}
-	return nil
 }
 
 func runMCPDoctor(_ *cobra.Command, _ []string) error {
