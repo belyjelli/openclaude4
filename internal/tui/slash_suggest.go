@@ -10,7 +10,7 @@ import (
 
 const (
 	slashSuggestMaxRows     = 4
-	slashSuggestHeaderLines = 1
+	slashSuggestHeaderLines = 0 // v3 overlay is rows only (no title bar)
 )
 
 // slashEntry is one completable slash command (primary name without leading /).
@@ -158,36 +158,104 @@ func suggestionBlockHeight(matches []slashEntry) int {
 	return h
 }
 
+func slashPrefixColWidth() int {
+	a := lipgloss.Width(slashRowPrefixSelected)
+	b := lipgloss.Width(slashRowPrefixIdle)
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func padVisualCells(s string, target int) string {
+	if target < 1 {
+		return ""
+	}
+	w := lipgloss.Width(s)
+	if w >= target {
+		return s
+	}
+	return s + strings.Repeat(" ", target-w)
+}
+
+func maxSlashCommandCol(win []slashEntry, totalWidth int) int {
+	maxW := 0
+	for _, e := range win {
+		n := lipgloss.Width("/" + e.primary)
+		if n > maxW {
+			maxW = n
+		}
+	}
+	capW := totalWidth * 2 / 5
+	if capW < 14 {
+		capW = 14
+	}
+	if maxW > capW {
+		maxW = capW
+	}
+	if maxW < 10 {
+		maxW = 10
+	}
+	return maxW
+}
+
+func fillRowPlain(s string, width int) string {
+	if width < 1 {
+		return ""
+	}
+	for lipgloss.Width(s) < width {
+		s += " "
+	}
+	if lipgloss.Width(s) > width {
+		return truncateVisual(s, width)
+	}
+	return s
+}
+
+// renderSlashSuggestions draws v3-style rows: ❯ on the selected line, padded command column, dim hint on the right, full-width inverted bar when selected (no bordered box).
 func renderSlashSuggestions(width int, matches []slashEntry, selected int) string {
 	if len(matches) == 0 || width < 1 {
 		return ""
 	}
-	header := dimStyle.Width(width).Render("Tab complete · Shift+Tab prev · ↑↓ select · Esc hide · Shift+Tab approvals when hidden")
+	prefixW := slashPrefixColWidth()
 	start, win := visibleSlashWindow(matches, selected)
-	rows := make([]string, 0, len(win))
+	cmdCol := maxSlashCommandCol(win, width)
+
+	rows := make([]string, 0, len(win)+1)
 	for i, e := range win {
 		global := start + i
-		line := e.display()
-		if e.hint != "" {
-			line += "  " + dimStyle.Render(e.hint)
+		isSel := global == selected
+		pre := slashRowPrefixIdle
+		if isSel {
+			pre = slashRowPrefixSelected
 		}
-		if global == selected {
-			line = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")).Render(line)
+		pre = padVisualCells(pre, prefixW)
+		name := truncateVisual("/"+e.primary, cmdCol)
+		namePad := padVisualCells(name, cmdCol)
+		used := lipgloss.Width(pre) + lipgloss.Width(namePad)
+		descW := width - used
+		if descW < 1 {
+			descW = 0
 		}
-		rows = append(rows, lipgloss.NewStyle().Width(width).Render(line))
+		hint := strings.TrimSpace(strings.ReplaceAll(e.hint, "\n", " "))
+		var desc string
+		if hint != "" && descW > 1 {
+			desc = " " + truncateVisual(hint, descW-1)
+		}
+		plain := pre + namePad + desc
+		plain = fillRowPlain(plain, width)
+		if isSel {
+			rows = append(rows, slashSelectedRowStyle.Width(width).Render(plain))
+		} else {
+			rows = append(rows, dimStyle.Width(width).Render(plain))
+		}
 	}
 	if len(matches) > slashSuggestMaxRows {
 		more := len(matches) - slashSuggestMaxRows
-		rows = append(rows, dimStyle.Width(width).Render(fmt.Sprintf("+%d more", more)))
+		line := fillRowPlain(padVisualCells(slashRowPrefixIdle, prefixW)+fmt.Sprintf("+%d more", more), width)
+		rows = append(rows, dimStyle.Width(width).Render(line))
 	}
-	body := lipgloss.JoinVertical(lipgloss.Left, rows...)
-	box := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Padding(0, 1).
-		Width(width - 2).
-		Render(body)
-	return lipgloss.JoinVertical(lipgloss.Left, header, box)
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
 func (m *model) rebuildSlashMatches() {
@@ -245,5 +313,6 @@ func (m *model) applySlashCompletion() {
 	m.ti.SetValue(repl + rest)
 	m.ti.SetCursor(len(repl))
 	m.slashEscDismiss = false
+	m.slashSel = 0
 	m.rebuildSlashMatches()
 }

@@ -49,13 +49,50 @@ func (m *model) renderToastLine() string {
 	if w < 1 {
 		w = 80
 	}
-	line := m.toastText
+	// v3-style notification strip: inset like fullscreen PromptInput (paddingLeft≈2), single row.
+	pad := 2
+	avail := w - pad
+	if avail < 4 {
+		avail = w - 1
+		if avail < 1 {
+			avail = 1
+		}
+		pad = w - avail
+	}
+	text := m.toastText
+	if lipgloss.Width(text) > avail {
+		text = truncateVisual(text, avail)
+	}
+	prefix := strings.Repeat(" ", pad)
+	plain := prefix + text
 	switch m.toastKind {
 	case toastErr:
-		return errStyle.Width(w).Render(line)
+		st := lipgloss.NewStyle().Width(w).Foreground(lipgloss.Color("224"))
+		if lipgloss.HasDarkBackground() {
+			st = st.Background(lipgloss.Color("52"))
+		} else {
+			st = st.Background(lipgloss.Color("224")).Foreground(lipgloss.Color("52"))
+		}
+		return st.Render(fillToastRow(plain, w))
 	case toastWarn:
-		return warnStyle.Width(w).Render(line)
+		st := lipgloss.NewStyle().Width(w).Foreground(lipgloss.Color("230"))
+		if lipgloss.HasDarkBackground() {
+			st = st.Background(lipgloss.Color("94"))
+		} else {
+			st = st.Background(lipgloss.Color("229")).Foreground(lipgloss.Color("94"))
+		}
+		return st.Render(fillToastRow(plain, w))
 	default:
-		return dimStyle.Width(w).Render(line)
+		return dimStyle.Width(w).Render(fillToastRow(plain, w))
 	}
+}
+
+func fillToastRow(s string, w int) string {
+	for lipgloss.Width(s) < w {
+		s += " "
+	}
+	if lipgloss.Width(s) > w {
+		return truncateVisual(s, w)
+	}
+	return s
 }

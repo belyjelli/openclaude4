@@ -689,7 +689,14 @@ func (m *model) View() string {
 	hintRow := formatFooterRow(left, right, m.width)
 	promptStack := lipgloss.JoinVertical(lipgloss.Left, rule, inputLine, rule, hintRow)
 
-	slashBlock := renderSlashSuggestions(m.width, m.slashMatches, m.slashSel)
+	slashW := m.width - 2
+	if slashW < 12 {
+		slashW = m.width
+	}
+	slashBlock := renderSlashSuggestions(slashW, m.slashMatches, m.slashSel)
+	if slashBlock != "" {
+		slashBlock = lipgloss.NewStyle().PaddingLeft(2).Render(slashBlock)
+	}
 
 	rows := []string{header, sub}
 	if toastLine != "" {

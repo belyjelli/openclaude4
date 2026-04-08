@@ -25,6 +25,14 @@ var (
 		Padding(0, 1)
 	promptCharStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("214")) // v3 user / pointer line
 	promptCharBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
+	// Slash typeahead (v3 PromptInputFooterSuggestions: pointer + full-width selected bar).
+	slashRowPrefixSelected = "❯ "
+	slashRowPrefixIdle     = "  "
+	slashSelectedRowStyle  = lipgloss.NewStyle().
+				Background(lipgloss.Color("63")).
+				Foreground(lipgloss.Color("255")).
+				Bold(true)
 )
 
 // ApplyTheme updates lipgloss palette presets. Mode is light, dark, or auto (uses terminal background).
@@ -47,6 +55,10 @@ func ApplyTheme(mode string) {
 			Padding(0, 1)
 		promptCharStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("130"))
 		promptCharBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+		slashSelectedRowStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("105")).
+			Foreground(lipgloss.Color("235")).
+			Bold(true)
 	default:
 		titleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
 		userStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
@@ -64,6 +76,10 @@ func ApplyTheme(mode string) {
 			Padding(0, 1)
 		promptCharStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 		promptCharBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+		slashSelectedRowStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("63")).
+			Foreground(lipgloss.Color("255")).
+			Bold(true)
 	}
 }
 
