@@ -109,6 +109,20 @@ github:
   model: "gpt-4o"
   # base_url: ""   # optional Azure endpoint
 
+--- OpenRouter (OpenAI-compatible API) ---
+export OPENCLAUDE_PROVIDER=openrouter
+export OPENROUTER_KEY=...    # or OPENROUTER_API_KEY
+# optional:
+export OPENROUTER_MODEL=openai/gpt-4o-mini
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1   # default if unset
+
+provider:
+  name: openrouter
+openrouter:
+  model: "openai/gpt-4o-mini"
+  # api_key: "..."   # prefer env OPENROUTER_KEY
+  # provider: ""     # optional OPENROUTER_PROVIDER for /model catalog filter
+
 Then restart openclaude. Run openclaude doctor to verify.
 `
 	_, _ = fmt.Fprint(out, guide)
@@ -125,7 +139,7 @@ func runProviderInteractiveWizard(out io.Writer, in io.Reader, client core.Strea
 	_, _ = fmt.Fprintln(out)
 	printProviderInfoTo(client, out)
 	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "Choose provider:  1 = openai   2 = ollama   3 = gemini   4 = github   (empty = cancel)")
+	_, _ = fmt.Fprintln(out, "Choose provider:  1 = openai   2 = ollama   3 = gemini   4 = github   5 = openrouter   (empty = cancel)")
 	line, err := readWizardLine(r)
 	if err != nil {
 		return err
@@ -142,8 +156,10 @@ func runProviderInteractiveWizard(out io.Writer, in io.Reader, client core.Strea
 		return wizardGemini(out, r)
 	case "4":
 		return wizardGitHub(out, r)
+	case "5":
+		return wizardOpenRouter(out, r)
 	default:
-		_, _ = fmt.Fprintln(out, "Unrecognized choice — try 1, 2, 3, or 4.")
+		_, _ = fmt.Fprintln(out, "Unrecognized choice — try 1, 2, 3, 4, or 5.")
 		return nil
 	}
 }
@@ -271,6 +287,48 @@ func wizardOllama(out io.Writer, r *bufio.Reader) error {
 	_, _ = fmt.Fprintln(out)
 	_, _ = fmt.Fprintln(out, "YAML snippet:")
 	_, _ = fmt.Fprint(out, b.String())
+	_, _ = fmt.Fprintln(out)
+	return nil
+}
+
+func wizardOpenRouter(out io.Writer, r *bufio.Reader) error {
+	defModel := "openai/gpt-4o-mini"
+	if config.ProviderName() == "openrouter" {
+		if m := strings.TrimSpace(config.OpenRouterModel()); m != "" {
+			defModel = m
+		}
+	}
+	_, _ = fmt.Fprintf(out, "OpenRouter model [%s]: ", defModel)
+	line, err := readWizardLine(r)
+	if err != nil {
+		return err
+	}
+	model := strings.TrimSpace(line)
+	if model == "" {
+		model = defModel
+	}
+	defBase := strings.TrimRight(config.DefaultOpenRouterOpenAIBase, "/")
+	_, _ = fmt.Fprintf(out, "Base URL (empty = %s): ", defBase)
+	line, err = readWizardLine(r)
+	if err != nil {
+		return err
+	}
+	base := strings.TrimSpace(line)
+	base = strings.TrimRight(base, "/")
+
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, "Set OPENROUTER_KEY or OPENROUTER_API_KEY in the environment, then merge YAML or use:")
+	_, _ = fmt.Fprintf(out, "  export OPENCLAUDE_PROVIDER=openrouter\n  export OPENROUTER_MODEL=%q\n", model)
+	if base != "" {
+		_, _ = fmt.Fprintf(out, "  export OPENAI_BASE_URL=%q\n", base)
+	}
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, "YAML snippet:")
+	if base != "" {
+		_, _ = fmt.Fprintf(out, "provider:\n  name: openrouter\n  base_url: %q\nopenrouter:\n  model: %q\n", base, model)
+	} else {
+		_, _ = fmt.Fprintf(out, "provider:\n  name: openrouter\nopenrouter:\n  model: %q\n", model)
+	}
 	_, _ = fmt.Fprintln(out)
 	return nil
 }

@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	// promptChromeLines is the exact row count below the transcript for: top rule, input, bottom rule, footer hint.
-	promptChromeLines = 4
+	// promptChromeLines is the exact row count below the transcript for: top rule, input line, footer hint.
+	promptChromeLines = 3
 	// permPanelReserveLines approximates the permission modal height for viewport budgeting.
 	permPanelReserveLines = 10
 )

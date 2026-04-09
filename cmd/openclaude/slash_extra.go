@@ -221,7 +221,7 @@ func printInitSnippet(out io.Writer) {
 # Do not commit real API keys. v3 .openclaude-profile.json is merged first, then this file.
 
 provider:
-  name: openai # openai | ollama | gemini | github
+  name: openai # openai | ollama | gemini | github | openrouter
   model: gpt-4o-mini
 
 openai:
@@ -235,6 +235,11 @@ gemini:
   api_key: "" # GEMINI_API_KEY or GOOGLE_API_KEY
   model: gemini-2.0-flash
   # base_url: optional override
+
+# openrouter:
+#   api_key: "" # OPENROUTER_KEY or OPENROUTER_API_KEY
+#   model: openai/gpt-4o-mini
+#   # provider: "" # optional OPENROUTER_PROVIDER filter for /model listing
 
 # mcp:
 #   servers:

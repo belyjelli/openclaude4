@@ -46,7 +46,7 @@ In **`openclaude --tui`**, the prompt offers **slash typeahead**: after `/`, mat
 | `/provider wizard` | Plain REPL: stdin wizard. **TUI:** opens [`WritableConfigPath`](../internal/config/mcp_configfile.go) in `$VISUAL` / `$EDITOR` / `vi` after printing YAML/env guide |
 | `/provider show`, `/status` | Same as bare `/provider` |
 | `/provider help` | Subcommand help |
-| `/provider openai\|ollama\|gemini\|github` | Switch `provider.name`, validate, new stream client |
+| `/provider openai\|ollama\|gemini\|github\|openrouter` | Switch `provider.name`, validate, new stream client |
 | `/mcp`, `/mcp list` | Connected MCP servers + tools (this process) |
 | `/mcp config` | Config file entries only ([`PrintMCPConfigList`](../cmd/openclaude/mcp.go)) |
 | `/mcp doctor` | Same as list + `openclaude mcp doctor` tip |

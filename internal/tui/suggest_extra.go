@@ -17,6 +17,7 @@ const (
 	compSlashArg
 	compFile
 	compSkill
+	compMCPResource
 )
 
 // slashSubcommands are first-token completions after "/<cmd> ".
@@ -25,7 +26,7 @@ var slashSubcommands = map[string][]string{
 	"mcp":      {"list", "config", "doctor", "add", "help"},
 	"skills":   {"list", "read"},
 	"export":   {"json", "md"},
-	"provider": {"show", "wizard", "openai", "ollama", "gemini", "github"},
+	"provider": {"show", "wizard", "openai", "ollama", "gemini", "github", "openrouter"},
 	"theme":    {"light", "dark", "auto"},
 	"resume":   {"list", "load"},
 }

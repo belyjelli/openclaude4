@@ -8,6 +8,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+func TestValidate_OpenRouterAccepted(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	Load("")
+	viper.Set("provider.name", "openrouter")
+	if err := Validate(); err != nil {
+		t.Fatalf("Validate() = %v", err)
+	}
+}
+
 func TestValidate_CodexReturnsNotImplemented(t *testing.T) {
 	viper.Reset()
 	Load("")

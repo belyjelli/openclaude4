@@ -17,12 +17,8 @@ var (
 	dimStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	border     = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 
-	// Rich prompt row (v3 PromptInput-style): rounded frame around ❯ + text field.
-	promptBoxStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("238")).
-		Background(lipgloss.Color("235")).
-		Padding(0, 1)
+	// Prompt input row: full width, no frame (chrome is one line above + footer below).
+	promptRowStyle = lipgloss.NewStyle()
 	promptCharStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("214")) // v3 user / pointer line
 	promptCharBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 )
@@ -40,11 +36,7 @@ func ApplyTheme(mode string) {
 		warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("130"))
 		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 		border = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1).Foreground(lipgloss.Color("240"))
-		promptBoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("252")).
-			Background(lipgloss.Color("254")).
-			Padding(0, 1)
+		promptRowStyle = lipgloss.NewStyle()
 		promptCharStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("130"))
 		promptCharBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	default:
@@ -57,11 +49,7 @@ func ApplyTheme(mode string) {
 		warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 		border = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
-		promptBoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("238")).
-			Background(lipgloss.Color("235")).
-			Padding(0, 1)
+		promptRowStyle = lipgloss.NewStyle()
 		promptCharStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 		promptCharBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	}

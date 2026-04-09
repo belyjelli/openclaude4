@@ -4,11 +4,14 @@ All built-in backends speak the **OpenAI Chat Completions** HTTP API (`POST /v1/
 
 | Provider | When to use | Auth | Base URL (default) | Model source |
 |----------|-------------|------|--------------------|--------------|
-| **openai** (default) | OpenAI or any OpenAI-compatible host (DeepSeek, Groq, Azure OpenAI with compat layer, etc.) | `OPENAI_API_KEY` | `https://api.openai.com/v1` or `OPENAI_BASE_URL` / `provider.base_url` | `OPENAI_MODEL` / `provider.model` (default `gpt-4o-mini`) |
+| **openai** (default) | OpenAI or any OpenAI-compatible host (DeepSeek, Groq, OpenRouter, Azure OpenAI with compat layer, etc.) | `OPENAI_API_KEY` (or `OPENROUTER_KEY` when `OPENAI_BASE_URL` / `provider.base_url` targets `openrouter.ai`) | `https://api.openai.com/v1` or `OPENAI_BASE_URL` / `provider.base_url` | `OPENAI_MODEL` / `provider.model` (default `gpt-4o-mini`) |
 | **ollama** | Local models via Ollama | None (placeholder key in client) | `{OLLAMA_HOST}/v1` (host default `http://127.0.0.1:11434`) | `OLLAMA_MODEL` / `ollama.model` / `provider.model` (default `llama3.2`) |
 | **gemini** | Google Gemini via **OpenAI-compatible** endpoint | `GEMINI_API_KEY` or `GOOGLE_API_KEY` | `https://generativelanguage.googleapis.com/v1beta/openai` (override with `GEMINI_BASE_URL` / `gemini.base_url`) | `GEMINI_MODEL` / `gemini.model` / `provider.model` (default `gemini-2.0-flash`) |
 | **github** | GitHub Models (Azure-hosted OpenAI-compatible API) | `GITHUB_TOKEN` or `GITHUB_PAT` | `{GITHUB_BASE_URL}` (omit for default; pattern: `https://<region>.models.ai.azure.com`) | `GITHUB_MODEL` / `github.model` / `provider.model` (default `gpt-4o`) |
+| **openrouter** | [OpenRouter](https://openrouter.ai/) as a named provider | `OPENROUTER_KEY` or `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` (override with `OPENAI_BASE_URL` / `provider.base_url`) | `OPENROUTER_MODEL` / `openrouter.model` / `provider.model` (default `openai/gpt-4o-mini`) |
 | **codex** | Reserved | — | — | Not implemented: `config.Validate()` and building the stream client return `ErrCodexNotImplemented` (chat, `serve`, `doctor`). |
+
+**Model catalog (`/model`):** With `OPENROUTER_KEY` set, OpenClaude uses the official [OpenRouter Go SDK](https://github.com/OpenRouterTeam/go-sdk) to list models (optional filter `OPENROUTER_PROVIDER`). With provider **openrouter**, the catalog uses the same key.
 
 ## MCP (Model Context Protocol)
 
@@ -19,7 +22,7 @@ Use `/mcp list` in the REPL and `openclaude doctor` to inspect configuration. Fa
 ## Wiring in code
 
 - Factory: [`internal/providers/runtime.go`](../internal/providers/runtime.go) (`NewStreamClient`).
-- Implementations: [`internal/providers/openaicomp/client.go`](../internal/providers/openaicomp/client.go) (`New`, `NewOllama`, `NewGemini`), [`internal/providers/openaicomp/github.go`](../internal/providers/openaicomp/github.go) (`NewGitHubModels`).
+- Implementations: [`internal/providers/openaicomp/client.go`](../internal/providers/openaicomp/client.go) (`New`, `NewOllama`, `NewGemini`, `NewOpenRouter`), [`internal/providers/openaicomp/github.go`](../internal/providers/openaicomp/github.go) (`NewGitHubModels`). OpenRouter catalog: [`internal/providers/openrouter_model_list.go`](../internal/providers/openrouter_model_list.go).
 - Config getters: [`internal/config/config.go`](../internal/config/config.go).
 
 ## Tests

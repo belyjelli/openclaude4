@@ -12,6 +12,12 @@ import (
 // ErrMissingAPIKey is returned when OPENAI_API_KEY is unset.
 var ErrMissingAPIKey = errors.New("OPENAI_API_KEY is not set")
 
+// ErrMissingOpenRouterKey is returned when OPENROUTER_KEY is unset for provider openrouter or OpenRouter chat.
+var ErrMissingOpenRouterKey = errors.New("OPENROUTER_KEY or OPENROUTER_API_KEY is not set")
+
+// ErrMissingOpenRouterOrOpenAIKey is returned when the base URL targets OpenRouter but neither OPENAI_API_KEY nor OPENROUTER_KEY is set.
+var ErrMissingOpenRouterOrOpenAIKey = errors.New("set OPENAI_API_KEY or OPENROUTER_KEY when using OpenRouter (OPENAI_BASE_URL contains openrouter.ai)")
+
 // ErrMissingGeminiKey is returned when GEMINI_API_KEY / GOOGLE_API_KEY is unset.
 var ErrMissingGeminiKey = errors.New("GEMINI_API_KEY or GOOGLE_API_KEY is not set")
 
@@ -21,25 +27,47 @@ type Client struct {
 	model  string
 	apiKey string
 	base   string
-	kind   string // "openai" | "ollama" | "gemini" | "github"
+	kind   string // "openai" | "ollama" | "gemini" | "github" | "openrouter"
 }
 
-// New builds an OpenAI or OpenAI-compatible remote client (requires OPENAI_API_KEY).
+// New builds an OpenAI or OpenAI-compatible remote client (uses OPENAI_API_KEY, or OPENROUTER_KEY when base targets OpenRouter).
 func New() (*Client, error) {
-	key := config.APIKey()
+	base := config.BaseURL()
+	key := config.EffectiveOpenAICompatAPIKey()
 	if key == "" {
+		if config.BaseURLLooksLikeOpenRouter(base) {
+			return nil, ErrMissingOpenRouterOrOpenAIKey
+		}
 		return nil, ErrMissingAPIKey
 	}
 	cfg := sdk.DefaultConfig(key)
-	if base := config.BaseURL(); base != "" {
+	if base != "" {
 		cfg.BaseURL = base
 	}
 	return &Client{
 		inner:  sdk.NewClientWithConfig(cfg),
 		model:  config.Model(),
 		apiKey: key,
-		base:   config.BaseURL(),
+		base:   base,
 		kind:   "openai",
+	}, nil
+}
+
+// NewOpenRouter uses OpenRouter's OpenAI-compatible endpoint (OPENROUTER_KEY / openrouter.api_key).
+func NewOpenRouter() (*Client, error) {
+	key := config.OpenRouterAPIKey()
+	if key == "" {
+		return nil, ErrMissingOpenRouterKey
+	}
+	base := config.OpenRouterChatBase()
+	cfg := sdk.DefaultConfig(key)
+	cfg.BaseURL = base
+	return &Client{
+		inner:  sdk.NewClientWithConfig(cfg),
+		model:  config.OpenRouterModel(),
+		apiKey: key,
+		base:   base,
+		kind:   "openrouter",
 	}, nil
 }
 
@@ -75,7 +103,7 @@ func NewGemini() (*Client, error) {
 	}, nil
 }
 
-// ProviderKind returns "openai", "ollama", "gemini", or "github".
+// ProviderKind returns "openai", "ollama", "gemini", "github", or "openrouter".
 func (c *Client) ProviderKind() string {
 	if c.kind != "" {
 		return c.kind
@@ -133,6 +161,11 @@ func (c *Client) RedactedAPIKeySummary() string {
 		}
 		return c.apiKey[:4] + "…" + c.apiKey[len(c.apiKey)-4:]
 	case "gemini":
+		if len(c.apiKey) <= 8 {
+			return "(set)"
+		}
+		return c.apiKey[:4] + "…" + c.apiKey[len(c.apiKey)-4:]
+	case "openrouter":
 		if len(c.apiKey) <= 8 {
 			return "(set)"
 		}

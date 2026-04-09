@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/gitlawb/openclaude4/internal/config"
@@ -19,11 +20,20 @@ type Manager struct {
 	Servers []ServerTools
 }
 
+// MCPResource is a listed resource from one MCP server (snapshot at connect).
+type MCPResource struct {
+	Server string
+	URI    string
+	Name   string
+	Title  string
+}
+
 // ServerTools summarizes one connected MCP server.
 type ServerTools struct {
 	Name        string
 	OpenAINames []string
 	MCPNames    []string
+	Resources   []MCPResource
 	Session     *mcp.ClientSession
 	approval    string
 }
@@ -97,10 +107,31 @@ func ConnectAndRegister(ctx context.Context, reg *tools.Registry, servers []conf
 			nativeNames = append(nativeNames, mt.Name)
 		}
 
+		var resList []MCPResource
+		if serverSupportsResources(sess) {
+			mcpRes, err := listAllResources(ctx, sess)
+			if err != nil {
+				_, _ = fmt.Fprintf(OrDiscard(log), "mcp: server %q: list resources: %v\n", srv.Name, err)
+			} else {
+				for _, r := range mcpRes {
+					if r == nil || strings.TrimSpace(r.URI) == "" {
+						continue
+					}
+					resList = append(resList, MCPResource{
+						Server: srv.Name,
+						URI:    strings.TrimSpace(r.URI),
+						Name:   strings.TrimSpace(r.Name),
+						Title:  strings.TrimSpace(r.Title),
+					})
+				}
+			}
+		}
+
 		m.Servers = append(m.Servers, ServerTools{
 			Name:        srv.Name,
 			OpenAINames: oaiNames,
 			MCPNames:    nativeNames,
+			Resources:   resList,
 			Session:     sess,
 			approval:    approval,
 		})
@@ -140,6 +171,80 @@ func listAllTools(ctx context.Context, sess *mcp.ClientSession) ([]*mcp.Tool, er
 		cursor = res.NextCursor
 	}
 	return out, nil
+}
+
+func serverSupportsResources(sess *mcp.ClientSession) bool {
+	if sess == nil {
+		return false
+	}
+	init := sess.InitializeResult()
+	if init == nil || init.Capabilities == nil || init.Capabilities.Resources == nil {
+		return false
+	}
+	return true
+}
+
+func listAllResources(ctx context.Context, sess *mcp.ClientSession) ([]*mcp.Resource, error) {
+	var out []*mcp.Resource
+	cursor := ""
+	for {
+		res, err := sess.ListResources(ctx, &mcp.ListResourcesParams{Cursor: cursor})
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, res.Resources...)
+		if res.NextCursor == "" {
+			break
+		}
+		cursor = res.NextCursor
+	}
+	return out, nil
+}
+
+// ResourceSuggestCandidates returns resources whose URI, Name, or Title has a case-insensitive
+// prefix match to query. Empty query matches all. Results are deduped by URI and sorted by URI.
+func (m *Manager) ResourceSuggestCandidates(query string) []MCPResource {
+	if m == nil {
+		return nil
+	}
+	q := strings.TrimSpace(query)
+	lowQ := strings.ToLower(q)
+	var flat []MCPResource
+	seen := map[string]struct{}{}
+	for _, s := range m.Servers {
+		for _, r := range s.Resources {
+			uri := strings.TrimSpace(r.URI)
+			if uri == "" {
+				continue
+			}
+			if _, ok := seen[uri]; ok {
+				continue
+			}
+			if q != "" {
+				lowURI := strings.ToLower(uri)
+				lowName := strings.ToLower(strings.TrimSpace(r.Name))
+				lowTitle := strings.ToLower(strings.TrimSpace(r.Title))
+				if !strings.HasPrefix(lowURI, lowQ) && !strings.HasPrefix(lowName, lowQ) && !strings.HasPrefix(lowTitle, lowQ) {
+					continue
+				}
+			}
+			seen[uri] = struct{}{}
+			srvName := strings.TrimSpace(r.Server)
+			if srvName == "" {
+				srvName = s.Name
+			}
+			flat = append(flat, MCPResource{
+				Server: srvName,
+				URI:    uri,
+				Name:   r.Name,
+				Title:  r.Title,
+			})
+		}
+	}
+	sort.Slice(flat, func(i, j int) bool {
+		return strings.ToLower(flat[i].URI) < strings.ToLower(flat[j].URI)
+	})
+	return flat
 }
 
 // Close closes all MCP sessions.

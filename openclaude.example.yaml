@@ -2,11 +2,19 @@
 # Do not commit real API keys. v3 .openclaude-profile.json is merged first, then this file.
 
 provider:
-  name: openai # openai | ollama | gemini
+  name: openai # openai | ollama | gemini | github | openrouter
   model: gpt-4o-mini
 
 openai:
   api_key: "" # OPENAI_API_KEY
+
+# Alternative: first-class OpenRouter (or use provider openai + OPENAI_BASE_URL=https://openrouter.ai/api/v1 + OPENROUTER_KEY).
+# provider:
+#   name: openrouter
+#   model: openai/gpt-4o-mini
+# openrouter:
+#   api_key: "" # OPENROUTER_KEY or OPENROUTER_API_KEY
+#   provider: "" # optional OPENROUTER_PROVIDER for /model listing
 
 ollama:
   host: http://127.0.0.1:11434
@@ -16,6 +24,13 @@ gemini:
   api_key: "" # GEMINI_API_KEY or GOOGLE_API_KEY
   model: gemini-2.0-flash
   # base_url: https://generativelanguage.googleapis.com/v1beta/openai
+
+# Optional: OPENROUTER_KEY also powers /model catalog when set; chat uses it for provider openrouter
+# or for provider openai when OPENAI_BASE_URL targets openrouter.ai and OPENAI_API_KEY is empty.
+openrouter:
+  api_key: "" # OPENROUTER_KEY or OPENROUTER_API_KEY
+  model: openai/gpt-4o-mini # OPENROUTER_MODEL when provider is openrouter
+  provider: "" # OPENROUTER_PROVIDER — e.g. anthropic, openai, meta-llama (filters ids to "<provider>/…")
 
 # mcp:
 #   servers:

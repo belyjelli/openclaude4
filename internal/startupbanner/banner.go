@@ -119,6 +119,8 @@ func providerLabel(kind, baseURL, model string) (name string, isLocal bool) {
 		return "Google Gemini", false
 	case "github":
 		return "GitHub Models", false
+	case "openrouter":
+		return "OpenRouter", false
 	case "openai":
 		switch {
 		case strings.Contains(b, "deepseek") || strings.Contains(m, "deepseek"):

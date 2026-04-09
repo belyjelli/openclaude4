@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
@@ -27,6 +29,7 @@ func captureProviderModelKeys() map[string]string {
 		"ollama.model",
 		"gemini.model",
 		"github.model",
+		"openrouter.model",
 	}
 	out := make(map[string]string, len(keys))
 	for _, k := range keys {
@@ -50,6 +53,8 @@ func setViperModelForActiveProvider(model string) {
 		viper.Set("gemini.model", model)
 	case "github":
 		viper.Set("github.model", model)
+	case "openrouter":
+		viper.Set("openrouter.model", model)
 	default:
 		viper.Set("provider.model", model)
 	}
@@ -62,7 +67,28 @@ func slashSetModel(st chatState, model string, out io.Writer) error {
 	model = strings.TrimSpace(model)
 	if model == "" {
 		_, _ = fmt.Fprintf(out, "Current model: %s (provider %s)\n", config.Model(), config.ProviderName())
-		_, _ = fmt.Fprintln(out, "Usage: /model <model-id>")
+		listCtx := context.Background()
+		if st.ctx != nil {
+			listCtx = st.ctx
+		}
+		listCtx, cancel := context.WithTimeout(listCtx, 18*time.Second)
+		defer cancel()
+		ids, warns, err := providers.FetchChatModelIDs(listCtx)
+		if err != nil {
+			_, _ = fmt.Fprintf(out, "Could not fetch live model list (%v).\n", err)
+			ids = providers.DefaultChatModelIDs()
+		}
+		for _, w := range warns {
+			_, _ = fmt.Fprintf(out, "Note: %s\n", w)
+		}
+		if len(ids) == 0 {
+			ids = providers.DefaultChatModelIDs()
+		}
+		_, _ = fmt.Fprintf(out, "\nModels for provider %q (%d):\n", config.ProviderName(), len(ids))
+		for _, id := range ids {
+			_, _ = fmt.Fprintf(out, "  %s\n", id)
+		}
+		_, _ = fmt.Fprintln(out, "\nUsage: /model <model-id>")
 		return nil
 	}
 	snap := captureProviderModelKeys()
@@ -89,9 +115,9 @@ func slashSetProvider(st chatState, prov string, out io.Writer) error {
 	}
 	prov = strings.ToLower(strings.TrimSpace(prov))
 	switch prov {
-	case "openai", "ollama", "gemini", "github":
+	case "openai", "ollama", "gemini", "github", "openrouter":
 	default:
-		return fmt.Errorf("unknown provider %q (use openai, ollama, gemini, github)", prov)
+		return fmt.Errorf("unknown provider %q (use openai, ollama, gemini, github, openrouter)", prov)
 	}
 	snap := captureProviderModelKeys()
 	viper.Set("provider.name", prov)
@@ -107,6 +133,7 @@ func slashSetProvider(st chatState, prov string, out io.Writer) error {
 	if st.live != nil {
 		st.live.SwapClient(nc)
 	}
+	providers.WarmChatModelCache()
 	_, _ = fmt.Fprintf(out, "(provider set to %s, model %q)\n", config.ProviderName(), config.Model())
 	return nil
 }

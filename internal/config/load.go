@@ -82,5 +82,8 @@ func bindViperEnv() {
 	_ = viper.BindEnv("github.token", "GITHUB_TOKEN", "GITHUB_PAT")
 	_ = viper.BindEnv("github.model", "GITHUB_MODEL")
 	_ = viper.BindEnv("github.base_url", "GITHUB_BASE_URL")
+	_ = viper.BindEnv("openrouter.api_key", "OPENROUTER_KEY", "OPENROUTER_API_KEY")
+	_ = viper.BindEnv("openrouter.provider", "OPENROUTER_PROVIDER")
+	_ = viper.BindEnv("openrouter.model", "OPENROUTER_MODEL")
 	_ = viper.BindEnv("agent_routing.task_model", "OPENCLAUDE_AGENT_TASK_MODEL")
 }

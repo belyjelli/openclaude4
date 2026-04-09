@@ -39,9 +39,14 @@ openai:
   api_key: sk-...   # prefer OPENAI_API_KEY in env instead of committing secrets
 
 provider:
-  name: openai      # openai | ollama | gemini | github | codex (codex reserved — client build fails; see Validation)
+  name: openai      # openai | ollama | gemini | github | openrouter | codex (codex reserved — client build fails; see Validation)
   model: gpt-4o-mini
   base_url: ""      # optional; OpenAI-compatible endpoints only
+
+openrouter:
+  api_key: ""       # prefer OPENROUTER_KEY or OPENROUTER_API_KEY
+  model: openai/gpt-4o-mini
+  provider: ""      # optional OPENROUTER_PROVIDER — filters /model catalog to "<slug>/…"
 
 ollama:
   host: http://127.0.0.1:11434
@@ -76,15 +81,18 @@ Failed servers are skipped with a message on stderr; chat still starts if built-
 
 | Variable | Purpose |
 |----------|---------|
-| `OPENCLAUDE_PROVIDER` | `openai` (default), `ollama`, `gemini`, or `codex` |
+| `OPENCLAUDE_PROVIDER` | `openai` (default), `ollama`, `gemini`, `github`, `openrouter`, or `codex` |
 | `OPENAI_API_KEY` | API key for OpenAI-compatible APIs |
-| `OPENAI_BASE_URL` | Custom base URL (OpenAI-compatible) |
+| `OPENAI_BASE_URL` | Custom base URL (OpenAI-compatible); if it targets OpenRouter (`openrouter.ai`), `OPENROUTER_KEY` may be used when this key is empty |
 | `OPENAI_MODEL` | Model id (bound to `provider.model`) |
 | `OLLAMA_HOST` | Ollama server URL (default `http://127.0.0.1:11434`) |
 | `OLLAMA_MODEL` | Ollama model tag |
 | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Gemini API key |
 | `GEMINI_MODEL` | Gemini model id |
 | `GEMINI_BASE_URL` | Override Gemini OpenAI-compatible base URL |
+| `OPENROUTER_KEY` / `OPENROUTER_API_KEY` | OpenRouter API key (provider `openrouter`, or `openai` with OpenRouter base URL) |
+| `OPENROUTER_MODEL` | Model id for provider `openrouter` (bound to `openrouter.model`) |
+| `OPENROUTER_PROVIDER` | Optional filter for `/model` catalog (`openrouter.provider`) |
 | `OPENCLAUDE_AUTO_APPROVE_TOOLS` | `1` / `true` to skip dangerous-tool prompts (dev only) |
 
 **Richer web scrape (no Firecrawl):** install [spider-rs `spider_cli`](https://github.com/spider-rs/spider) so `spider` is on `PATH`; the optional **`SpiderScrape`** tool is then registered (see [SECURITY.md](./SECURITY.md#optional-subprocess-tool-spiderscrape)).

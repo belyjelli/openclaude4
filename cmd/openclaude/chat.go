@@ -69,7 +69,13 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		switch {
 		case errors.Is(err, openaicomp.ErrMissingAPIKey):
-			_, _ = fmt.Fprintln(os.Stderr, "Error: set OPENAI_API_KEY (or use --provider ollama / gemini as appropriate).")
+			_, _ = fmt.Fprintln(os.Stderr, "Error: set OPENAI_API_KEY (or use --provider ollama / gemini / openrouter as appropriate).")
+			return err
+		case errors.Is(err, openaicomp.ErrMissingOpenRouterKey):
+			_, _ = fmt.Fprintln(os.Stderr, "Error: set OPENROUTER_KEY or OPENROUTER_API_KEY for provider openrouter.")
+			return err
+		case errors.Is(err, openaicomp.ErrMissingOpenRouterOrOpenAIKey):
+			_, _ = fmt.Fprintln(os.Stderr, "Error: set OPENAI_API_KEY or OPENROUTER_KEY when OPENAI_BASE_URL targets OpenRouter.")
 			return err
 		case errors.Is(err, openaicomp.ErrMissingGeminiKey):
 			_, _ = fmt.Fprintln(os.Stderr, "Error: set GEMINI_API_KEY or GOOGLE_API_KEY for provider gemini.")
@@ -183,6 +189,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		}
 		var autoApproveTUI atomic.Bool
 		autoApproveTUI.Store(autoApprove)
+		providers.WarmChatModelCache()
 		return tui.Run(tui.Config{
 			Ctx:            ctx,
 			Client:         client,
@@ -257,6 +264,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		},
 	}
 	live.BindAgent(agent)
+	providers.WarmChatModelCache()
 
 	pendingURLs := pendingImgURLs
 	pendingFiles := pendingImgFiles
@@ -660,10 +668,10 @@ func printChatHelpTo(w io.Writer) {
   /init         Print starter openclaude.yaml snippet (see openclaude.example.yaml, docs/CONFIG.md)
   /export       Transcript export: /export [json|md] [path] or /export <path> (JSON to file)
   /context, /tokens  Rough token estimate + message count + compact settings
-  /model [<id>] Show or set model for the active provider (updates session; TUI: not while busy)
+  /model [<id>] List models for the active provider, or set model id (TUI: Tab after "/model "; not while busy)
   /provider     Show active provider, model, base URL, credential hint
   /provider wizard  Plain REPL: stdin wizard. TUI: opens $EDITOR on config file + YAML/env guide
-  /provider <openai|ollama|gemini|github>  Switch provider (in-memory viper + new client)
+  /provider <openai|ollama|gemini|github|openrouter>  Switch provider (in-memory viper + new client)
   /provider show|status|help
   /mcp list    MCP tools connected in this process
   /mcp config  MCP servers from config file only (no subprocess)
@@ -690,7 +698,7 @@ Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch, WebFetch, GoO
 Vision: --image-url and --image-file attach to the first user message (REPL/TUI) or to -p one-shot; needs a vision-capable model.
 Workspace is the current working directory.
 
-Providers: openai (OPENAI_API_KEY), ollama (local), gemini (GEMINI_API_KEY or GOOGLE_API_KEY).
+Providers: openai (OPENAI_API_KEY; OPENROUTER_KEY ok if OPENAI_BASE_URL is OpenRouter), ollama (local), gemini (GEMINI_API_KEY or GOOGLE_API_KEY), github (GITHUB_TOKEN), openrouter (OPENROUTER_KEY).
 v3 users: .openclaude-profile.json in cwd or $HOME is merged automatically (under openclaude.yaml).
 See docs/CONFIG.md and openclaude doctor.
 

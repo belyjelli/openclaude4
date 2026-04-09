@@ -18,12 +18,14 @@ func NewStreamClient() (core.StreamClient, error) {
 		return openaicomp.NewGemini()
 	case "github":
 		return openaicomp.NewGitHubModels()
+	case "openrouter":
+		return openaicomp.NewOpenRouter()
 	case "codex":
 		return nil, ErrCodexNotImplemented
 	default:
 		name := config.ProviderName()
 		if name != "" && name != "openai" {
-			return nil, fmt.Errorf("unknown provider %q (try openai, ollama, gemini, or github)", name)
+			return nil, fmt.Errorf("unknown provider %q (try openai, ollama, gemini, github, or openrouter)", name)
 		}
 		return openaicomp.New()
 	}
@@ -51,6 +53,8 @@ func PingProviderBestEffort() string {
 		return pingOllama()
 	case "gemini":
 		return pingGemini()
+	case "openrouter":
+		return pingOpenRouter()
 	default:
 		return pingOpenAI()
 	}

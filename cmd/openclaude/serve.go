@@ -47,7 +47,13 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		switch {
 		case errors.Is(err, openaicomp.ErrMissingAPIKey):
-			_, _ = fmt.Fprintln(os.Stderr, "Error: set OPENAI_API_KEY (or use --provider ollama / gemini as appropriate).")
+			_, _ = fmt.Fprintln(os.Stderr, "Error: set OPENAI_API_KEY (or use --provider ollama / gemini / openrouter as appropriate).")
+			return err
+		case errors.Is(err, openaicomp.ErrMissingOpenRouterKey):
+			_, _ = fmt.Fprintln(os.Stderr, "Error: set OPENROUTER_KEY or OPENROUTER_API_KEY for provider openrouter.")
+			return err
+		case errors.Is(err, openaicomp.ErrMissingOpenRouterOrOpenAIKey):
+			_, _ = fmt.Fprintln(os.Stderr, "Error: set OPENAI_API_KEY or OPENROUTER_KEY when OPENAI_BASE_URL targets OpenRouter.")
 			return err
 		case errors.Is(err, openaicomp.ErrMissingGeminiKey):
 			_, _ = fmt.Fprintln(os.Stderr, "Error: set GEMINI_API_KEY or GOOGLE_API_KEY for provider gemini.")

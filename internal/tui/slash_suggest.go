@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gitlawb/openclaude4/internal/mcpclient"
+	"github.com/gitlawb/openclaude4/internal/providers"
 )
 
 func (m *model) applySuggestCompletion() {
@@ -15,7 +17,7 @@ func (m *model) applySuggestCompletion() {
 	e := m.slashMatches[m.slashSel]
 	val := m.ti.Value()
 	switch m.compMode {
-	case compSlashArg, compFile, compSkill:
+	case compSlashArg, compFile, compSkill, compMCPResource:
 		rs, re := m.replaceStart, m.replaceEnd
 		if rs < 0 || re < rs || rs > len(val) {
 			return
@@ -96,7 +98,7 @@ var staticSlashEntries = []slashEntry{
 	{primary: "model", hint: "show or set model id"},
 	{primary: "onboard", aliases: []string{"setup"}, hint: "onboarding hints"},
 	{primary: "permissions", hint: "auto-approve + MCP approval"},
-	{primary: "provider", hint: "show | wizard | openai|ollama|gemini|github"},
+	{primary: "provider", hint: "show | wizard | openai|ollama|gemini|github|openrouter"},
 	{primary: "resume", hint: "list or load session"},
 	{primary: "session", hint: "show | list | save | load | new | running | ps"},
 	{primary: "skills", hint: "list | read <name>"},
@@ -259,6 +261,10 @@ func (m *model) fillSlashOverlay(leading int, trimmed string) {
 		m.slashSel = 0
 		return
 	}
+	if strings.EqualFold(cmd, "model") {
+		m.fillModelSlashArgs(leading, trimmed, spaceIdx)
+		return
+	}
 	subs, ok := slashSubcommands[strings.ToLower(cmd)]
 	if !ok || len(subs) == 0 {
 		m.slashMatches = nil
@@ -272,6 +278,25 @@ func (m *model) fillSlashOverlay(leading int, trimmed string) {
 		lo := strings.ToLower(s)
 		if stem == "" || strings.HasPrefix(lo, stem) {
 			buf = append(buf, slashEntry{primary: s, hint: cmd})
+		}
+	}
+	m.slashMatches = buf
+	m.slashSuggestIsArg = true
+	m.compMode = compSlashArg
+	m.replaceStart = leading + ws
+	m.replaceEnd = leading + we
+	m.clampSlashSel()
+}
+
+func (m *model) fillModelSlashArgs(leading int, trimmed string, spaceIdx int) {
+	ws, we := argWordBoundsInTrimmed(trimmed, spaceIdx)
+	stem := strings.ToLower(trimmed[ws:we])
+	opts := providers.CachedChatModelIDsForSuggest()
+	var buf []slashEntry
+	for _, s := range opts {
+		lo := strings.ToLower(s)
+		if stem == "" || strings.HasPrefix(lo, stem) {
+			buf = append(buf, slashEntry{primary: s, hint: "model"})
 		}
 	}
 	m.slashMatches = buf
@@ -300,18 +325,22 @@ func (m *model) syncSuggestOverlay() {
 		m.fillSlashOverlay(leading, trimmed)
 		return
 	}
-	if m.compMode == compFile || m.compMode == compSkill {
-		m.refreshFileSkillOverlay(val)
+	if m.compMode == compFile || m.compMode == compSkill || m.compMode == compMCPResource {
+		m.refreshFileSkillMCPOverlay(val)
 		return
 	}
 	m.clearSuggestOverlay()
 }
 
-func (m *model) refreshFileSkillOverlay(val string) {
+func (m *model) refreshFileSkillMCPOverlay(val string) {
 	pos := m.ti.Position()
 	ts, te, token := tokenAtCursor(val, pos)
 	if token == "" {
 		m.clearSuggestOverlay()
+		return
+	}
+	if strings.HasPrefix(token, "@mcp:") {
+		m.fillMCPResourceOverlay(val, ts, te, token)
 		return
 	}
 	if strings.HasPrefix(token, "@") {
@@ -359,6 +388,44 @@ func (m *model) fillSkillOverlay(val string, ts, te int, token string) {
 	m.clampSlashSel()
 }
 
+func mcpResourceEntryHint(r mcpclient.MCPResource) string {
+	label := strings.TrimSpace(r.Title)
+	if label == "" {
+		label = strings.TrimSpace(r.Name)
+	}
+	srv := strings.TrimSpace(r.Server)
+	if label == "" {
+		return srv
+	}
+	if srv == "" {
+		return label
+	}
+	return srv + " · " + label
+}
+
+func (m *model) fillMCPResourceOverlay(val string, ts, te int, token string) {
+	if m.cfg.MCPManager == nil {
+		m.clearSuggestOverlay()
+		return
+	}
+	stem := strings.TrimPrefix(token, "@mcp:")
+	cands := m.cfg.MCPManager.ResourceSuggestCandidates(stem)
+	if len(cands) == 0 {
+		m.clearSuggestOverlay()
+		return
+	}
+	var buf []slashEntry
+	for _, r := range cands {
+		buf = append(buf, slashEntry{primary: r.URI, hint: mcpResourceEntryHint(r)})
+	}
+	m.slashMatches = buf
+	m.slashSel = 0
+	m.slashSuggestIsArg = false
+	m.compMode = compMCPResource
+	m.replaceStart, m.replaceEnd = ts, te
+	m.clampSlashSel()
+}
+
 func (m *model) rebuildSlashMatches() {
 	m.syncSuggestOverlay()
 }
@@ -388,6 +455,9 @@ func (m *model) tryExpandNonSlashTab() bool {
 	ts, te, token := tokenAtCursor(val, pos)
 	if token == "" {
 		return false
+	}
+	if strings.HasPrefix(token, "@mcp:") {
+		return m.tabExpandMCPResource(val, ts, te, token)
 	}
 	if strings.HasPrefix(token, "@") {
 		return m.tabExpandSkill(val, ts, te, token)
@@ -441,6 +511,35 @@ func (m *model) tabExpandSkill(val string, ts, te int, token string) bool {
 	m.slashSel = 0
 	m.slashSuggestIsArg = false
 	m.compMode = compSkill
+	m.replaceStart, m.replaceEnd = ts, te
+	m.slashEscDismiss = false
+	return true
+}
+
+func (m *model) tabExpandMCPResource(val string, ts, te int, token string) bool {
+	if m.cfg.MCPManager == nil {
+		return false
+	}
+	stem := strings.TrimPrefix(token, "@mcp:")
+	cands := m.cfg.MCPManager.ResourceSuggestCandidates(stem)
+	if len(cands) == 0 {
+		return false
+	}
+	if len(cands) == 1 {
+		rep := cands[0].URI
+		newVal := val[:ts] + rep + val[te:]
+		m.ti.SetValue(newVal)
+		m.ti.SetCursor(ts + len(rep))
+		return true
+	}
+	var buf []slashEntry
+	for _, r := range cands {
+		buf = append(buf, slashEntry{primary: r.URI, hint: mcpResourceEntryHint(r)})
+	}
+	m.slashMatches = buf
+	m.slashSel = 0
+	m.slashSuggestIsArg = false
+	m.compMode = compMCPResource
 	m.replaceStart, m.replaceEnd = ts, te
 	m.slashEscDismiss = false
 	return true

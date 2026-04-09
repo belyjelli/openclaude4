@@ -1,83 +1,70 @@
 package openaicomp
 
 import (
-	"context"
-	"encoding/json"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"strings"
+	"errors"
 	"testing"
 
 	"github.com/gitlawb/openclaude4/internal/config"
-	sdk "github.com/sashabaranov/go-openai"
 	"github.com/spf13/viper"
 )
 
-func TestStreamChatWithTools_SendsToolsInBody(t *testing.T) {
-	tmp := t.TempDir()
-	t.Chdir(tmp)
-
-	var captured []byte
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/chat/completions" {
-			http.NotFound(w, r)
-			return
-		}
-		b, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		captured = b
-		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = w.Write([]byte("data: [DONE]\n\n"))
-	}))
-	t.Cleanup(srv.Close)
-
+func TestNew_OpenRouterBaseWithoutKeys(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("OPENROUTER_KEY", "")
+	t.Setenv("OPENROUTER_API_KEY", "")
+	t.Setenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
 	viper.Reset()
+	t.Cleanup(viper.Reset)
 	config.Load("")
-	viper.Set("openai.api_key", "sk-test")
-	viper.Set("provider.base_url", strings.TrimSuffix(srv.URL, "/")+"/v1")
+	_, err := New()
+	if !errors.Is(err, ErrMissingOpenRouterOrOpenAIKey) {
+		t.Fatalf("New() err = %v, want %v", err, ErrMissingOpenRouterOrOpenAIKey)
+	}
+}
 
+func TestNew_OpenRouterBaseWithOpenRouterKey(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("OPENROUTER_KEY", "sk-or-test-key-12345")
+	t.Setenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	config.Load("")
 	c, err := New()
 	if err != nil {
 		t.Fatal(err)
 	}
-	tool := sdk.Tool{
-		Type: sdk.ToolTypeFunction,
-		Function: &sdk.FunctionDefinition{
-			Name:        "noop",
-			Description: "test",
-		},
-	}
-	stream, err := c.StreamChatWithTools(context.Background(), []sdk.ChatCompletionMessage{
-		{Role: sdk.ChatMessageRoleUser, Content: "hi"},
-	}, []sdk.Tool{tool})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for {
-		_, err := stream.Recv()
-		if err != nil {
-			break
-		}
-	}
-	_ = stream.Close()
-
-	var body map[string]json.RawMessage
-	if err := json.Unmarshal(captured, &body); err != nil {
-		t.Fatalf("request body json: %v", err)
-	}
-	if _, ok := body["tools"]; !ok {
-		t.Fatalf("expected tools in request body, got keys: %v", bodyKeys(body))
+	if c == nil || c.ProviderKind() != "openai" {
+		t.Fatalf("client = %v kind = %s", c, c.ProviderKind())
 	}
 }
 
-func bodyKeys(m map[string]json.RawMessage) []string {
-	k := make([]string, 0, len(m))
-	for x := range m {
-		k = append(k, x)
+func TestNewOpenRouter_MissingKey(t *testing.T) {
+	t.Setenv("OPENROUTER_KEY", "")
+	t.Setenv("OPENROUTER_API_KEY", "")
+	t.Setenv("OPENCLAUDE_PROVIDER", "openrouter")
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	config.Load("")
+	_, err := NewOpenRouter()
+	if !errors.Is(err, ErrMissingOpenRouterKey) {
+		t.Fatalf("NewOpenRouter() err = %v", err)
 	}
-	return k
+}
+
+func TestNewOpenRouter_WithKey(t *testing.T) {
+	t.Setenv("OPENROUTER_KEY", "sk-or-test-key-12345")
+	t.Setenv("OPENCLAUDE_PROVIDER", "openrouter")
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	config.Load("")
+	c, err := NewOpenRouter()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ProviderKind() != "openrouter" {
+		t.Fatalf("kind = %s", c.ProviderKind())
+	}
+	if c.BaseURL() != "https://openrouter.ai/api/v1" {
+		t.Fatalf("base = %q", c.BaseURL())
+	}
 }

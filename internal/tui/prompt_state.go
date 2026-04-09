@@ -11,7 +11,7 @@ func (m *model) syncPlaceholder() {
 	if m.userSubmitCount < 1 {
 		b.WriteString("Try: Summarize README in this directory · ")
 	}
-	b.WriteString("Message… · Enter send · Shift+Tab approvals · ↑↓ history · prefix+↑ match · Tab paths/@skills · ? help · /help")
+	b.WriteString("Message… · Enter send · Shift+Tab approvals · ↑↓ history · prefix+↑ match · Tab paths/@skills/@mcp: · ? help · /help")
 	m.ti.Placeholder = b.String()
 }
 

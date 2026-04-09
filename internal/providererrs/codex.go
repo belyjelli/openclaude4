@@ -11,6 +11,7 @@ Alternatives:
   - Use OPENCLAUDE_PROVIDER=openai with a compatible endpoint
   - Use OPENCLAUDE_PROVIDER=ollama for local inference
   - Use OPENCLAUDE_PROVIDER=gemini for Google's Gemini models
+  - Use OPENCLAUDE_PROVIDER=openrouter with OPENROUTER_KEY for OpenRouter
   - Run the v3 TypeScript CLI: npm install -g @anthropics/openclaude && openclaude
 
 Contributing: If you need Codex support, consider implementing it as a new provider

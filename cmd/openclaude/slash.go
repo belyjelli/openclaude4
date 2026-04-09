@@ -145,12 +145,12 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 			_, _ = fmt.Fprint(out, `/provider              Show active provider, model, base URL, credential hint
 /provider wizard      Setup hints (stdin REPL) or open $EDITOR on config (TUI)
 /provider show        Same as bare /provider
-/provider <name>     Switch provider: openai | ollama | gemini | github (in-memory; also sets provider.name)
+/provider <name>     Switch provider: openai | ollama | gemini | github | openrouter (in-memory; also sets provider.name)
 `)
-		case "openai", "ollama", "gemini", "github":
+		case "openai", "ollama", "gemini", "github", "openrouter":
 			return slashSetProvider(st, sub, out)
 		default:
-			return fmt.Errorf("unknown /provider %q — try /provider wizard, /provider <openai|ollama|gemini|github>, or /provider help", args[0])
+			return fmt.Errorf("unknown /provider %q — try /provider wizard, /provider <openai|ollama|gemini|github|openrouter>, or /provider help", args[0])
 		}
 	default:
 		if st.skillCat != nil {
@@ -313,9 +313,11 @@ Shell: openclaude mcp list | doctor | add
 
 func printOnboardHints(w io.Writer) {
 	const text = `Onboarding (see docs/CONFIG.md):
-  openai   OPENAI_API_KEY  optional OPENAI_BASE_URL / OPENAI_MODEL
+  openai   OPENAI_API_KEY  optional OPENAI_BASE_URL / OPENAI_MODEL (OPENROUTER_KEY if base is OpenRouter)
   ollama   OPENCLAUDE_PROVIDER=ollama  optional OLLAMA_HOST / OLLAMA_MODEL
   gemini   OPENCLAUDE_PROVIDER=gemini  GEMINI_API_KEY or GOOGLE_API_KEY
+  github   OPENCLAUDE_PROVIDER=github  GITHUB_TOKEN  optional GITHUB_BASE_URL / GITHUB_MODEL
+  openrouter OPENCLAUDE_PROVIDER=openrouter  OPENROUTER_KEY  optional OPENROUTER_MODEL / OPENAI_BASE_URL
 
 Verify: openclaude doctor
 Saved + running processes: openclaude sessions

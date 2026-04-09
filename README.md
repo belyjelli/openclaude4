@@ -1,6 +1,6 @@
 # OpenClaude v4
 
-Greenfield rewrite of [OpenClaude](https://github.com/Gitlawb/openclaude) (v3 lives in **openclaude3**). This repository holds design docs and a **Go CLI** with multi-provider config (**OpenAI-compatible**, **Ollama**, **Gemini**), v3 profile import, and Phase 1 tools.
+Greenfield rewrite of [OpenClaude](https://github.com/Gitlawb/openclaude) (v3 lives in **openclaude3**). This repository holds design docs and a **Go CLI** with multi-provider config (**OpenAI-compatible**, **Ollama**, **Gemini**, **OpenRouter**), v3 profile import, and Phase 1 tools.
 
 ## Build (Go)
 
@@ -32,6 +32,17 @@ export OPENCLAUDE_PROVIDER=gemini
 export GEMINI_API_KEY=...   # or GOOGLE_API_KEY
 ./openclaude
 ```
+
+### Run (OpenRouter)
+
+```bash
+export OPENCLAUDE_PROVIDER=openrouter
+export OPENROUTER_KEY=...   # or OPENROUTER_API_KEY
+# optional: export OPENROUTER_MODEL=openai/gpt-4o-mini
+./openclaude
+```
+
+Or keep `provider: openai` and set `OPENAI_BASE_URL=https://openrouter.ai/api/v1` with `OPENROUTER_KEY` if `OPENAI_API_KEY` is unset.
 
 **CLI:** `./openclaude version`, `./openclaude doctor`, **`./openclaude mcp list`** / **`mcp doctor`** / **`mcp add`**, **`./openclaude serve`** (gRPC `openclaude.v4.AgentService`; see [internal/grpc/README.md](./internal/grpc/README.md)), `./openclaude --help`  
 **Flags:** `--config`, `--provider`, `--model`, `--base-url`, `--print` / `-p` (one-shot script/CI; final reply on stdout), `--tui`, `--session`, `--resume`, `--list-sessions`, `--no-session`  

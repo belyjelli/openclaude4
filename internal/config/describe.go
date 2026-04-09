@@ -57,6 +57,9 @@ func DescribeEffectiveConfig(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "Effective (non-secret):")
 	_, _ = fmt.Fprintf(w, "  provider: %s\n", ProviderName())
 	_, _ = fmt.Fprintf(w, "  model: %s\n", Model())
+	if k := OpenRouterAPIKey(); k != "" {
+		_, _ = fmt.Fprintf(w, "  openrouter: api_key=(set, len=%d)  provider_filter=%q\n", len(k), OpenRouterProviderFilter())
+	}
 	_, _ = fmt.Fprintf(w, "  sessions: disabled=%v  dir=%s\n", SessionDisabled(), EffectiveSessionDir())
 
 	srv := MCPServers()

@@ -190,7 +190,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ti, cmd = m.ti.Update(msg)
 			if m.ti.Value() != oldInput {
 				m.resetHistoryNavigationOnEdit()
-				if m.compMode == compFile || m.compMode == compSkill {
+				if m.compMode == compFile || m.compMode == compSkill || m.compMode == compMCPResource {
 					m.clearSuggestOverlay()
 				}
 			}
@@ -403,7 +403,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ti, cmd = m.ti.Update(msg)
 		if m.ti.Value() != oldInput {
 			m.resetHistoryNavigationOnEdit()
-			if m.compMode == compFile || m.compMode == compSkill {
+			if m.compMode == compFile || m.compMode == compSkill || m.compMode == compMCPResource {
 				m.clearSuggestOverlay()
 			}
 		}
@@ -780,8 +780,8 @@ func (m *model) View() string {
 		}
 	}
 	inner := lipgloss.JoinHorizontal(lipgloss.Left, vimSeg, m.promptCharRendered(), m.ti.View())
-	inputLine := promptBoxStyle.Width(m.width).Render(inner)
-	rule := dimStyle.Width(m.width).Render(horizontalRule(m.width))
+	inputLine := promptRowStyle.Width(m.width).Render(inner)
+	topLine := dimStyle.Width(m.width).Render(horizontalRule(m.width))
 	th := config.SessionCompactTokenThreshold()
 	left := buildFooterLeft(autoApproveEnabled(m.cfg.AutoApprove), m.cfg.MCPManager)
 	right := buildCompactMeterRight(m.cfg.Messages, th)
@@ -789,7 +789,7 @@ func (m *model) View() string {
 		right = "auto-compact off"
 	}
 	hintRow := formatFooterRow(left, right, m.width)
-	promptStack := lipgloss.JoinVertical(lipgloss.Left, rule, inputLine, rule, hintRow)
+	promptStack := lipgloss.JoinVertical(lipgloss.Left, topLine, inputLine, hintRow)
 
 	slashBlock := renderSlashSuggestions(m.width, m.slashMatches, m.slashSel, m.slashSuggestIsArg)
 

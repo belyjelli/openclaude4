@@ -16,7 +16,7 @@ var rootCmd = &cobra.Command{
 
 Config: env vars, optional openclaude.yaml, optional v3 .openclaude-profile.json (see docs/CONFIG.md). Examples:
   OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL
-  OPENCLAUDE_PROVIDER=ollama|gemini, OLLAMA_*, GEMINI_API_KEY / GOOGLE_API_KEY`,
+  OPENCLAUDE_PROVIDER=ollama|gemini|openrouter, OLLAMA_*, GEMINI_API_KEY / GOOGLE_API_KEY, OPENROUTER_KEY`,
 	RunE: runChat,
 }
 
@@ -24,7 +24,7 @@ func init() {
 	config.InitSessionDefaults()
 
 	rootCmd.PersistentFlags().String("config", "", "Path to config file (yaml/json); overrides default search paths")
-	rootCmd.PersistentFlags().String("provider", "", "Provider: openai, ollama, or gemini (overrides OPENCLAUDE_PROVIDER)")
+	rootCmd.PersistentFlags().String("provider", "", "Provider: openai, ollama, gemini, github, or openrouter (overrides OPENCLAUDE_PROVIDER)")
 	rootCmd.PersistentFlags().String("model", "", "Chat model (provider-specific default if empty)")
 	rootCmd.PersistentFlags().String("base-url", "", "OpenAI-compatible API base URL (OpenAI provider only)")
 

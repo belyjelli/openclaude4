@@ -56,3 +56,16 @@ func TestRunProviderInteractiveWizard_GitHub(t *testing.T) {
 		t.Fatalf("missing github yaml: %q", s)
 	}
 }
+
+func TestRunProviderInteractiveWizard_OpenRouter(t *testing.T) {
+	t.Parallel()
+	in := strings.NewReader("5\n\n\n")
+	var buf bytes.Buffer
+	if err := runProviderInteractiveWizard(&buf, in, nil); err != nil {
+		t.Fatal(err)
+	}
+	s := buf.String()
+	if !strings.Contains(s, `name: openrouter`) || !strings.Contains(s, "openai/gpt-4o-mini") {
+		t.Fatalf("missing openrouter yaml: %q", s)
+	}
+}

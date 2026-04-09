@@ -39,14 +39,23 @@ func (doctorBannerClient) BaseURL() string {
 		return config.GeminiBaseURL()
 	case "github":
 		return config.GitHubModelsBaseURL()
+	case "openrouter":
+		return config.OpenRouterChatBase()
 	default:
 		return config.BaseURL()
 	}
 }
 
 func (doctorBannerClient) RedactedAPIKeySummary() string {
-	if config.APIKey() != "" {
-		return "set"
+	switch strings.ToLower(strings.TrimSpace(config.ProviderName())) {
+	case "openrouter":
+		if config.OpenRouterAPIKey() != "" {
+			return "set"
+		}
+	default:
+		if config.EffectiveOpenAICompatAPIKey() != "" {
+			return "set"
+		}
 	}
 	return "not set"
 }

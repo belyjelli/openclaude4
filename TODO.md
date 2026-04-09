@@ -66,7 +66,7 @@ v3 reference: Ink [`PromptInput`](https://github.com/Gitlawb/openclaude/tree/mai
 
 - [x] **Tab path completion** (token under cursor, local filesystem) — [`pathCompletionMatches`](./internal/tui/suggest_extra.go) + [`tryExpandNonSlashTab`](./internal/tui/slash_suggest.go)
 - [x] **`@skill` prefix** completions — [`tabExpandSkill`](./internal/tui/slash_suggest.go) + [`SkillNames`](./internal/tui/model.go) config
-- [ ] Optional: **MCP resource** completion when the manager exposes list/search
+- [x] Optional: **MCP resource** completion when the manager exposes list/search (`@mcp:` + Tab; [`mcpclient.Manager.ResourceSuggestCandidates`](./internal/mcpclient/manager.go), resources listed at connect when server advertises capability)
 - [ ] Optional: **footer suggestion row** or ghost text for non-slash completions (may need richer than bubbles `textinput` alone)
 - [x] **Slash argument completion** after `/cmd ` — [`slashSubcommands`](./internal/tui/suggest_extra.go) + [`fillSlashOverlay`](./internal/tui/slash_suggest.go)
 
