@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -64,6 +65,11 @@ type model struct {
 	vp                viewport.Model
 	ti                textinput.Model
 	busy              bool
+	busyFrame         int
+	busyVerb          string
+	busyStart         time.Time
+	seenAsstDelta     bool
+	busyReduceMotion  bool
 	perm              *permState
 	width             int
 	height            int
@@ -140,6 +146,7 @@ func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *p
 		slashAll:          buildSlashIndex(cfg.SkillNames),
 		historyIdx:        -1,
 		replaceStart:      -1,
+		busyReduceMotion:  reduceMotionFromEnv(),
 	}
 	m.syncPlaceholder()
 	if cfg.Banner != "" {
@@ -167,6 +174,13 @@ func (m *model) Init() tea.Cmd {
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case busyTickMsg:
+		if !m.busy && m.runningTool == "" {
+			return m, nil
+		}
+		m.busyFrame++
+		return m, nextBusyTick()
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -516,7 +530,7 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 		send(runTurnDoneMsg{clearImages: clear})
 	}(parts, hasVis)
 
-	return m, nil
+	return m, nextBusyTick()
 }
 
 func (m *model) headerSubLines() int {
@@ -533,6 +547,7 @@ func (m *model) applyKernel(e core.Event) {
 	case core.KindUserMessage:
 		m.commitLine(userStyle.Render("You") + ": " + e.UserText)
 	case core.KindAssistantTextDelta:
+		m.seenAsstDelta = true
 		m.stickBottom = true
 		m.liveAsst.WriteString(e.TextChunk)
 		m.syncVP()
@@ -634,6 +649,14 @@ func max(a, b int) int {
 
 func (m *model) setBusy(v bool) {
 	m.busy = v
+	if v {
+		m.busyVerb = pickSpinnerVerb()
+		m.busyFrame = 0
+		m.busyStart = time.Now()
+		m.seenAsstDelta = false
+	} else {
+		m.busyStart = time.Time{}
+	}
 	if m.cfg.Busy != nil {
 		if v {
 			atomic.StoreInt32(m.cfg.Busy, 1)
@@ -740,13 +763,8 @@ func (m *model) View() string {
 	}
 	sub := dimStyle.Width(m.width).Render(status)
 	if m.busy || m.runningTool != "" {
-		var w strings.Builder
-		w.WriteString("working…")
-		if m.runningTool != "" {
-			w.WriteString(" · ")
-			w.WriteString(m.runningTool)
-		}
-		sub = lipgloss.JoinVertical(lipgloss.Left, sub, dimStyle.Width(m.width).Render(w.String()))
+		busyLine := m.renderBusyAnimationLine()
+		sub = lipgloss.JoinVertical(lipgloss.Left, sub, busyLine)
 	}
 	toastLine := m.renderToastLine()
 	body := m.vp.View()
