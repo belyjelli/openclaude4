@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/providers"
 )
@@ -46,7 +47,17 @@ func (m *model) applySuggestCompletion() {
 	m.syncSuggestOverlay()
 }
 
-const slashSuggestMaxRows = 4
+const slashSuggestMaxRows = 6
+
+// Gap between command column and description column (cells).
+const slashSuggestColGap = 2
+
+// Selected row in the suggestion overlay: purple background, orange label, pink hint.
+var (
+	slashSuggestSelBG     = lipgloss.Color("#5B21B6")
+	slashSuggestSelFG     = lipgloss.Color("#FF9100")
+	slashSuggestSelHintFG = lipgloss.Color("#F9A8D4")
+)
 
 // slashEntry is one completable slash command (primary name without leading /).
 type slashEntry struct {
@@ -57,6 +68,92 @@ type slashEntry struct {
 
 func (e slashEntry) display() string {
 	return "/" + e.primary
+}
+
+func slashPrimaryStr(e slashEntry, argMode bool) string {
+	if argMode {
+		return e.primary
+	}
+	return e.display()
+}
+
+// slashSuggestColumnWidths picks a fixed command-column width for all visible rows so labels align.
+func slashSuggestColumnWidths(width int, win []slashEntry, argMode bool) (col1W, gap int) {
+	gap = slashSuggestColGap
+	if len(win) == 0 || width < 1 {
+		return 1, gap
+	}
+	maxP := 0
+	for _, e := range win {
+		w := ansi.StringWidth(slashPrimaryStr(e, argMode))
+		if w > maxP {
+			maxP = w
+		}
+	}
+	minHint := 6
+	maxCol1 := width - gap - minHint
+	if maxCol1 < 1 {
+		maxCol1 = 1
+	}
+	col1W = maxP
+	if col1W > maxCol1 {
+		col1W = maxCol1
+	}
+	if col1W < 1 {
+		col1W = 1
+	}
+	if col1W+gap+1 > width {
+		col1W = max(1, width-gap-1)
+	}
+	return col1W, gap
+}
+
+func renderSlashSuggestRow(width, col1W, gap int, e slashEntry, argMode, isSelected bool) string {
+	col2W := width - col1W - gap
+	if col2W < 1 {
+		col2W = 1
+	}
+	primaryStr := slashPrimaryStr(e, argMode)
+	hint := e.hint
+
+	pShow := primaryStr
+	if ansi.StringWidth(pShow) > col1W {
+		pShow = ansi.Truncate(pShow, col1W, "…")
+	}
+	hShow := hint
+	if hShow != "" && ansi.StringWidth(hShow) > col2W {
+		hShow = ansi.Truncate(hShow, col2W, "…")
+	}
+
+	if isSelected {
+		bg := slashSuggestSelBG
+		left := lipgloss.NewStyle().Bold(true).Foreground(slashSuggestSelFG).Background(bg).Render(pShow)
+		leftCell := lipgloss.PlaceHorizontal(col1W, lipgloss.Left, left,
+			lipgloss.WithWhitespaceBackground(bg),
+			lipgloss.WithWhitespaceChars(" "),
+		)
+		var right string
+		if hint != "" {
+			right = lipgloss.NewStyle().Foreground(slashSuggestSelHintFG).Background(bg).Render(hShow)
+		}
+		rightCell := lipgloss.PlaceHorizontal(col2W, lipgloss.Left, right,
+			lipgloss.WithWhitespaceBackground(bg),
+			lipgloss.WithWhitespaceChars(" "),
+		)
+		gapStr := lipgloss.NewStyle().Background(bg).Inline(true).Render(strings.Repeat(" ", gap))
+		row := lipgloss.JoinHorizontal(lipgloss.Top, leftCell, gapStr, rightCell)
+		return lipgloss.NewStyle().Background(bg).Inline(true).Render(row)
+	}
+
+	leftCell := lipgloss.PlaceHorizontal(col1W, lipgloss.Left, lipgloss.NewStyle().Render(pShow),
+		lipgloss.WithWhitespaceChars(" "))
+	var right string
+	if hint != "" {
+		right = dimStyle.Render(hShow)
+	}
+	rightCell := lipgloss.PlaceHorizontal(col2W, lipgloss.Left, right,
+		lipgloss.WithWhitespaceChars(" "))
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftCell, strings.Repeat(" ", gap), rightCell)
 }
 
 func (e slashEntry) matchesStem(stem string) bool {
@@ -212,20 +309,11 @@ func renderSlashSuggestions(width int, matches []slashEntry, selected int, argMo
 	}
 	header := dimStyle.Width(width).Render("Tab complete · Shift+Tab prev · ↑↓ select · Esc hide · Shift+Tab approvals when hidden")
 	start, win := visibleSlashWindow(matches, selected)
+	col1W, colGap := slashSuggestColumnWidths(width, win, argMode)
 	rows := make([]string, 0, len(win))
 	for i, e := range win {
 		global := start + i
-		line := e.display()
-		if argMode {
-			line = e.primary
-		}
-		if e.hint != "" {
-			line += "  " + dimStyle.Render(e.hint)
-		}
-		if global == selected {
-			line = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")).Render(line)
-		}
-		rows = append(rows, lipgloss.NewStyle().Width(width).Render(line))
+		rows = append(rows, renderSlashSuggestRow(width, col1W, colGap, e, argMode, global == selected))
 	}
 	if len(matches) > slashSuggestMaxRows {
 		more := len(matches) - slashSuggestMaxRows
