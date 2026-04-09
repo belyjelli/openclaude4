@@ -86,4 +86,5 @@ func bindViperEnv() {
 	_ = viper.BindEnv("openrouter.provider", "OPENROUTER_PROVIDER")
 	_ = viper.BindEnv("openrouter.model", "OPENROUTER_MODEL")
 	_ = viper.BindEnv("agent_routing.task_model", "OPENCLAUDE_AGENT_TASK_MODEL")
+	_ = viper.BindEnv("tui.busy_verbose_tokens", "OPENCLAUDE_TUI_BUSY_VERBOSE_TOKENS")
 }

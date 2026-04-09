@@ -6,17 +6,23 @@ import (
 	"os"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gitlawb/openclaude4/internal/config"
+	"github.com/gitlawb/openclaude4/internal/session"
 )
 
 const (
 	busyTickInterval   = 50 * time.Millisecond
 	busyShowElapsed    = 3 * time.Second
-	reduceMotionFrames = 20 // ~1s pulse at 50ms ticks
+	busyShowTokens     = 30 * time.Second // v3 SHOW_TOKENS_AFTER_MS
+	reduceMotionFrames = 20              // ~1s pulse at 50ms ticks
+	stallQuietAfter    = 3 * time.Second // v3 useStalledAnimation: red after 3s no growth
+	stallRampDuration  = 2 * time.Second // v3: full red over 2s after threshold
 )
 
 type busyTickMsg time.Time
@@ -52,12 +58,128 @@ func reduceMotionFromEnv() bool {
 	return false
 }
 
-func pickSpinnerVerb() string {
-	verbs := parsedSpinnerVerbs
+// effectiveSpinnerVerbs merges built-in verbs with config tui.spinner_verbs (v3 parity).
+func effectiveSpinnerVerbs() []string {
+	replace, extra := config.TUISpinnerVerbConfig()
+	if len(extra) == 0 {
+		return parsedSpinnerVerbs
+	}
+	if replace {
+		return extra
+	}
+	out := make([]string, 0, len(parsedSpinnerVerbs)+len(extra))
+	out = append(out, parsedSpinnerVerbs...)
+	out = append(out, extra...)
+	return out
+}
+
+func (m *model) pickBusyLineVerb() string {
+	if m.cfg.BusySpinnerVerb != nil {
+		if v := strings.TrimSpace(m.cfg.BusySpinnerVerb()); v != "" {
+			return v
+		}
+	}
+	verbs := effectiveSpinnerVerbs()
 	if len(verbs) == 0 {
 		return "Working"
 	}
 	return verbs[rand.N(len(verbs))]
+}
+
+func (m *model) smoothStallTowards(target float64) {
+	if m.busyReduceMotion {
+		m.stallSmoothed = target
+		return
+	}
+	diff := target - m.stallSmoothed
+	if diff > -0.01 && diff < 0.01 {
+		m.stallSmoothed = target
+		return
+	}
+	m.stallSmoothed += diff * 0.1
+}
+
+func (m *model) stallTargetIntensity(now time.Time) float64 {
+	if m.runningTool != "" {
+		return 0
+	}
+	var since time.Duration
+	if m.liveAsst.Len() == 0 && !m.seenAsstDelta {
+		since = now.Sub(m.busyStart)
+	} else {
+		since = now.Sub(m.lastStreamChange)
+	}
+	if since <= stallQuietAfter {
+		return 0
+	}
+	excess := float64(since - stallQuietAfter)
+	intensity := excess / float64(stallRampDuration)
+	if intensity > 1 {
+		return 1
+	}
+	return intensity
+}
+
+func formatBusyInt(n int) string {
+	if n < 0 {
+		n = 0
+	}
+	s := strconv.Itoa(n)
+	if len(s) <= 4 {
+		return s
+	}
+	var b strings.Builder
+	lead := len(s) % 3
+	if lead == 0 {
+		lead = 3
+	}
+	b.WriteString(s[:lead])
+	for i := lead; i < len(s); i += 3 {
+		b.WriteByte(',')
+		b.WriteString(s[i : i+3])
+	}
+	return b.String()
+}
+
+func (m *model) showBusyLineTokens() bool {
+	if m.cfg.Messages == nil {
+		return false
+	}
+	if config.TUIBusyLineVerboseTokens() {
+		return true
+	}
+	if m.busyStart.IsZero() {
+		return false
+	}
+	return time.Since(m.busyStart) >= busyShowTokens
+}
+
+func (m *model) busyLineTokenSegment() string {
+	if !m.showBusyLineTokens() {
+		return ""
+	}
+	msgs := *m.cfg.Messages
+	n := session.RoughTokenEstimate(msgs)
+	// v3 leader: "↓ N tokens"
+	return dimStyle.Render("↓ " + formatBusyInt(n) + " tokens")
+}
+
+func spinnerStyleForStall(t float64) lipgloss.Style {
+	if t <= 0 {
+		return promptCharStyle
+	}
+	if t >= 1 {
+		return errStyle
+	}
+	// Approximate lerp from warm accent (xterm 214-ish) toward err red (xterm 203-ish).
+	const (
+		loR, loG, loB = 255, 175, 95
+		hiR, hiG, hiB = 255, 95, 175
+	)
+	r := uint8(float64(loR) + t*float64(hiR-loR))
+	g := uint8(float64(loG) + t*float64(hiG-loG))
+	b := uint8(float64(loB) + t*float64(hiB-loB))
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", r, g, b)))
 }
 
 func formatBusyElapsed(d time.Duration) string {
@@ -133,17 +255,18 @@ func (m *model) glimmerRunes(s string, frame int) string {
 
 func (m *model) renderSpinnerGlyph() string {
 	if len(spinnerFrameRunes) == 0 {
-		return promptCharStyle.Render("·")
+		return spinnerStyleForStall(m.stallSmoothed).Render("·")
 	}
 	if m.busyReduceMotion {
 		dim := (m.busyFrame/reduceMotionFrames)%2 == 1
+		st := spinnerStyleForStall(m.stallSmoothed)
 		if dim {
 			return dimStyle.Render("●")
 		}
-		return promptCharStyle.Render("●")
+		return st.Render("●")
 	}
 	r := spinnerFrameRunes[m.busyFrame%len(spinnerFrameRunes)]
-	return promptCharStyle.Render(string(r))
+	return spinnerStyleForStall(m.stallSmoothed).Render(string(r))
 }
 
 func (m *model) renderBusyAnimationLine() string {
@@ -176,6 +299,8 @@ func (m *model) renderBusyAnimationLine() string {
 		}
 	}
 
+	tokenSeg := m.busyLineTokenSegment()
+
 	rv := []rune(verb)
 	for len(rv) >= 3 {
 		msg := m.glimmerRunes(string(rv)+ellipsis, m.busyFrame)
@@ -185,6 +310,9 @@ func (m *model) renderBusyAnimationLine() string {
 		}
 		if toolSeg != "" {
 			parts = append(parts, toolSeg)
+		}
+		if tokenSeg != "" {
+			parts = append(parts, tokenSeg)
 		}
 		if elapsedSeg != "" {
 			parts = append(parts, elapsedSeg)

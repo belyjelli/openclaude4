@@ -6,6 +6,28 @@ import (
 	"time"
 )
 
+func TestStallTargetIntensityToolSuppresses(t *testing.T) {
+	t.Parallel()
+	m := &model{
+		runningTool:      "bash",
+		busyStart:        time.Now().Add(-10 * time.Minute),
+		lastStreamChange: time.Now().Add(-10 * time.Minute),
+	}
+	if m.stallTargetIntensity(time.Now()) != 0 {
+		t.Fatalf("expected 0 with active tool")
+	}
+}
+
+func TestPickBusyLineVerbOverride(t *testing.T) {
+	t.Parallel()
+	m := &model{cfg: Config{
+		BusySpinnerVerb: func() string { return "  CustomTask  " },
+	}}
+	if g := m.pickBusyLineVerb(); g != "CustomTask" {
+		t.Fatalf("got %q", g)
+	}
+}
+
 func TestJoinBusyParts(t *testing.T) {
 	t.Parallel()
 	s := joinBusyParts("a", "", "b")
@@ -24,14 +46,25 @@ func TestFormatBusyElapsed(t *testing.T) {
 	}
 }
 
-func TestPickSpinnerVerb(t *testing.T) {
+func TestPickBusyLineVerb(t *testing.T) {
 	t.Parallel()
 	if len(parsedSpinnerVerbs) == 0 {
 		t.Fatal("parsedSpinnerVerbs empty")
 	}
-	v := pickSpinnerVerb()
+	m := &model{cfg: Config{}}
+	v := m.pickBusyLineVerb()
 	if strings.TrimSpace(v) == "" {
 		t.Fatal("empty verb")
+	}
+}
+
+func TestFormatBusyInt(t *testing.T) {
+	t.Parallel()
+	if g := formatBusyInt(999); g != "999" {
+		t.Fatalf("got %q", g)
+	}
+	if g := formatBusyInt(10000); g != "10,000" {
+		t.Fatalf("got %q", g)
 	}
 }
 

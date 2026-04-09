@@ -22,6 +22,7 @@ Config: env vars, optional openclaude.yaml, optional v3 .openclaude-profile.json
 
 func init() {
 	config.InitSessionDefaults()
+	config.InitTUIDefaults()
 
 	rootCmd.PersistentFlags().String("config", "", "Path to config file (yaml/json); overrides default search paths")
 	rootCmd.PersistentFlags().String("provider", "", "Provider: openai, ollama, gemini, github, or openrouter (overrides OPENCLAUDE_PROVIDER)")

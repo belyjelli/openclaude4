@@ -57,6 +57,9 @@ type Config struct {
 	VimKeys *VimKeysHolder
 	// SkillNames returns loaded skill names for /-completion (optional).
 	SkillNames func() []string
+	// BusySpinnerVerb returns a task- or teammate-driven loading verb (e.g. current todo active form).
+	// If nil or it returns "", a random verb from the built-in/configured pool is used (v3 parity hook).
+	BusySpinnerVerb func() string
 }
 
 type model struct {
@@ -70,6 +73,8 @@ type model struct {
 	busyStart         time.Time
 	seenAsstDelta     bool
 	busyReduceMotion  bool
+	lastStreamChange  time.Time
+	stallSmoothed     float64
 	perm              *permState
 	width             int
 	height            int
@@ -179,6 +184,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.busyFrame++
+		m.smoothStallTowards(m.stallTargetIntensity(time.Now()))
 		return m, nextBusyTick()
 
 	case tea.WindowSizeMsg:
@@ -550,6 +556,9 @@ func (m *model) applyKernel(e core.Event) {
 		m.seenAsstDelta = true
 		m.stickBottom = true
 		m.liveAsst.WriteString(e.TextChunk)
+		if e.TextChunk != "" {
+			m.lastStreamChange = time.Now()
+		}
 		m.syncVP()
 	case core.KindAssistantFinished:
 		txt := strings.TrimSpace(m.liveAsst.String())
@@ -557,6 +566,7 @@ func (m *model) applyKernel(e core.Event) {
 			txt = strings.TrimSpace(e.AssistantText)
 		}
 		m.liveAsst.Reset()
+		m.lastStreamChange = time.Now()
 		if txt == "" {
 			m.syncVP()
 			break
@@ -578,6 +588,7 @@ func (m *model) applyKernel(e core.Event) {
 		m.syncVP()
 	case core.KindToolCall:
 		m.runningTool = e.ToolName
+		m.lastStreamChange = time.Now()
 		args := formatToolArgs(e.ToolArgsJSON, e.ToolArgs)
 		hdr := toolStyle.Render("Tool") + ": " + e.ToolName
 		m.commitLine(hdr + "\n" + dimStyle.Render(args))
@@ -595,6 +606,7 @@ func (m *model) applyKernel(e core.Event) {
 		}
 	case core.KindToolResult:
 		m.runningTool = ""
+		m.lastStreamChange = time.Now()
 		var b strings.Builder
 		b.WriteString(dimStyle.Render("Result (" + e.ToolName + "): "))
 		if e.ToolExecError != "" {
@@ -650,12 +662,15 @@ func max(a, b int) int {
 func (m *model) setBusy(v bool) {
 	m.busy = v
 	if v {
-		m.busyVerb = pickSpinnerVerb()
+		m.busyVerb = m.pickBusyLineVerb()
 		m.busyFrame = 0
 		m.busyStart = time.Now()
+		m.lastStreamChange = time.Now()
+		m.stallSmoothed = 0
 		m.seenAsstDelta = false
 	} else {
 		m.busyStart = time.Time{}
+		m.stallSmoothed = 0
 	}
 	if m.cfg.Busy != nil {
 		if v {
