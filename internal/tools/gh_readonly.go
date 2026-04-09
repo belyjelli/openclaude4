@@ -35,19 +35,19 @@ func IsGHSafeReadOnlyCommand(cmd string) bool {
 	i := 1
 	for i < len(words) {
 		w := words[i]
-		switch {
-		case w == "-R" || w == "--repo":
+		if w == "-R" || w == "--repo" {
 			if i+1 >= len(words) {
 				return false
 			}
 			i += 2
-		case strings.HasPrefix(w, "--repo="):
-			i++
-		default:
-			goto subcommand
+			continue
 		}
+		if strings.HasPrefix(w, "--repo=") {
+			i++
+			continue
+		}
+		break
 	}
-subcommand:
 	if i+2 > len(words) {
 		return false
 	}

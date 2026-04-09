@@ -37,6 +37,9 @@ func TestIsBashReadOnlyNoConfirm(t *testing.T) {
 	if !IsBashReadOnlyNoConfirm(`netstat -an`) {
 		t.Fatal("expected netstat read-only to skip confirm")
 	}
+	if !IsBashReadOnlyNoConfirm(`ss -ltn`) {
+		t.Fatal("expected ss read-only to skip confirm")
+	}
 	if IsBashReadOnlyNoConfirm(`gh pr create --title x`) {
 		t.Fatal("expected mutating gh to require confirm")
 	}

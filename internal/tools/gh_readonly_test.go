@@ -8,6 +8,7 @@ func TestIsGHSafeReadOnlyCommand(t *testing.T) {
 		want bool
 	}{
 		{`gh pr view 1 --json title`, true},
+		{`gh -R myorg/myrepo pr list --limit 3`, true},
 		{`gh pr list --limit 5`, true},
 		{`gh auth status`, true},
 		{`gh search repos golang --limit 3`, true},
