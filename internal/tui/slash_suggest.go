@@ -52,6 +52,17 @@ const slashSuggestMaxRows = 6
 // Gap between command column and description column (cells).
 const slashSuggestColGap = 2
 
+// slashSuggestBoxInnerWidth is the max display width for one line inside the bordered
+// suggestion box. Rows must not exceed this or lipgloss will word-wrap and show two lines
+// per item (especially visible on the selected row). Matches box Width(width-2) + Padding(0,1).
+func slashSuggestBoxInnerWidth(terminalWidth int) int {
+	if terminalWidth < 5 {
+		return max(1, terminalWidth)
+	}
+	// Inner wrap ≈ Style.Width(w-2) minus horizontal padding (1+1 from Padding(0,1)).
+	return max(1, terminalWidth-4)
+}
+
 // Selected row in the suggestion overlay: purple background, orange label, pink hint.
 var (
 	slashSuggestSelBG     = lipgloss.Color("#5B21B6")
@@ -116,11 +127,11 @@ func renderSlashSuggestRow(width, col1W, gap int, e slashEntry, argMode, isSelec
 	primaryStr := slashPrimaryStr(e, argMode)
 	hint := e.hint
 
-	pShow := primaryStr
+	pShow := strings.ReplaceAll(primaryStr, "\n", " ")
+	hShow := strings.ReplaceAll(hint, "\n", " ")
 	if ansi.StringWidth(pShow) > col1W {
 		pShow = ansi.Truncate(pShow, col1W, "…")
 	}
-	hShow := hint
 	if hShow != "" && ansi.StringWidth(hShow) > col2W {
 		hShow = ansi.Truncate(hShow, col2W, "…")
 	}
@@ -307,17 +318,18 @@ func renderSlashSuggestions(width int, matches []slashEntry, selected int, argMo
 	if len(matches) == 0 || width < 1 {
 		return ""
 	}
+	innerW := slashSuggestBoxInnerWidth(width)
 	header := dimStyle.Width(width).Render("Tab complete · Shift+Tab prev · ↑↓ select · Esc hide · Shift+Tab approvals when hidden")
 	start, win := visibleSlashWindow(matches, selected)
-	col1W, colGap := slashSuggestColumnWidths(width, win, argMode)
+	col1W, colGap := slashSuggestColumnWidths(innerW, win, argMode)
 	rows := make([]string, 0, len(win))
 	for i, e := range win {
 		global := start + i
-		rows = append(rows, renderSlashSuggestRow(width, col1W, colGap, e, argMode, global == selected))
+		rows = append(rows, renderSlashSuggestRow(innerW, col1W, colGap, e, argMode, global == selected))
 	}
 	if len(matches) > slashSuggestMaxRows {
 		more := len(matches) - slashSuggestMaxRows
-		rows = append(rows, dimStyle.Width(width).Render(fmt.Sprintf("+%d more", more)))
+		rows = append(rows, dimStyle.Width(innerW).Render(fmt.Sprintf("+%d more", more)))
 	}
 	body := lipgloss.JoinVertical(lipgloss.Left, rows...)
 	box := lipgloss.NewStyle().
