@@ -78,13 +78,22 @@ func TestVisibleSlashWindow(t *testing.T) {
 	}
 }
 
-func TestSuggestionBlockHeightMoreRow(t *testing.T) {
-	few := []slashEntry{{primary: "a"}, {primary: "b"}}
-	if suggestionBlockHeight(few) != slashSuggestHeaderLines+2 {
-		t.Fatalf("few: %d", suggestionBlockHeight(few))
+func TestOverlaySlashOnViewport(t *testing.T) {
+	base := strings.Join([]string{"l0", "l1", "l2", "l3", "l4"}, "\n")
+	ov := strings.Join([]string{"s0", "s1"}, "\n")
+	got := overlaySlashOnViewport(base, ov, 5)
+	want := strings.Join([]string{"l0", "l1", "l2", "s0", "s1"}, "\n")
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
 	}
-	many := make([]slashEntry, slashSuggestMaxRows+3)
-	if h := suggestionBlockHeight(many); h != slashSuggestHeaderLines+slashSuggestMaxRows+1 {
-		t.Fatalf("many: %d", h)
+}
+
+func TestOverlaySlashOnViewportTallOverlayClips(t *testing.T) {
+	base := strings.Join([]string{"a", "b", "c"}, "\n")
+	ov := strings.Join([]string{"s0", "s1", "s2", "s3"}, "\n")
+	got := overlaySlashOnViewport(base, ov, 3)
+	want := strings.Join([]string{"s1", "s2", "s3"}, "\n")
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
 	}
 }

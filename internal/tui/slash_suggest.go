@@ -46,10 +46,7 @@ func (m *model) applySuggestCompletion() {
 	m.syncSuggestOverlay()
 }
 
-const (
-	slashSuggestMaxRows     = 4
-	slashSuggestHeaderLines = 1
-)
+const slashSuggestMaxRows = 4
 
 // slashEntry is one completable slash command (primary name without leading /).
 type slashEntry struct {
@@ -174,26 +171,38 @@ func visibleSlashWindow(matches []slashEntry, selected int) (start int, slice []
 	return start, matches[start : start+slashSuggestMaxRows]
 }
 
-func suggestionContentLines(matches []slashEntry) int {
-	if len(matches) == 0 {
-		return 0
+func trimTrailingEmptyLines(lines []string) []string {
+	for len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
 	}
-	if len(matches) < slashSuggestMaxRows {
-		return len(matches)
-	}
-	return slashSuggestMaxRows
+	return lines
 }
 
-// suggestionBlockHeight is total terminal rows for the slash overlay (0 = hidden).
-func suggestionBlockHeight(matches []slashEntry) int {
-	if len(matches) == 0 {
-		return 0
+// overlaySlashOnViewport draws slash suggestions on top of the bottom rows of the viewport string.
+// viewportH must match bubbles viewport height so the combined block stays one transcript tile tall.
+func overlaySlashOnViewport(base, overlay string, viewportH int) string {
+	if strings.TrimSpace(overlay) == "" || viewportH < 1 {
+		return base
 	}
-	h := slashSuggestHeaderLines + suggestionContentLines(matches)
-	if len(matches) > slashSuggestMaxRows {
-		h++
+	oLines := trimTrailingEmptyLines(strings.Split(overlay, "\n"))
+	if len(oLines) == 0 {
+		return base
 	}
-	return h
+	if len(oLines) > viewportH {
+		oLines = oLines[len(oLines)-viewportH:]
+	}
+	oh := len(oLines)
+	bLines := trimTrailingEmptyLines(strings.Split(base, "\n"))
+	for len(bLines) < viewportH {
+		bLines = append(bLines, "")
+	}
+	if len(bLines) > viewportH {
+		bLines = bLines[:viewportH]
+	}
+	out := make([]string, 0, viewportH)
+	out = append(out, bLines[:viewportH-oh]...)
+	out = append(out, oLines...)
+	return strings.Join(out, "\n")
 }
 
 func renderSlashSuggestions(width int, matches []slashEntry, selected int, argMode bool) string {

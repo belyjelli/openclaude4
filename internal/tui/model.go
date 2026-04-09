@@ -21,16 +21,16 @@ import (
 
 // Config drives the TUI session (kernel + transcript + input).
 type Config struct {
-	Ctx         context.Context
-	Client      core.StreamClient
-	Registry    *tools.Registry
-	Messages    *[]sdk.ChatCompletionMessage
+	Ctx      context.Context
+	Client   core.StreamClient
+	Registry *tools.Registry
+	Messages *[]sdk.ChatCompletionMessage
 	// AutoApprove toggles dangerous-tool and MCP ask-path approval (Shift+Tab in TUI). If nil, treated as off.
 	AutoApprove *atomic.Bool
 	Banner      string
 	// MCPManager is optional; used for footer hints when servers use non-ask approval.
 	MCPManager *mcpclient.Manager
-	Slash       func(line string) (appendOut string, exitChat bool, err error)
+	Slash      func(line string) (appendOut string, exitChat bool, err error)
 	// BeforeUserTurn runs before each user-authored model turn (optional; e.g. auto-compact).
 	BeforeUserTurn func() error
 	// AfterTurn runs after a successful model turn (optional; e.g. persist session).
@@ -90,10 +90,10 @@ type model struct {
 	inputHistory         []string
 	historyIdx           int // -1 = editing; else index into inputHistory (newest at len-1)
 	historyDraft         string
-	historyFilterActive  bool   // prefix search mode (non-empty line + ↑)
-	historyFilterMatches []int  // indices into inputHistory, newest-first
-	historyFilterPos     int    // position in historyFilterMatches
-	userSubmitCount      int // non-slash user messages sent to the model
+	historyFilterActive  bool  // prefix search mode (non-empty line + ↑)
+	historyFilterMatches []int // indices into inputHistory, newest-first
+	historyFilterPos     int   // position in historyFilterMatches
+	userSubmitCount      int   // non-slash user messages sent to the model
 	toastText            string
 	toastKind            int
 	toastClearID         int
@@ -658,8 +658,7 @@ func (m *model) reflowLayout() {
 	if strings.TrimSpace(m.toastText) != "" {
 		toastH = 1
 	}
-	suggestH := suggestionBlockHeight(m.slashMatches)
-	footerH := promptChromeLines + suggestH
+	footerH := promptChromeLines
 	if m.perm != nil {
 		footerH += permPanelReserveLines
 	}
@@ -751,6 +750,10 @@ func (m *model) View() string {
 	}
 	toastLine := m.renderToastLine()
 	body := m.vp.View()
+	slashBlock := renderSlashSuggestions(m.width, m.slashMatches, m.slashSel, m.slashSuggestIsArg)
+	if slashBlock != "" {
+		body = overlaySlashOnViewport(body, slashBlock, m.vp.Height)
+	}
 
 	var permBlock string
 	if m.perm != nil {
@@ -792,8 +795,6 @@ func (m *model) View() string {
 	bottomLine := dimStyle.Width(m.width).Render(horizontalRule(m.width))
 	promptStack := lipgloss.JoinVertical(lipgloss.Left, topLine, inputLine, bottomLine, hintRow)
 
-	slashBlock := renderSlashSuggestions(m.width, m.slashMatches, m.slashSel, m.slashSuggestIsArg)
-
 	rows := []string{header, sub}
 	if toastLine != "" {
 		rows = append(rows, toastLine)
@@ -801,9 +802,6 @@ func (m *model) View() string {
 	rows = append(rows, body)
 	if permBlock != "" {
 		rows = append(rows, permBlock)
-	}
-	if slashBlock != "" {
-		rows = append(rows, slashBlock)
 	}
 	rows = append(rows, promptStack)
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
