@@ -109,6 +109,7 @@ type model struct {
 	toastKind            int
 	toastClearID         int
 	pendingToastCmd      tea.Cmd
+	startSprite          *digitamaAnim // random Digitama mascot on empty transcript (embedded PNG)
 }
 
 type permState struct {
@@ -152,6 +153,7 @@ func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *p
 		historyIdx:        -1,
 		replaceStart:      -1,
 		busyReduceMotion:  reduceMotionFromEnv(),
+		startSprite:       loadRandomDigitama(),
 	}
 	m.syncPlaceholder()
 	if cfg.Banner != "" {
@@ -174,7 +176,24 @@ func (m *model) toolPreviewLimit() int {
 }
 
 func (m *model) Init() tea.Cmd {
-	return textinput.Blink
+	cmds := []tea.Cmd{textinput.Blink}
+	if c := m.digitamaTickCmd(); c != nil {
+		cmds = append(cmds, c)
+	}
+	return tea.Batch(cmds...)
+}
+
+func (m *model) digitamaTickCmd() tea.Cmd {
+	if m.startSprite == nil || m.busyReduceMotion || m.userSubmitCount > 0 {
+		return nil
+	}
+	if !m.startSprite.needsAnimation() {
+		return nil
+	}
+	d := m.startSprite.tickEvery
+	return tea.Tick(d, func(_ time.Time) tea.Msg {
+		return digitamaTickMsg{}
+	})
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -186,6 +205,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.busyFrame++
 		m.smoothStallTowards(m.stallTargetIntensity(time.Now()))
 		return m, nextBusyTick()
+
+	case digitamaTickMsg:
+		if m.startSprite != nil && m.userSubmitCount == 0 && !m.busyReduceMotion {
+			m.startSprite.advance()
+			m.syncVP()
+		}
+		return m, m.digitamaTickCmd()
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -754,7 +780,11 @@ func (m *model) syncVP() {
 			}
 		}
 	}
-	m.vp.SetContent(committed + live)
+	prefix := ""
+	if m.startSprite != nil && m.userSubmitCount == 0 {
+		prefix = m.startSprite.render() + "\n"
+	}
+	m.vp.SetContent(prefix + committed + live)
 	if m.stickBottom {
 		m.vp.GotoBottom()
 	}
