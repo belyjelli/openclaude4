@@ -141,6 +141,8 @@ func validateConnectSubcommandFlags(rule map[string]ghFlagKind, rest []string) b
 			if !isGhNumericFlagArg(val) {
 				return false
 			}
+		default:
+			return false
 		}
 	}
 	return true

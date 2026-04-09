@@ -16,7 +16,7 @@ func (Bash) IsDangerous() bool { return true }
 func (Bash) Description() string {
 	return "Run a shell command (sh -c on Unix, cmd /C on Windows). Optional cwd relative to workspace. Output is merged stdout+stderr. " +
 		"For local repository work use git; for GitHub (issues, PRs, checks, releases, API-shaped data) use the gh CLI when available. " +
-		"Read-only gh and docker commands that match the built-in allowlist (same idea as OpenClaude v3) can run without an extra dangerous-tool approval prompt."
+		"Read-only gh, docker, and connect-cli commands that match the built-in allowlist (same idea as OpenClaude v3 for gh/docker) can run without an extra dangerous-tool approval prompt."
 }
 
 func (Bash) Parameters() map[string]any {

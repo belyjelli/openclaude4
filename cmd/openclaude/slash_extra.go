@@ -180,9 +180,9 @@ func printSkillEntry(out io.Writer, e skills.Entry) {
 func mcpAddShellHint() string {
 	exe, err := os.Executable()
 	if err != nil || strings.TrimSpace(exe) == "" {
-		return "openclaude mcp add --name <id> --exec <argv>..."
+		return "openclaude mcp add --name <id> [--bunx] --exec <argv>...  (npm MCP: add --bunx)"
 	}
-	return fmt.Sprintf("%s mcp add --name <id> --exec <argv>...  (repeat --exec per token)", exe)
+	return fmt.Sprintf("%s mcp add --name <id> [--bunx] --exec <argv>...  (repeat --exec; npm packages: --bunx prepends bunx -y)", exe)
 }
 
 func printPermissionsSummary(out io.Writer) {

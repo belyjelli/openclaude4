@@ -23,7 +23,7 @@ MCP servers are defined under mcp.servers in openclaude.yaml (see docs/CONFIG.md
 
   openclaude mcp list    — print configured servers from config (no subprocesses)
   openclaude mcp doctor  — connect to each server, list tools (like chat startup)
-  openclaude mcp add     — append a server entry to your openclaude config file (see mcp add --help)`),
+  openclaude mcp add     — append a server entry (see mcp add --help; --bunx for npm MCP via bunx -y)`),
 }
 
 var mcpListCmd = &cobra.Command{
@@ -48,9 +48,19 @@ var mcpAddCmd = &cobra.Command{
 Writes under mcp.servers in the same config file Load would use (see docs/CONFIG.md):
 loaded --config path, else the first existing openclaude.{yaml,yml,json}, else ~/.config/openclaude/openclaude.yaml.
 
-Repeat --exec for each argv token, in order. Example:
+Repeat --exec for each argv token, in order.
 
-  openclaude mcp add --name fs --exec npx --exec -y --exec @modelcontextprotocol/server-filesystem --exec /tmp
+Recommended for npm MCP packages (Bun installs/runs the package, like npx):
+
+  openclaude mcp add --name fs --bunx --exec @modelcontextprotocol/server-filesystem --exec /tmp
+
+Equivalent without --bunx:
+
+  openclaude mcp add --name fs --exec bunx --exec -y --exec @modelcontextprotocol/server-filesystem --exec /tmp
+
+Local script (explicit argv):
+
+  openclaude mcp add --name mine --exec bun --exec run --exec ./mcp-server.ts
 
 YAML comments are not preserved on rewrite. Duplicate server names in that file are rejected.`),
 	RunE: runMCPAdd,
@@ -60,6 +70,7 @@ func init() {
 	mcpAddCmd.Flags().String("name", "", "Unique server name (required)")
 	mcpAddCmd.Flags().String("approval", "ask", "Tool approval: ask | always | never")
 	mcpAddCmd.Flags().StringSlice("exec", nil, "One command argv token; repeat in order (required)")
+	mcpAddCmd.Flags().Bool("bunx", false, "Prepend bunx -y to the command (recommended for npm MCP packages; still pass --exec for the package id and arguments)")
 	mcpAddCmd.Flags().Bool("dry-run", false, "Print target path and entry without writing")
 	_ = mcpAddCmd.MarkFlagRequired("name")
 
@@ -129,23 +140,43 @@ func runMCPDoctor(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
+// mcpAddCommandArgv builds the subprocess argv for mcp add: optional bunx -y prefix plus --exec tokens.
+func mcpAddCommandArgv(bunx bool, execParts []string) []string {
+	var out []string
+	if bunx {
+		out = append(out, "bunx", "-y")
+	}
+	for _, p := range execParts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func runMCPAdd(cmd *cobra.Command, _ []string) error {
 	name, _ := cmd.Flags().GetString("name")
 	approval, _ := cmd.Flags().GetString("approval")
 	execParts, _ := cmd.Flags().GetStringSlice("exec")
+	bunx, _ := cmd.Flags().GetBool("bunx")
 	dry, _ := cmd.Flags().GetBool("dry-run")
 
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return fmt.Errorf("--name is required")
 	}
-	var cmdParts []string
+	var userExec []string
 	for _, p := range execParts {
 		p = strings.TrimSpace(p)
 		if p != "" {
-			cmdParts = append(cmdParts, p)
+			userExec = append(userExec, p)
 		}
 	}
+	if bunx && len(userExec) == 0 {
+		return fmt.Errorf("--bunx requires at least one --exec (npm package name and optional arguments)")
+	}
+	cmdParts := mcpAddCommandArgv(bunx, userExec)
 	if len(cmdParts) == 0 {
 		return fmt.Errorf("at least one non-empty --exec token is required")
 	}

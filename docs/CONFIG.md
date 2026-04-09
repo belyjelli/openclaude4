@@ -61,7 +61,8 @@ gemini:
 mcp:
   servers:
     - name: fs
-      command: ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/root"]
+      # Prefer bunx -y for npm MCP servers (fast install/run; same packages as npx).
+      command: ["bunx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/root"]
       approval: ask        # ask | always | never — ask = confirm like other dangerous tools
       # env:                 # optional extra KEY: value pairs for the child process
       #   FOO: bar
@@ -75,7 +76,7 @@ Each entry runs **`command`** as a subprocess; OpenClaude talks to it over **std
 
 Failed servers are skipped with a message on stderr; chat still starts if built-in tools are enough.
 
-**CLI:** `openclaude mcp add --name <id> --exec <argv1> --exec <argv2> ...` appends a server to the config file [`config.WritableConfigPath`](../internal/config/mcp_configfile.go) would choose (same rules as loading: explicit `--config`, else first `openclaude.{yaml,yml,json}` on the search path, else `~/.config/openclaude/openclaude.yaml`). Use `--approval always|never|ask`, `--dry-run` to preview. Rewriting YAML drops comments.
+**CLI:** `openclaude mcp add --name <id> --exec <argv1> --exec <argv2> ...` appends a server to the config file [`config.WritableConfigPath`](../internal/config/mcp_configfile.go) would choose (same rules as loading: explicit `--config`, else first `openclaude.{yaml,yml,json}` on the search path, else `~/.config/openclaude/openclaude.yaml`). For npm-published MCP servers, **`--bunx`** prepends `bunx -y` (recommended); you still pass `--exec` for the package name and arguments. Local scripts: `--exec bun --exec run --exec ./server.ts`. Use `--approval always|never|ask`, `--dry-run` to preview. Rewriting YAML drops comments.
 
 ## Environment variables
 

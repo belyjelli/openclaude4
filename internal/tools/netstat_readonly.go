@@ -104,7 +104,7 @@ func expandOneNetstatBundle(t string) []string {
 }
 
 // IsBashReadOnlyNoConfirm is true when cmd matches a v3-style read-only Bash allowlist entry
-// (gh, netstat, ss, docker) so the agent can skip the dangerous-tool confirmation prompt.
+// (gh, netstat, ss, docker, connect-cli) so the agent can skip the dangerous-tool confirmation prompt.
 func IsBashReadOnlyNoConfirm(cmd string) bool {
-	return IsGHSafeReadOnlyCommand(cmd) || IsNetstatSafeReadOnlyCommand(cmd) || IsSsSafeReadOnlyCommand(cmd) || IsDockerSafeReadOnlyCommand(cmd)
+	return IsGHSafeReadOnlyCommand(cmd) || IsNetstatSafeReadOnlyCommand(cmd) || IsSsSafeReadOnlyCommand(cmd) || IsDockerSafeReadOnlyCommand(cmd) || IsConnectSafeReadOnlyCommand(cmd)
 }
