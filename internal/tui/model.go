@@ -789,7 +789,8 @@ func (m *model) View() string {
 		right = "auto-compact off"
 	}
 	hintRow := formatFooterRow(left, right, m.width)
-	promptStack := lipgloss.JoinVertical(lipgloss.Left, topLine, inputLine, hintRow)
+	bottomLine := dimStyle.Width(m.width).Render(horizontalRule(m.width))
+	promptStack := lipgloss.JoinVertical(lipgloss.Left, topLine, inputLine, bottomLine, hintRow)
 
 	slashBlock := renderSlashSuggestions(m.width, m.slashMatches, m.slashSel, m.slashSuggestIsArg)
 
