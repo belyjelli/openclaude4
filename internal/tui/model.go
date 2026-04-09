@@ -667,7 +667,7 @@ func (m *model) reflowLayout() {
 	if vpH < 6 {
 		vpH = 6
 	}
-	vpW := m.width - 2
+	vpW := m.width
 	if vpW < 20 {
 		vpW = 20
 	}
@@ -750,7 +750,7 @@ func (m *model) View() string {
 		sub = lipgloss.JoinVertical(lipgloss.Left, sub, dimStyle.Width(m.width).Render(w.String()))
 	}
 	toastLine := m.renderToastLine()
-	body := border.Width(m.width - 2).Render(m.vp.View())
+	body := m.vp.View()
 
 	var permBlock string
 	if m.perm != nil {

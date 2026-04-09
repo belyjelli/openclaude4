@@ -15,7 +15,6 @@ var (
 	errStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 	warnStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 	dimStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	border     = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 
 	// Prompt input row: full width, no frame (chrome is one line above + footer below).
 	promptRowStyle = lipgloss.NewStyle()
@@ -35,7 +34,6 @@ func ApplyTheme(mode string) {
 		errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("160"))
 		warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("130"))
 		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-		border = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1).Foreground(lipgloss.Color("240"))
 		promptRowStyle = lipgloss.NewStyle()
 		promptCharStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("130"))
 		promptCharBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
@@ -48,7 +46,6 @@ func ApplyTheme(mode string) {
 		errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 		warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-		border = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 		promptRowStyle = lipgloss.NewStyle()
 		promptCharStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 		promptCharBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
