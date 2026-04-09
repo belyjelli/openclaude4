@@ -20,9 +20,9 @@ import (
 var digitamaFS embed.FS
 
 const (
-	digitamaLoopPeriod = 3 * time.Second
-	digitamaFrameW     = 16
-	digitamaFrameH     = 16
+	digitamaStepDuration = 3 * time.Second // hold each play-pattern step (each displayed frame)
+	digitamaFrameW       = 16
+	digitamaFrameH       = 16
 )
 
 // digitamaPlayPattern is 0-based indices for frames 1,2,1,2,… (ten pairs) then frame 3; repeats after step 21.
@@ -72,11 +72,7 @@ func loadRandomDigitama() *digitamaAnim {
 		return nil
 	}
 	seq := digitamaPlaySequence(len(frames))
-	tick := digitamaLoopPeriod
-	if len(seq) > 1 {
-		tick = digitamaLoopPeriod / time.Duration(len(seq))
-	}
-	return &digitamaAnim{frames: frames, playSeq: seq, tickEvery: tick}
+	return &digitamaAnim{frames: frames, playSeq: seq, tickEvery: digitamaStepDuration}
 }
 
 // digitamaPlaySequence maps the fixed 1,2,1,2,…,3 choreography onto frame indices, clamped for smaller sheets.

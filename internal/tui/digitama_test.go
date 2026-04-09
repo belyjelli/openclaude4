@@ -4,7 +4,6 @@ import (
 	"image"
 	"image/color"
 	"testing"
-	"time"
 )
 
 func TestDigitamaPlaySequence(t *testing.T) {
@@ -48,9 +47,8 @@ func TestLoadRandomDigitama(t *testing.T) {
 	if len(a.playSeq) != len(digitamaPlayPattern) {
 		t.Fatalf("play seq len: want %d got %d", len(digitamaPlayPattern), len(a.playSeq))
 	}
-	wantTick := digitamaLoopPeriod / time.Duration(len(digitamaPlayPattern))
-	if a.tickEvery != wantTick {
-		t.Fatalf("tick every: want %v got %v", wantTick, a.tickEvery)
+	if a.tickEvery != digitamaStepDuration {
+		t.Fatalf("tick every: want %v got %v", digitamaStepDuration, a.tickEvery)
 	}
 	s := a.render()
 	if s == "" {
