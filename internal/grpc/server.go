@@ -238,7 +238,7 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 						config.SessionCompactTokenThreshold(),
 						config.SessionSummarizeOverThreshold(),
 						config.SessionCompactKeepMessages(),
-						core.DefaultSystemPrompt,
+						core.EffectiveSystemPrompt(),
 					)
 
 					agent := &core.Agent{

@@ -16,7 +16,9 @@ import (
 	"unicode"
 
 	"github.com/gitlawb/openclaude4/internal/config"
+	"github.com/gitlawb/openclaude4/internal/ghstatus"
 	"github.com/gitlawb/openclaude4/internal/providers"
+	"github.com/gitlawb/openclaude4/internal/tools"
 	"github.com/gitlawb/openclaude4/internal/startupbanner"
 	"github.com/mattn/go-isatty"
 )
@@ -74,7 +76,12 @@ func PrintDoctorReport(w io.Writer, ver, cmt string) {
 	if _, err := exec.LookPath("gh"); err != nil {
 		_, _ = fmt.Fprintln(w, "└ GitHub CLI: not on PATH (install https://cli.github.com/ and run gh auth login for PR/issue workflows)")
 	} else {
-		_, _ = fmt.Fprintln(w, "└ GitHub CLI: gh on PATH")
+		_, authed := ghstatus.GhAuthSummary(context.Background())
+		if authed {
+			_, _ = fmt.Fprintln(w, "└ GitHub CLI: gh on PATH, authenticated (gh auth token OK; local check, no network)")
+		} else {
+			_, _ = fmt.Fprintln(w, "└ GitHub CLI: gh on PATH, not authenticated — run: gh auth login")
+		}
 	}
 
 	_, _ = fmt.Fprintf(w, "\n%sUpdates%s\n", bold, reset)
@@ -104,6 +111,21 @@ func PrintDoctorReport(w io.Writer, ver, cmt string) {
 	} else {
 		p, _ := exec.LookPath("spider")
 		_, _ = fmt.Fprintf(w, "spider (spider_cli): found at %s — SpiderScrape tool enabled\n", p)
+	}
+
+	// PaperCLI: optional; same rules as tools.PaperCLIRegistered (PATH or OPENCLAUDE_PAPERCLI / PAPERCLI_BIN).
+	if p, set := os.Getenv("OPENCLAUDE_PAPERCLI"), os.Getenv("PAPERCLI_BIN"); strings.TrimSpace(p) != "" || strings.TrimSpace(set) != "" {
+		_, _ = fmt.Fprintf(w, "papercli: OPENCLAUDE_PAPERCLI or PAPERCLI_BIN set — PaperCLI tool enabled\n")
+	} else if pp, err := exec.LookPath("papercli"); err != nil {
+		_, _ = fmt.Fprintf(w, "papercli: not on PATH (optional PaperCLI tool not registered; build/install papercli)\n")
+	} else {
+		_, _ = fmt.Fprintf(w, "papercli: found at %s — PaperCLI tool enabled\n", pp)
+	}
+
+	if sp, ok := tools.SpeedtestCLIBinary(); ok {
+		_, _ = fmt.Fprintf(w, "speedtest-cli (LibreSpeed): found at %s — SpeedtestCLI tool enabled\n", sp)
+	} else {
+		_, _ = fmt.Fprintf(w, "speedtest-cli (LibreSpeed): not found (optional SpeedtestCLI tool not registered; install librespeed-cli or speedtcli, or set OPENCLAUDE_SPEEDTEST_CLI / SPEEDTEST_CLI_BIN)\n")
 	}
 
 	_, _ = fmt.Fprintf(w, "%s\n", providers.PingProviderBestEffort())

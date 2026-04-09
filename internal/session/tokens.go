@@ -44,7 +44,7 @@ func roughStringTokens(s string) int {
 
 // ApplyTokenThreshold compacts or (optionally) summarizes the transcript when the rough
 // token estimate exceeds threshold. threshold <= 0 disables the check.
-// systemPrompt is used when summarization resets the transcript (typically [core.DefaultSystemPrompt]).
+// systemPrompt is used when summarization resets the transcript (typically [core.EffectiveSystemPrompt]).
 func ApplyTokenThreshold(ctx context.Context, client StreamCompleter, messages *[]sdk.ChatCompletionMessage, threshold int, summarize bool, tail int, systemPrompt string) error {
 	if messages == nil || threshold <= 0 {
 		return nil

@@ -404,7 +404,7 @@ func ensureSystemMessage(messages *[]sdk.ChatCompletionMessage) {
 	}
 	sys := sdk.ChatCompletionMessage{
 		Role:    sdk.ChatMessageRoleSystem,
-		Content: DefaultSystemPrompt,
+		Content: EffectiveSystemPrompt(),
 	}
 	*messages = append([]sdk.ChatCompletionMessage{sys}, *messages...)
 }

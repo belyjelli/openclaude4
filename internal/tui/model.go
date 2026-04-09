@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/chatlive"
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
+	"github.com/gitlawb/openclaude4/internal/ghstatus"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
@@ -61,6 +63,8 @@ type Config struct {
 	// BusySpinnerVerb returns a task- or teammate-driven loading verb (e.g. current todo active form).
 	// If nil or it returns "", a random verb from the built-in/configured pool is used (v3 parity hook).
 	BusySpinnerVerb func() string
+	// WorkDir is the process working directory (used for optional gh PR status in the title bar). Empty disables.
+	WorkDir string
 }
 
 type model struct {
@@ -111,6 +115,8 @@ type model struct {
 	toastClearID         int
 	pendingToastCmd      tea.Cmd
 	startSprite          *digitamaAnim // random Digitama mascot on empty transcript (embedded PNG)
+	// prStatusExtra is a short fragment from gh pr view (e.g. "PR #3 · pending"); empty when unavailable.
+	prStatusExtra string
 }
 
 type permState struct {
@@ -130,6 +136,12 @@ type runTurnDoneMsg struct {
 type runTurnErrMsg struct {
 	err error
 }
+
+type prStatusReadyMsg struct {
+	text string
+}
+
+type prPollTickMsg struct{}
 
 func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *permBridge) *model {
 	ti := textinput.New()
@@ -181,7 +193,46 @@ func (m *model) Init() tea.Cmd {
 	if c := m.digitamaTickCmd(); c != nil {
 		cmds = append(cmds, c)
 	}
+	if c := m.schedulePRStatusRefresh(); c != nil {
+		cmds = append(cmds, c)
+	}
+	if c := m.prPollTickCmd(); c != nil {
+		cmds = append(cmds, c)
+	}
 	return tea.Batch(cmds...)
+}
+
+func (m *model) prStatusEnabled() bool {
+	if strings.TrimSpace(m.cfg.WorkDir) == "" {
+		return false
+	}
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("OPENCLAUDE_TUI_PR_STATUS")))
+	return v != "0" && v != "false" && v != "no"
+}
+
+func (m *model) schedulePRStatusRefresh() tea.Cmd {
+	if !m.prStatusEnabled() {
+		return nil
+	}
+	dir := m.cfg.WorkDir
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancel()
+		st, err := ghstatus.FetchOpenPRForCWD(ctx, dir)
+		if err != nil || st == nil {
+			return prStatusReadyMsg{text: ""}
+		}
+		return prStatusReadyMsg{text: st.FormatShort()}
+	}
+}
+
+func (m *model) prPollTickCmd() tea.Cmd {
+	if !m.prStatusEnabled() {
+		return nil
+	}
+	return tea.Tick(60*time.Second, func(time.Time) tea.Msg {
+		return prPollTickMsg{}
+	})
 }
 
 func (m *model) digitamaTickCmd() tea.Cmd {
@@ -428,7 +479,29 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
-		return m, textinput.Blink
+		var batch []tea.Cmd
+		batch = append(batch, textinput.Blink)
+		if c := m.schedulePRStatusRefresh(); c != nil {
+			batch = append(batch, c)
+		}
+		return m, tea.Batch(batch...)
+
+	case prStatusReadyMsg:
+		m.prStatusExtra = msg.text
+		return m, nil
+
+	case prPollTickMsg:
+		var batch []tea.Cmd
+		if c := m.schedulePRStatusRefresh(); c != nil {
+			batch = append(batch, c)
+		}
+		if c := m.prPollTickCmd(); c != nil {
+			batch = append(batch, c)
+		}
+		if len(batch) == 0 {
+			return m, nil
+		}
+		return m, tea.Batch(batch...)
 
 	case runTurnErrMsg:
 		m.runningTool = ""
@@ -816,6 +889,12 @@ func (m *model) View() string {
 		if s := strings.TrimSpace(m.cfg.StatusLineFunc()); s != "" {
 			status = s
 		}
+	}
+	if x := strings.TrimSpace(m.prStatusExtra); x != "" {
+		if status != "" {
+			status = status + " · "
+		}
+		status += x
 	}
 	if status == "" {
 		status = "Ctrl+C quit · PgUp/PgDn Home/End · ↑↓ history · prefix+↑ · Tab paths · ? · /help"

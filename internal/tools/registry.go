@@ -18,6 +18,8 @@ func NewDefaultRegistry(skillCatalog *skills.Catalog) *Registry {
 	r.Register(WebSearch{})
 	r.Register(WebFetch{})
 	registerSpiderIfAvailable(r)
+	registerPaperCLIIfAvailable(r)
+	registerSpeedtestCLIIfAvailable(r)
 	r.Register(SkillsList{Cat: skillCatalog})
 	r.Register(SkillsRead{Cat: skillCatalog})
 	r.Register(GoOutline{})

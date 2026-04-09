@@ -139,7 +139,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			config.SessionCompactTokenThreshold(),
 			config.SessionSummarizeOverThreshold(),
 			config.SessionCompactKeepMessages(),
-			core.DefaultSystemPrompt,
+			core.EffectiveSystemPrompt(),
 		)
 	}
 
@@ -201,6 +201,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			Banner:         bannerStr,
 			StatusLine:     buildTUIStatusLine(client, persist, mcpMgr),
 			StatusLineFunc: statusFn,
+			WorkDir:        wd,
 			Live:           live,
 			Busy:           &busyFlag,
 			Theme:          themeHolder,
@@ -704,7 +705,7 @@ func printChatHelpTo(w io.Writer) {
   /help        Show this help
   /exit, /quit Exit
 
-Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch, WebFetch, GoOutline (Go AST outline), SkillsList, SkillsRead, SpiderScrape (only if spider CLI on PATH; no Firecrawl), Task (sub-agent), plus MCP tools (mcp_<server>__<tool>).
+Tools: FileRead, FileWrite, FileEdit, Bash, Grep, Glob, WebSearch, WebFetch, GoOutline (Go AST outline), SkillsList, SkillsRead, SpiderScrape (only if spider CLI on PATH; no Firecrawl), PaperCLI (only if papercli on PATH or OPENCLAUDE_PAPERCLI / PAPERCLI_BIN), Task (sub-agent), plus MCP tools (mcp_<server>__<tool>).
 Vision: --image-url and --image-file attach to the first user message (REPL/TUI) or to -p one-shot; needs a vision-capable model.
 Workspace is the current working directory.
 
@@ -714,6 +715,8 @@ See docs/CONFIG.md and openclaude doctor.
 
 Dangerous tools (including MCP tools with approval: ask) prompt unless OPENCLAUDE_AUTO_APPROVE_TOOLS=1.
 Read-only GitHub CLI (gh) commands that match the built-in allowlist run without an extra Bash prompt (same idea as OpenClaude v3).
+TUI title bar: optional current-branch PR summary via gh (OPENCLAUDE_TUI_PR_STATUS=0 to disable).
+Optional policy snippets: OPENCLAUDE_COMMIT_ATTRIBUTION / OPENCLAUDE_PR_ATTRIBUTION (appended to the system prompt for commits / PR bodies).
 
 One-shot (non-interactive): openclaude -p "your question" prints only the final assistant reply on stdout
 (streaming and tool traces go to stderr or are discarded). Use -p - to read the prompt from stdin.
