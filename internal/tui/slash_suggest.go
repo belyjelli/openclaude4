@@ -97,6 +97,7 @@ var staticSlashEntries = []slashEntry{
 	{primary: "permissions", hint: "auto-approve + MCP approval"},
 	{primary: "provider", hint: "show | wizard | openai|ollama|gemini|github|openrouter"},
 	{primary: "resume", hint: "list or load session"},
+	{primary: "review", hint: "PR review (gh pr list/view/diff)"},
 	{primary: "session", hint: "show | list | save | load | new | running | ps"},
 	{primary: "skills", hint: "list | read <name>"},
 	{primary: "theme", hint: "light | dark | auto (TUI)"},

@@ -31,6 +31,7 @@ func (WebFetch) IsDangerous() bool { return false }
 func (WebFetch) Description() string {
 	return "Fetch a web page or text/json document over HTTP(S). Returns plain text (HTML tags stripped). " +
 		"Only public URLs; localhost and private IPs are blocked. Body and output size are capped. " +
+		"For GitHub.com resources, prefer the gh CLI via Bash (gh pr view, gh issue view, gh api) when you need auth or structured data. " +
 		"For JS-heavy or markdown-oriented scrape via the local spider CLI, use SpiderScrape when it is registered (spider on PATH)."
 }
 

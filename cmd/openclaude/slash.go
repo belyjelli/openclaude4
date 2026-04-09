@@ -84,6 +84,9 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 		return slashTheme(st, args, out)
 	case "vim":
 		slashVim(st, out)
+	case "review":
+		prArg := strings.TrimSpace(strings.Join(args, " "))
+		return core.SlashSubmitUser{UserText: reviewSlashUserPrompt(prArg)}
 	case "mcp":
 		if len(args) > 0 && strings.EqualFold(args[0], "help") {
 			printMCPHelp(out)
@@ -309,6 +312,20 @@ func printMCPHelp(w io.Writer) {
 Shell: openclaude mcp list | doctor | add
 `
 	_, _ = fmt.Fprint(w, text)
+}
+
+func reviewSlashUserPrompt(prArg string) string {
+	const base = `You are an expert code reviewer. Follow these steps:
+
+1. If no PR number is provided below, run ` + "`gh pr list`" + ` to show open PRs.
+2. If a PR number is provided, run ` + "`gh pr view <number>`" + ` for details.
+3. Run ` + "`gh pr diff <number>`" + ` for the diff (use the same number as in step 2).
+4. Analyze the changes and give a concise but thorough review: overview, code quality, concrete suggestions, risks (correctness, style, performance, tests, security).
+
+Use clear sections and bullets.
+
+PR number (may be empty): `
+	return base + prArg
 }
 
 func printOnboardHints(w io.Writer) {

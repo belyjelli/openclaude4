@@ -284,6 +284,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			continue
 		}
 
+		runAsUser := line
 		if strings.HasPrefix(line, "/") {
 			err := handleSlashLine(line, chatState{
 				messages:                &messages,
@@ -301,10 +302,18 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			if errors.Is(err, errSlashExitChat) {
 				return nil
 			}
-			if err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			var su core.SlashSubmitUser
+			if errors.As(err, &su) {
+				runAsUser = strings.TrimSpace(su.UserText)
+				if runAsUser == "" {
+					continue
+				}
+			} else {
+				if err != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				}
+				continue
 			}
-			continue
 		}
 
 		if err := beforeUserTurn(); err != nil {
@@ -314,7 +323,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		urls := append([]string(nil), pendingURLs...)
 		files := append([]string(nil), pendingFiles...)
 		hasVis := len(urls) > 0 || len(files) > 0
-		parts, err := core.BuildUserContentParts(line, urls, files)
+		parts, err := core.BuildUserContentParts(runAsUser, urls, files)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
@@ -685,6 +694,7 @@ func printChatHelpTo(w io.Writer) {
   /skills read <n> Print one skill body
   /<skill>     If name matches a loaded skill (case-insensitive), same as /skills read
   /btw <text>  Side question: one-shot answer, not added to main transcript
+  /review [<n>] Start a PR code review (runs gh pr list, or gh pr view/diff for number n)
   /cost, /usage Transcript stats; billing not tracked in v4
   /copy        Copy last assistant message to clipboard (macOS/Linux when pbcopy/xclip/wl-copy exist)
   /theme light|dark|auto   TUI only: palette + markdown style
@@ -702,7 +712,8 @@ Providers: openai (OPENAI_API_KEY; OPENROUTER_KEY ok if OPENAI_BASE_URL is OpenR
 v3 users: .openclaude-profile.json in cwd or $HOME is merged automatically (under openclaude.yaml).
 See docs/CONFIG.md and openclaude doctor.
 
-Dangerous tools (including MCP tools with approval: ask) prompt unless OPENCLAUDE_AUTO_APPROVE_TOOLS=1
+Dangerous tools (including MCP tools with approval: ask) prompt unless OPENCLAUDE_AUTO_APPROVE_TOOLS=1.
+Read-only GitHub CLI (gh) commands that match the built-in allowlist run without an extra Bash prompt (same idea as OpenClaude v3).
 
 One-shot (non-interactive): openclaude -p "your question" prints only the final assistant reply on stdout
 (streaming and tool traces go to stderr or are discarded). Use -p - to read the prompt from stdin.

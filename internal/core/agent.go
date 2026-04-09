@@ -41,10 +41,41 @@ func (a *Agent) emit(e Event) {
 	}
 }
 
-// DefaultSystemPrompt is prepended once at the start of the transcript.
+// DefaultSystemPrompt is prepended once at the start of the transcript (git/gh guidance aligns with OpenClaude v3).
 const DefaultSystemPrompt = `You are OpenClaude v4, a terminal coding agent. Use tools when they help. ` +
 	`Prefer reading files before editing. Keep shell commands short; respect the workspace boundary. ` +
-	`Explain briefly what you are doing when using dangerous tools.`
+	`Explain briefly what you are doing when using dangerous tools.
+
+# Git and GitHub CLI (gh)
+Use the gh command via the Bash tool for GitHub work: issues, pull requests, checks, releases, and API reads. ` +
+	`If the user gives a github.com URL, prefer resolving it with gh (e.g. gh pr view, gh issue view, gh api) instead of guessing.
+
+# Committing with git (when the user asks)
+Git safety: do not change git config; avoid destructive commands (force push to main, reset --hard, etc.) unless explicitly requested; ` +
+	`do not skip hooks (--no-verify, --no-gpg-sign) unless the user asks; prefer new commits over amend after a failed hook; ` +
+	`stage specific paths instead of git add -A when possible; only commit when explicitly requested.
+For the message, prefer a heredoc, e.g. git commit -m "$(cat <<'EOF'
+Your message here.
+EOF
+)"
+
+# Pull requests (when the user asks)
+Before creating a PR: inspect git status, diff, remote tracking, and git log / git diff base...HEAD for the full branch story. ` +
+	`Keep the title short; put detail in the body. Push with -u when needed. Create the PR with gh pr create, using a heredoc for the body, e.g.:
+gh pr create --title "short title" --body "$(cat <<'EOF'
+## Summary
+- ...
+
+## Test plan
+- [ ] ...
+EOF
+)"
+Return the PR URL when done.
+
+# Other GitHub examples
+- PR comments JSON: gh api repos/OWNER/REPO/pulls/123/comments
+- Poll CI: gh run view / gh pr checks instead of arbitrary sleep when checking workflow state.
+` + GitAndGitHubWorkflowInstructions
 
 // RunUserTurn appends a text-only user message, then loops model→tools until the model responds without tool calls.
 func (a *Agent) RunUserTurn(ctx context.Context, messages *[]sdk.ChatCompletionMessage, userText string) error {
@@ -155,10 +186,22 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 			}
 
 			if tool.IsDangerous() && a.Confirm != nil {
-				a.emit(Event{Kind: KindPermissionPrompt, PermissionTool: name, ToolArgs: args})
-				ok := a.Confirm(name, args)
-				a.emit(Event{Kind: KindPermissionResult, PermissionTool: name, PermissionApproved: ok})
-				if !ok {
+				skipConfirm := false
+				if name == "Bash" {
+					cmd, _ := args["command"].(string)
+					if tools.IsBashReadOnlyNoConfirm(cmd) {
+						skipConfirm = true
+					}
+				}
+				var allowed bool
+				if skipConfirm {
+					allowed = true
+				} else {
+					a.emit(Event{Kind: KindPermissionPrompt, PermissionTool: name, ToolArgs: args})
+					allowed = a.Confirm(name, args)
+					a.emit(Event{Kind: KindPermissionResult, PermissionTool: name, PermissionApproved: allowed})
+				}
+				if !allowed {
 					const declined = "User declined this tool execution."
 					*messages = append(*messages, toolResultMessage(tc.ID, name, declined, nil))
 					a.emit(Event{

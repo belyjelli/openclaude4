@@ -15,7 +15,7 @@ import (
 
 // SubTaskSystemPrompt is used as the system message for an isolated Task sub-agent run.
 const SubTaskSystemPrompt = `You are a sub-agent inside OpenClaude v4. Complete the assigned goal using tools when they help.
-Prefer reading before editing. Stay within the workspace. When done, reply with a concise summary for the main agent.`
+Prefer reading before editing. Stay within the workspace. When done, reply with a concise summary for the main agent.` + GitAndGitHubWorkflowInstructions
 
 const defaultTaskSubMaxIter = 12
 

@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -491,6 +492,17 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 		if exit {
 			return m, tea.Quit
 		}
+		var su core.SlashSubmitUser
+		if errors.As(err, &su) {
+			if strings.TrimSpace(out) != "" {
+				m.commitLine(out)
+			}
+			ut := strings.TrimSpace(su.UserText)
+			if ut == "" {
+				return m, textinput.Blink
+			}
+			return m.runModelTurnFromUserText(ut)
+		}
 		if err != nil {
 			m.commitLine(errStyle.Render("Error: ") + err.Error())
 			if c := m.pushToast(err.Error(), toastErr); c != nil {
@@ -504,6 +516,10 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	return m.runModelTurnFromUserText(line)
+}
+
+func (m *model) runModelTurnFromUserText(line string) (tea.Model, tea.Cmd) {
 	m.stickBottom = true
 	m.setBusy(true)
 	ag := m.getAgent()

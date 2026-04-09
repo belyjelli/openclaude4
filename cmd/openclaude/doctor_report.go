@@ -71,6 +71,12 @@ func PrintDoctorReport(w io.Writer, ver, cmt string) {
 		_, _ = fmt.Fprintln(w, "└ Search: OK (system ripgrep on PATH)")
 	}
 
+	if _, err := exec.LookPath("gh"); err != nil {
+		_, _ = fmt.Fprintln(w, "└ GitHub CLI: not on PATH (install https://cli.github.com/ and run gh auth login for PR/issue workflows)")
+	} else {
+		_, _ = fmt.Fprintln(w, "└ GitHub CLI: gh on PATH")
+	}
+
 	_, _ = fmt.Fprintf(w, "\n%sUpdates%s\n", bold, reset)
 	if installKind == "development" {
 		_, _ = fmt.Fprintln(w, "└ Auto-updates: disabled (development build)")

@@ -14,7 +14,9 @@ type Bash struct{}
 func (Bash) Name() string      { return "Bash" }
 func (Bash) IsDangerous() bool { return true }
 func (Bash) Description() string {
-	return "Run a shell command (sh -c on Unix, cmd /C on Windows). Optional cwd relative to workspace. Output is merged stdout+stderr."
+	return "Run a shell command (sh -c on Unix, cmd /C on Windows). Optional cwd relative to workspace. Output is merged stdout+stderr. " +
+		"For local repository work use git; for GitHub (issues, PRs, checks, releases, API-shaped data) use the gh CLI when available. " +
+		"Read-only gh commands that match the built-in allowlist (same idea as OpenClaude v3) can run without an extra dangerous-tool approval prompt."
 }
 
 func (Bash) Parameters() map[string]any {
