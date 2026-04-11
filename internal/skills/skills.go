@@ -11,12 +11,28 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// Entry is one loaded skill.
+// Entry is one loaded skill (v3-shaped frontmatter where applicable).
 type Entry struct {
 	Name        string
 	Description string
 	Body        string
 	Dir         string // absolute path to skill folder
+
+	// Extended (v3-style); zero values mean unset / default.
+	ArgumentNames          []string
+	AllowedTools           []string
+	Context                string // "fork", "inline", or ""
+	Agent                  string
+	Model                  string
+	Effort                 string
+	Shell                  string // "bash", "powershell", or ""
+	DisableModelInvocation bool
+	WhenToUse              string
+	Version                string
+	Paths                  []string
+	Hooks                  map[string]any // v3-shaped hooks YAML subtree; nil if absent
+	SourceLocal            bool           // true for on-disk skills (prompt shell allowed)
+	MaxForkIterations      int            // optional cap for forked sub-agent; 0 = default
 }
 
 // Catalog is a read-only snapshot of loaded skills.
@@ -104,48 +120,144 @@ func addSkillFile(skillDir, mdPath, defaultName string, byName map[string]Entry,
 	if err != nil {
 		return err
 	}
-	name, desc, body, err := parseSkillMarkdown(raw, defaultName)
+	ent, err := ParseSkillMarkdown(raw, defaultName, skillDir)
 	if err != nil {
 		return fmt.Errorf("%s: %w", mdPath, err)
 	}
-	name = strings.TrimSpace(name)
+	name := strings.TrimSpace(ent.Name)
 	if name == "" {
 		name = defaultName
 	}
+	ent.Name = name
 	if _, dup := seen[name]; dup {
 		return fmt.Errorf("duplicate skill name %q (from %s)", name, mdPath)
 	}
 	seen[name] = struct{}{}
-	byName[name] = Entry{
-		Name:        name,
-		Description: desc,
-		Body:        body,
-		Dir:         skillDir,
-	}
+	byName[name] = ent
 	return nil
 }
 
 type fmYAML struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
+	Name                   string         `yaml:"name"`
+	Description            string         `yaml:"description"`
+	Arguments              any            `yaml:"arguments"`
+	AllowedTools           []string       `yaml:"allowed_tools"`
+	Context                string         `yaml:"context"`
+	Agent                  string         `yaml:"agent"`
+	Model                  string         `yaml:"model"`
+	Effort                 string         `yaml:"effort"`
+	Shell                  string         `yaml:"shell"`
+	DisableModelInvocation bool           `yaml:"disable_model_invocation"`
+	WhenToUse              string         `yaml:"when_to_use"`
+	Version                string         `yaml:"version"`
+	Paths                  []string       `yaml:"paths"`
+	MaxForkIterations      int            `yaml:"max_fork_iterations"`
+	Hooks                  map[string]any `yaml:"hooks"`
 }
 
-func parseSkillMarkdown(raw []byte, defaultName string) (name, description, body string, err error) {
+// ParseSkillMarkdown parses SKILL.md into an Entry (including extended frontmatter).
+func ParseSkillMarkdown(raw []byte, defaultName, skillDir string) (Entry, error) {
 	s := strings.TrimPrefix(string(raw), "\ufeff")
 	fm, rest, ok := splitYAMLFrontmatter(s)
 	if !ok {
-		body = strings.TrimSpace(s)
-		return defaultName, "", body, nil
+		return Entry{
+			Name:        defaultName,
+			Description: "",
+			Body:        strings.TrimSpace(s),
+			Dir:         skillDir,
+			SourceLocal: true,
+		}, nil
 	}
 	var meta fmYAML
 	if err := yaml.Unmarshal([]byte(fm), &meta); err != nil {
-		return "", "", "", fmt.Errorf("frontmatter: %w", err)
+		return Entry{}, fmt.Errorf("frontmatter: %w", err)
 	}
 	n := strings.TrimSpace(meta.Name)
 	if n == "" {
 		n = defaultName
 	}
-	return n, strings.TrimSpace(meta.Description), strings.TrimSpace(rest), nil
+	argNames := parseArgumentsField(meta.Arguments)
+	hooks := meta.Hooks
+	if len(hooks) == 0 {
+		hooks = nil
+	}
+	ctx := strings.ToLower(strings.TrimSpace(meta.Context))
+	if ctx != "fork" && ctx != "inline" {
+		ctx = ""
+	}
+	return Entry{
+		Name:                   n,
+		Description:            strings.TrimSpace(meta.Description),
+		Body:                   strings.TrimSpace(rest),
+		Dir:                    skillDir,
+		ArgumentNames:          argNames,
+		AllowedTools:           append([]string(nil), meta.AllowedTools...),
+		Context:                ctx,
+		Agent:                  strings.TrimSpace(meta.Agent),
+		Model:                  strings.TrimSpace(meta.Model),
+		Effort:                 strings.TrimSpace(meta.Effort),
+		Shell:                  strings.ToLower(strings.TrimSpace(meta.Shell)),
+		DisableModelInvocation: meta.DisableModelInvocation,
+		WhenToUse:              strings.TrimSpace(meta.WhenToUse),
+		Version:                strings.TrimSpace(meta.Version),
+		Paths:                  append([]string(nil), meta.Paths...),
+		Hooks:                  hooks,
+		SourceLocal:            true,
+		MaxForkIterations:      meta.MaxForkIterations,
+	}, nil
+}
+
+func parseArgumentsField(v any) []string {
+	if v == nil {
+		return nil
+	}
+	switch x := v.(type) {
+	case string:
+		return parseArgumentNamesFromString(x)
+	case []any:
+		out := make([]string, 0, len(x))
+		for _, e := range x {
+			s, _ := e.(string)
+			s = strings.TrimSpace(s)
+			if s != "" && !isNumericOnlyName(s) {
+				out = append(out, s)
+			}
+		}
+		return out
+	case []string:
+		out := make([]string, 0, len(x))
+		for _, s := range x {
+			s = strings.TrimSpace(s)
+			if s != "" && !isNumericOnlyName(s) {
+				out = append(out, s)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func parseArgumentNamesFromString(s string) []string {
+	var out []string
+	for _, w := range strings.Fields(s) {
+		if w != "" && !isNumericOnlyName(w) {
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
+func isNumericOnlyName(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func splitYAMLFrontmatter(s string) (frontmatter, body string, ok bool) {

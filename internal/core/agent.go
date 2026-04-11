@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gitlawb/openclaude4/internal/apialign"
+	"github.com/gitlawb/openclaude4/internal/hooks"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
 )
@@ -27,9 +28,9 @@ type ConfirmTool func(toolName string, args map[string]any) PermissionOutcome
 
 // Agent runs the multi-turn tool loop with streaming assistant text to out.
 type Agent struct {
-	Client        StreamClient
-	Registry      *tools.Registry
-	Confirm       ConfirmTool
+	Client   StreamClient
+	Registry *tools.Registry
+	Confirm  ConfirmTool
 	// PermissionPolicy, if set, runs before prompting; if it returns decided=true, Confirm is skipped.
 	PermissionPolicy PermissionPolicy
 	Out              io.Writer
@@ -100,6 +101,40 @@ func (a *Agent) RunUserTurnMulti(ctx context.Context, messages *[]sdk.ChatComple
 	})
 }
 
+// RunUserTurnScoped is like [Agent.RunUserTurn] but restricts tools to allow (v3 allowed_tools).
+// When allow is empty, all tools except Task are available (same as [Agent.SubAgentRegistry] with empty allow).
+func (a *Agent) RunUserTurnScoped(ctx context.Context, messages *[]sdk.ChatCompletionMessage, userText string, allow []string) error {
+	child := a.forkLikeAgent(a.SubAgentRegistry(allow))
+	return child.runUserTurnWithUserMessage(ctx, messages, sdk.ChatCompletionMessage{
+		Role:    sdk.ChatMessageRoleUser,
+		Content: userText,
+	})
+}
+
+// RunUserTurnMultiScoped is the multimodal variant of [Agent.RunUserTurnScoped].
+func (a *Agent) RunUserTurnMultiScoped(ctx context.Context, messages *[]sdk.ChatCompletionMessage, parts []sdk.ChatMessagePart, allow []string) error {
+	if len(parts) == 0 {
+		return errors.New("agent: empty multimodal user message")
+	}
+	child := a.forkLikeAgent(a.SubAgentRegistry(allow))
+	return child.runUserTurnWithUserMessage(ctx, messages, sdk.ChatCompletionMessage{
+		Role:         sdk.ChatMessageRoleUser,
+		MultiContent: parts,
+	})
+}
+
+func (a *Agent) forkLikeAgent(reg *tools.Registry) *Agent {
+	return &Agent{
+		Client:           a.Client,
+		Registry:         reg,
+		Confirm:          a.Confirm,
+		PermissionPolicy: a.PermissionPolicy,
+		Out:              a.Out,
+		OnEvent:          a.OnEvent,
+		MaxIterations:    a.MaxIterations,
+	}
+}
+
 func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.ChatCompletionMessage, user sdk.ChatCompletionMessage) error {
 	if a.Client == nil || a.Registry == nil {
 		return errors.New("agent: missing client or registry")
@@ -127,6 +162,11 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 	}
 	*messages = append(*messages, user)
 	a.emit(Event{Kind: KindUserMessage, UserText: UserMessageSummary(user)})
+	dispatchSkillHook(ctx, hooks.UserPromptSubmit, map[string]any{
+		"session_id": hooks.SessionIDFrom(ctx),
+		"cwd":        tools.WorkDir(ctx),
+		"prompt":     UserMessageSummary(user),
+	})
 
 	emit := func(e Event) { a.emit(e) }
 
@@ -258,6 +298,13 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 				}
 			}
 
+			dispatchSkillHook(ctx, hooks.PreToolUse, map[string]any{
+				"session_id": hooks.SessionIDFrom(ctx),
+				"cwd":        tools.WorkDir(ctx),
+				"tool_name":  name,
+				"tool_input": args,
+			})
+
 			result, err := tool.Execute(ctx, args)
 			*messages = append(*messages, toolResultMessage(tc.ID, name, result, err))
 			ev := Event{
@@ -270,6 +317,17 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 				ev.ToolExecError = err.Error()
 			}
 			a.emit(ev)
+			postPayload := map[string]any{
+				"session_id":  hooks.SessionIDFrom(ctx),
+				"cwd":         tools.WorkDir(ctx),
+				"tool_name":   name,
+				"tool_input":  args,
+				"tool_result": result,
+			}
+			if err != nil {
+				postPayload["tool_error"] = err.Error()
+			}
+			dispatchSkillHook(ctx, hooks.PostToolUse, postPayload)
 		}
 	}
 
@@ -454,4 +512,12 @@ func ensureSystemMessage(messages *[]sdk.ChatCompletionMessage) {
 		Content: EffectiveSystemPrompt(),
 	}
 	*messages = append([]sdk.ChatCompletionMessage{sys}, *messages...)
+}
+
+func dispatchSkillHook(ctx context.Context, ev hooks.SkillHookEvent, payload map[string]any) {
+	sid := hooks.SessionIDFrom(ctx)
+	if sid == "" {
+		return
+	}
+	_ = hooks.Default().Dispatch(ctx, sid, ev, "", payload)
 }

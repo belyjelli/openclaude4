@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	sdk "github.com/sashabaranov/go-openai"
 	"github.com/sashabaranov/go-openai/jsonschema"
@@ -62,6 +63,43 @@ func CloneRegistryOmit(src *Registry, omit string) *Registry {
 			continue
 		}
 		out.Register(t)
+	}
+	return out
+}
+
+// CloneRegistry returns a shallow copy of all tools in src.
+func CloneRegistry(src *Registry) *Registry {
+	out := NewRegistry()
+	if src == nil {
+		return out
+	}
+	for _, t := range src.List() {
+		out.Register(t)
+	}
+	return out
+}
+
+// CloneRegistryAllow returns a registry containing only tools whose names appear in allow.
+// If allow is empty, returns CloneRegistry(src) (no restriction).
+func CloneRegistryAllow(src *Registry, allow []string) *Registry {
+	if src == nil {
+		return NewRegistry()
+	}
+	if len(allow) == 0 {
+		return CloneRegistry(src)
+	}
+	want := make(map[string]struct{}, len(allow))
+	for _, a := range allow {
+		a = strings.TrimSpace(a)
+		if a != "" {
+			want[a] = struct{}{}
+		}
+	}
+	out := NewRegistry()
+	for _, t := range src.List() {
+		if _, ok := want[t.Name()]; ok {
+			out.Register(t)
+		}
 	}
 	return out
 }

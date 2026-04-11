@@ -86,17 +86,6 @@ func ParseAtMentionedFileLines(mention string) (path string, lineStart, lineEnd 
 	return path, lineStart, lineEnd
 }
 
-func isDeferredAgentMention(pathPart string) bool {
-	p := strings.TrimSpace(pathPart)
-	// @agent-legacy and @"x (agent)" content
-	if strings.HasPrefix(p, "agent-") {
-		return true
-	}
-	if strings.HasSuffix(p, " (agent)") {
-		return true
-	}
-	return false
-}
 
 // ExtractFileSpecs returns file @-mentions excluding MCP, @mcp:, and deferred @agent forms.
 func ExtractFileSpecs(content string) []FileSpec {
@@ -120,7 +109,7 @@ func ExtractFileSpecs(content string) []FileSpec {
 			return
 		}
 		pathPart, ls, le := ParseAtMentionedFileLines(inner)
-		if isDeferredAgentMention(pathPart) || isDeferredAgentMention(inner) {
+		if agentSyntaxInner(pathPart) || agentSyntaxInner(inner) {
 			return
 		}
 		dedup := pathPart + "|" + strconv.Itoa(ls) + "|" + strconv.Itoa(le) + "|" + strconv.FormatBool(quoted)

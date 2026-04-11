@@ -20,7 +20,7 @@ In **`openclaude --tui`**, the prompt offers **slash typeahead**: after `/`, mat
 | MCP | `/mcp list`, **`/mcp config`**, `/mcp doctor`, **`/mcp add`** (shell hint), `/mcp help` | `/mcp` (broader subcommands + UI) |
 | Transcript | `/clear`, `/compact` | `/clear`, `/compact` |
 | Session | `/session …`, **`/resume`** | `/session`, `/resume`, … (richer) |
-| Skills | `/skills list`, `/skills read`, **`/<skill>`** | `/skills` + skill-backed `/…` from disk/plugins |
+| Skills | `/skills list`, `/skills read`, **`/<skill> [args]`** (v3-style expand + submit; fork / hooks / allowed_tools) | `/skills` + skill-backed `/…` from disk/plugins |
 | Side question | **`/btw`** (one-shot, no main transcript) | `/btw` (local-jsx side question) |
 | Model | **`/model`**, flags, config | `/model`, … |
 | Context / cost | **`/context`**, **`/tokens`**, **`/cost`**, **`/usage`** | `/context`, `/cost`, `/usage`, … |
@@ -57,7 +57,7 @@ In **`openclaude --tui`**, the prompt offers **slash typeahead**: after `/`, mat
 | `/session …` | show, list, save, load, new, running, ps (unchanged) |
 | `/resume` | No args: list sessions. `/resume <id>`: load session |
 | `/skills list`, `/skills read <name>` | Skills catalog |
-| `/<skill>` | If [`Catalog.GetFold`](../internal/skills/skills.go) matches, print skill body (same as read) |
+| `/<skill> [args]` | If [`Catalog.GetFold`](../internal/skills/skills.go) matches: expands `SKILL.md` with `$ARGUMENTS` / `$n` / named args (bash-like parse; `#` affects positional args), optional embedded shell in the markdown body (fenced blocks starting with ` ```! ` and inline `!` + backtick command spans), executed via [`sandbox.RunShell`](../internal/sandbox/sandbox.go), then **submits** as the next user turn ([`SlashSubmitUser`](../internal/core/slash_submit.go)); `allowed_tools` scopes that model turn. `context: fork` runs a nested agent and appends a short transcript pair. `hooks` in frontmatter register session hooks ([`internal/hooks`](../internal/hooks/registry.go)). `disable_model_invocation` keeps print-only guidance. Discovery: `/skills read <name>` still prints without sending. |
 | `/btw <question>` | [`core.SideQuestion`](../internal/core/sidechat.go): isolated completion, **not** appended to main transcript. TUI: blocked while busy |
 | `/cost`, `/usage` | Transcript stats; **no** dollar billing |
 | `/copy` | Last assistant message → clipboard (`pbcopy` / `xclip` / `wl-copy`) or print excerpt |

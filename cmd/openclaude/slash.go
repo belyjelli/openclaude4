@@ -35,6 +35,8 @@ type chatState struct {
 	isBusy                  func() bool
 	themeHolder             *tui.ThemeHolder
 	vimKeys                 *tui.VimKeysHolder
+	// resolveAgent returns the live chat agent (REPL and TUI); used for forked skills.
+	resolveAgent func() *core.Agent
 }
 
 func handleSlashLine(line string, st chatState, out io.Writer) error {
@@ -158,8 +160,7 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 	default:
 		if st.skillCat != nil {
 			if e, ok := st.skillCat.GetFold(cmd); ok {
-				printSkillEntry(out, e)
-				return nil
+				return handleUserSkillSlash(st.ctx, line, fields, e, st, out)
 			}
 		}
 		return fmt.Errorf("unknown command %q - try /help", fields[0])

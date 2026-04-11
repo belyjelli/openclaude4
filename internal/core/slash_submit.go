@@ -4,6 +4,9 @@ package core
 // continue as a normal user message to the model (plain REPL and TUI).
 type SlashSubmitUser struct {
 	UserText string
+	// AllowTools, when non-empty, restricts the next model turn to these tool names
+	// (v3 skill allowed_tools); names are v4 registry names after alias resolution.
+	AllowTools []string
 }
 
 func (e SlashSubmitUser) Error() string {

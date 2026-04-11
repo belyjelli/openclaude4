@@ -7,6 +7,7 @@ import (
 	pathpkg "path/filepath"
 	"strings"
 
+	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/tools"
 )
@@ -18,14 +19,24 @@ const maxDirEntries = 1000
 
 // Deps carries optional services for mention expansion.
 type Deps struct {
-	MCP *mcpclient.Manager
+	MCP    *mcpclient.Manager
+	Agents []config.AgentProfile // optional; when non-empty, @agent-… / @"… (agent)" must resolve or expansion errors
 }
 
-// ExpandUserText appends fenced attachment sections for @files and @server:uri MCP mentions.
-// The original userText is preserved first; expansion uses [tools.WithWorkDir] on ctx.
-// @agent-* / teammate @name are not expanded (see package comment in doc.go).
+// ExpandUserText prepends optional agent instruction blocks, then the original user line, then fenced sections for @files and @server:uri MCP mentions.
+// Expansion uses [tools.WithWorkDir] on ctx.
 func ExpandUserText(ctx context.Context, userText string, deps Deps) (string, error) {
 	userText = strings.TrimRight(userText, "\r\n")
+
+	var byType map[string]config.AgentProfile
+	if len(deps.Agents) > 0 {
+		byType = config.AgentProfileByType(deps.Agents)
+	}
+	agentPrefix, _, err := buildAgentPrefix(userText, byType)
+	if err != nil {
+		return "", err
+	}
+
 	specs := ExtractFileSpecs(userText)
 	mcpKeys := ExtractMCPResourceMentions(userText)
 
@@ -61,16 +72,21 @@ func ExpandUserText(ctx context.Context, userText string, deps Deps) (string, er
 		sections = append(sections, sec)
 	}
 
-	if len(sections) == 0 {
+	if len(sections) == 0 && agentPrefix == "" {
 		return userText, nil
 	}
 	var b strings.Builder
-	b.WriteString(userText)
-	if !strings.HasSuffix(userText, "\n") && userText != "" {
-		b.WriteByte('\n')
+	if agentPrefix != "" {
+		b.WriteString(agentPrefix)
 	}
-	b.WriteString("\n")
-	b.WriteString(strings.Join(sections, "\n"))
+	b.WriteString(userText)
+	if len(sections) > 0 {
+		if !strings.HasSuffix(userText, "\n") && userText != "" {
+			b.WriteByte('\n')
+		}
+		b.WriteString("\n")
+		b.WriteString(strings.Join(sections, "\n"))
+	}
 	return b.String(), nil
 }
 

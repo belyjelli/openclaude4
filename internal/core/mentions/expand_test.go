@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/tools"
 )
 
@@ -38,5 +39,26 @@ func TestExpandUserText_budget(t *testing.T) {
 	_, err := ExpandUserText(ctx, "x @a.txt @b.txt", Deps{})
 	if err == nil {
 		t.Fatal("expected budget error")
+	}
+}
+
+func TestExpandUserText_agentInjection(t *testing.T) {
+	ctx := tools.WithWorkDir(context.Background(), t.TempDir())
+	agents := []config.AgentProfile{{Type: "rev", Instructions: "Be thorough."}}
+	out, err := ExpandUserText(ctx, "please @agent-rev", Deps{Agents: agents})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(out), "### Agent: rev") || !strings.Contains(out, "please @agent-rev") {
+		t.Fatalf("got %q", out)
+	}
+}
+
+func TestExpandUserText_agentUnknown(t *testing.T) {
+	ctx := tools.WithWorkDir(context.Background(), t.TempDir())
+	agents := []config.AgentProfile{{Type: "x", Instructions: "y"}}
+	_, err := ExpandUserText(ctx, "@agent-z", Deps{Agents: agents})
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }

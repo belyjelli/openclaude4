@@ -54,6 +54,9 @@ func Run(cfg Config) error {
 	if cfg.Live != nil {
 		cfg.Live.BindAgent(agent)
 	}
+	if cfg.TUIAgentRef != nil {
+		cfg.TUIAgentRef.Store(agent)
+	}
 	if cfg.Theme != nil {
 		ApplyTheme(cfg.Theme.Get())
 	}

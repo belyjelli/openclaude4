@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gitlawb/openclaude4/internal/sandbox"
@@ -45,6 +46,7 @@ func (Bash) Execute(ctx context.Context, args map[string]any) (string, error) {
 	if cmdStr == "" {
 		return "", fmt.Errorf("command is required")
 	}
+	cmdStr = stripBashCommentLines(cmdStr)
 
 	absRoot, err := resolveUnderWorkdir(ctx, ".")
 	if err != nil {
@@ -69,4 +71,21 @@ func (Bash) Execute(ctx context.Context, args map[string]any) (string, error) {
 	defer cancel()
 
 	return sandbox.RunShell(execCtx, cmdStr, cwd)
+}
+
+// stripBashCommentLines removes full-line # comments (OpenClaude v3 bashPermissions stripCommentLines).
+// If every line would be removed, returns the original command unchanged.
+func stripBashCommentLines(command string) string {
+	lines := strings.Split(command, "\n")
+	var kept []string
+	for _, line := range lines {
+		t := strings.TrimSpace(line)
+		if t != "" && !strings.HasPrefix(t, "#") {
+			kept = append(kept, line)
+		}
+	}
+	if len(kept) == 0 {
+		return command
+	}
+	return strings.Join(kept, "\n")
 }

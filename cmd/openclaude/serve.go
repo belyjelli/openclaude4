@@ -112,11 +112,12 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 	gs := grpc.NewServer()
 	k := ocrpc.Kernel{
-		Client:       client,
-		Registry:     reg,
-		AutoApprove:  autoApprove,
-		TaskParent:   &taskSlot,
-		MCPManager:   mcpMgr,
+		Client:          client,
+		Registry:        reg,
+		AutoApprove:     autoApprove,
+		TaskParent:      &taskSlot,
+		MCPManager:      mcpMgr,
+		AgentProfiles:   config.LoadAgentProfiles(),
 		Session: ocrpc.SessionOpts{
 			Disabled: config.SessionDisabled(),
 			Dir:      config.EffectiveSessionDir(),

@@ -63,6 +63,8 @@ type Config struct {
 	VimKeys *VimKeysHolder
 	// SkillNames returns loaded skill names for /-completion (optional).
 	SkillNames func() []string
+	// AgentProfiles returns optional YAML agents for @agent-… expansion; nil = no catalog (unknown @agent types ignored).
+	AgentProfiles func() []config.AgentProfile
 	// BusySpinnerVerb returns a task- or teammate-driven loading verb (e.g. current todo active form).
 	// If nil or it returns "", a random verb from the built-in/configured pool is used (v3 parity hook).
 	BusySpinnerVerb func() string
@@ -75,30 +77,33 @@ type Config struct {
 	PermissionEngine *toolpolicy.Engine
 	// PermissionStore optional session-local YAML append for user-added allow rules.
 	PermissionStore *toolpolicy.SessionStore
+	// TUIAgentRef, if set, receives the constructed [core.Agent] after startup (slash fork skills).
+	TUIAgentRef *atomic.Pointer[core.Agent]
 }
 
 type model struct {
-	cfg              Config
-	send             func(tea.Msg)
-	vp               viewport.Model
-	ti               textinput.Model
-	busy             bool
-	busyFrame        int
-	busyVerb         string
-	busyStart        time.Time
-	seenAsstDelta    bool
-	busyReduceMotion bool
-	lastStreamChange time.Time
-	stallSmoothed    float64
-	perm             *permState
-	permSel          int // index in permMenuEntries while perm != nil
-	pwiz             *providerWiz
-	width            int
-	height           int
-	permBr           *permBridge
-	getAgent         func() *core.Agent
-	stickBottom      bool
-	runningTool      string
+	cfg               Config
+	send              func(tea.Msg)
+	vp                viewport.Model
+	ti                textinput.Model
+	busy              bool
+	busyFrame         int
+	busyVerb          string
+	busyStart         time.Time
+	seenAsstDelta     bool
+	busyReduceMotion  bool
+	lastStreamChange  time.Time
+	stallSmoothed     float64
+	perm              *permState
+	permSel           int // index in permMenuEntries while perm != nil
+	pwiz              *providerWiz
+	width             int
+	height            int
+	permBr            *permBridge
+	getAgent          func() *core.Agent
+	pendingSlashAllow []string
+	stickBottom       bool
+	runningTool       string
 	// runningToolLine is a short summary (name + key args) for the busy strip; empty when idle.
 	runningToolLine string
 	// pendingToolScheduleCount is >0 after assistant_finished with tools until the first KindToolCall.
@@ -624,7 +629,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.perm == nil && m.pwiz == nil {
 		oldInput := m.ti.Value()
 		m.vp, cmd = m.vp.Update(msg)
-		m.ti, cmd = m.ti.Update(msg)
+		tiMsg := msg
+		if km, ok := tiMsg.(tea.KeyMsg); ok && km.Paste && !m.busy {
+			vimBlock := m.cfg.VimKeys != nil && m.cfg.VimKeys.Enabled() && m.vimNormal
+			if !vimBlock {
+				pasted := string(km.Runes)
+				if out, yes := rewriteBracketedPastePaths(pasted, strings.TrimSpace(m.cfg.WorkDir)); yes {
+					tiMsg = tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune(out)})
+				}
+			}
+		}
+		m.ti, cmd = m.ti.Update(tiMsg)
 		if m.ti.Value() != oldInput {
 			m.resetHistoryNavigationOnEdit()
 			if m.compMode == compFile || m.compMode == compSkill || m.compMode == compMCPResource {
@@ -758,6 +773,7 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 			if ut == "" {
 				return m, textinput.Blink
 			}
+			m.pendingSlashAllow = su.AllowTools
 			return m.runModelTurnFromUserText(ut)
 		}
 		var spw core.SlashStartProviderWizard
@@ -816,7 +832,11 @@ func (m *model) runModelTurnFromUserText(line string) (tea.Model, tea.Cmd) {
 	urls := append([]string(nil), m.pendingImageURLs...)
 	files := append([]string(nil), m.pendingImageFiles...)
 	hasVis := len(urls) > 0 || len(files) > 0
-	expanded, err := mentions.ExpandUserText(ctx, line, mentions.Deps{MCP: m.cfg.MCPManager})
+	var agents []config.AgentProfile
+	if m.cfg.AgentProfiles != nil {
+		agents = m.cfg.AgentProfiles()
+	}
+	expanded, err := mentions.ExpandUserText(ctx, line, mentions.Deps{MCP: m.cfg.MCPManager, Agents: agents})
 	if err != nil {
 		m.setBusy(false)
 		m.commitLine(errStyle.Render("Error: ") + err.Error())
@@ -838,19 +858,30 @@ func (m *model) runModelTurnFromUserText(line string) (tea.Model, tea.Cmd) {
 	m.userSubmitCount++
 	m.syncPlaceholder()
 
-	go func(parts []sdk.ChatMessagePart, clear bool) {
+	allowSnap := append([]string(nil), m.pendingSlashAllow...)
+	m.pendingSlashAllow = nil
+
+	go func(parts []sdk.ChatMessagePart, clear bool, allow []string) {
 		var err error
 		if len(parts) == 1 && parts[0].Type == sdk.ChatMessagePartTypeText {
-			err = ag.RunUserTurn(ctx, msgs, parts[0].Text)
+			if len(allow) > 0 {
+				err = ag.RunUserTurnScoped(ctx, msgs, parts[0].Text, allow)
+			} else {
+				err = ag.RunUserTurn(ctx, msgs, parts[0].Text)
+			}
 		} else {
-			err = ag.RunUserTurnMulti(ctx, msgs, parts)
+			if len(allow) > 0 {
+				err = ag.RunUserTurnMultiScoped(ctx, msgs, parts, allow)
+			} else {
+				err = ag.RunUserTurnMulti(ctx, msgs, parts)
+			}
 		}
 		if err != nil {
 			send(runTurnErrMsg{err: err})
 			return
 		}
 		send(runTurnDoneMsg{clearImages: clear})
-	}(parts, hasVis)
+	}(parts, hasVis, allowSnap)
 
 	return m, nextBusyTick()
 }

@@ -18,10 +18,11 @@ import (
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/core/mentions"
+	"github.com/gitlawb/openclaude4/internal/hooks"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
-	"github.com/gitlawb/openclaude4/internal/providerwizard"
 	"github.com/gitlawb/openclaude4/internal/providers"
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
+	"github.com/gitlawb/openclaude4/internal/providerwizard"
 	"github.com/gitlawb/openclaude4/internal/session"
 	"github.com/gitlawb/openclaude4/internal/skills"
 	"github.com/gitlawb/openclaude4/internal/startupbanner"
@@ -113,8 +114,10 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	reg := tools.NewDefaultRegistry(skillCat)
 	mcpMgr := mcpclient.ConnectAndRegister(ctx, reg, config.MCPServers(), os.Stderr)
 	defer mcpMgr.Close()
+	agentProfiles := config.LoadAgentProfiles()
 
 	var agent *core.Agent
+	var tuiSlashAgent atomic.Pointer[core.Agent]
 	// TUI builds its own [core.Agent] in [tui.Run] and registers Task there with the correct lazy pointer.
 	if !useTUI {
 		reg.Register(core.NewTaskTool(func() *core.Agent { return agent }))
@@ -134,6 +137,9 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	if persist != nil && !printMode {
 		_, _ = fmt.Fprintf(os.Stderr, "Session %q — %d message(s) in memory · %s\n",
 			persist.store.ID, len(messages), persist.store.SessionPath())
+	}
+	if persist != nil {
+		ctx = hooks.WithSessionID(ctx, persist.store.ID)
 	}
 
 	beforeUserTurn := func() error {
@@ -172,7 +178,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	pendingImgFiles := imgFiles
 
 	if printMode {
-		if err := runPrintTurn(ctx, cmd, client, reg, &messages, beforeUserTurn, autoApprove, &agent, pendingImgURLs, pendingImgFiles, mcpMgr); err != nil {
+		if err := runPrintTurn(ctx, cmd, client, reg, &messages, beforeUserTurn, autoApprove, &agent, pendingImgURLs, pendingImgFiles, mcpMgr, agentProfiles); err != nil {
 			return err
 		}
 		return nil
@@ -199,6 +205,8 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			Registry:       reg,
 			Messages:       &messages,
 			SkillNames:     skillCat.Names,
+			AgentProfiles:  func() []config.AgentProfile { return agentProfiles },
+			TUIAgentRef:    &tuiSlashAgent,
 			AutoApprove:    &autoApproveTUI,
 			MCPManager:     mcpMgr,
 			Banner:         bannerStr,
@@ -243,6 +251,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 					isBusy:                  func() bool { return atomic.LoadInt32(&busyFlag) != 0 },
 					themeHolder:             themeHolder,
 					vimKeys:                 vimKeysHolder,
+					resolveAgent:            func() *core.Agent { return tuiSlashAgent.Load() },
 				}, &out)
 				if errors.Is(err, errSlashExitChat) {
 					return out.String(), true, nil
@@ -307,6 +316,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		}
 
 		runAsUser := line
+		var skillAllow []string
 		if strings.HasPrefix(line, "/") {
 			err := handleSlashLine(line, chatState{
 				messages:                &messages,
@@ -320,6 +330,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 				ctx:                     ctx,
 				isBusy:                  nil,
 				themeHolder:             nil,
+				resolveAgent:            func() *core.Agent { return agent },
 			}, os.Stdout)
 			if errors.Is(err, errSlashExitChat) {
 				return nil
@@ -327,6 +338,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			var su core.SlashSubmitUser
 			if errors.As(err, &su) {
 				runAsUser = strings.TrimSpace(su.UserText)
+				skillAllow = su.AllowTools
 				if runAsUser == "" {
 					continue
 				}
@@ -345,7 +357,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		urls := append([]string(nil), pendingURLs...)
 		files := append([]string(nil), pendingFiles...)
 		hasVis := len(urls) > 0 || len(files) > 0
-		expanded, err := mentions.ExpandUserText(ctx, runAsUser, mentions.Deps{MCP: mcpMgr})
+		expanded, err := mentions.ExpandUserText(ctx, runAsUser, mentions.Deps{MCP: mcpMgr, Agents: agentProfiles})
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
@@ -356,9 +368,17 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			continue
 		}
 		if len(parts) == 1 && parts[0].Type == sdk.ChatMessagePartTypeText {
-			err = agent.RunUserTurn(ctx, &messages, parts[0].Text)
+			if len(skillAllow) > 0 {
+				err = agent.RunUserTurnScoped(ctx, &messages, parts[0].Text, skillAllow)
+			} else {
+				err = agent.RunUserTurn(ctx, &messages, parts[0].Text)
+			}
 		} else {
-			err = agent.RunUserTurnMulti(ctx, &messages, parts)
+			if len(skillAllow) > 0 {
+				err = agent.RunUserTurnMultiScoped(ctx, &messages, parts, skillAllow)
+			} else {
+				err = agent.RunUserTurnMulti(ctx, &messages, parts)
+			}
 		}
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -388,6 +408,7 @@ func runPrintTurn(
 	imageURLs []string,
 	imageFiles []string,
 	mcpMgr *mcpclient.Manager,
+	agentProfiles []config.AgentProfile,
 ) error {
 	printArg, _ := cmd.Flags().GetString("print")
 	var prompt string
@@ -408,7 +429,7 @@ func runPrintTurn(
 		return err
 	}
 
-	expanded, err := mentions.ExpandUserText(ctx, prompt, mentions.Deps{MCP: mcpMgr})
+	expanded, err := mentions.ExpandUserText(ctx, prompt, mentions.Deps{MCP: mcpMgr, Agents: agentProfiles})
 	if err != nil {
 		return err
 	}

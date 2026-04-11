@@ -63,6 +63,8 @@ type Kernel struct {
 	Session SessionOpts
 	// MCPManager is optional; used to expand @server:uri mentions in user text.
 	MCPManager *mcpclient.Manager
+	// AgentProfiles optional; when set, @agent-… mentions must resolve against this catalog.
+	AgentProfiles []config.AgentProfile
 }
 
 // SessionOpts configures optional gRPC session_id binding to [session.Store] files.
@@ -304,7 +306,10 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 						})
 					}
 					merged := mentions.AppendSyntheticAtMentions(strings.TrimSpace(req.GetUserText()), wdSave, synth)
-					expanded, err := mentions.ExpandUserText(turnCtx, merged, mentions.Deps{MCP: s.Kernel.MCPManager})
+					expanded, err := mentions.ExpandUserText(turnCtx, merged, mentions.Deps{
+						MCP:    s.Kernel.MCPManager,
+						Agents: s.Kernel.AgentProfiles,
+					})
 					if err != nil {
 						_ = send(&openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_Error{Error: &openclaudev4.ErrorEvent{
 							Message: err.Error(),
