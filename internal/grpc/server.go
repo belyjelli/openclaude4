@@ -19,6 +19,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/grpc/openclaudev4"
 	"github.com/gitlawb/openclaude4/internal/session"
+	"github.com/gitlawb/openclaude4/internal/toolpolicy"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
 	"google.golang.org/grpc"
@@ -241,6 +242,13 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 						core.EffectiveSystemPrompt(),
 					)
 
+					permEng, permStore := grpcPermissionEngine(activeStore, persist)
+					rawWait := func(toolName string, args map[string]any) core.PermissionOutcome {
+						if s.Kernel.AutoApprove {
+							return core.AllowPermission()
+						}
+						return pgate.waitOutcome(ctx, send, tl, toolName, args)
+					}
 					agent := &core.Agent{
 						Client:   s.Kernel.Client,
 						Registry: s.Kernel.Registry,
@@ -250,11 +258,18 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 								_ = send(msg)
 							}
 						},
-						Confirm: func(toolName string, args map[string]any) bool {
-							if s.Kernel.AutoApprove {
-								return true
+						PermissionPolicy: func(n string, a map[string]any) (core.PermissionOutcome, bool, string) {
+							return permEng.Eval(n, a)
+						},
+						Confirm: func(toolName string, args map[string]any) core.PermissionOutcome {
+							o := rawWait(toolName, args)
+							if permStore != nil && len(o.AddAllowRules) > 0 {
+								_ = permStore.AppendAllow(o.AddAllowRules)
 							}
-							return pgate.wait(ctx, send, tl, toolName, args)
+							if len(o.AddAllowRules) > 0 {
+								permEng.AppendAllow(o.AddAllowRules)
+							}
+							return o
 						},
 					}
 					if s.Kernel.TaskParent != nil {
@@ -285,7 +300,7 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 				if ui == nil {
 					continue
 				}
-				if !pgate.deliver(ui.GetPromptId(), ui.GetReply()) {
+				if !pgate.deliverUI(ui) {
 					_ = send(&openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_Error{Error: &openclaudev4.ErrorEvent{
 						Message: "no matching permission prompt for prompt_id",
 						Code:    "permission_mismatch",
@@ -327,10 +342,24 @@ func (t *turnLocal) takePermPromptID() string {
 type permGate struct {
 	mu sync.Mutex
 	id string
-	ch chan bool
+	ch chan core.PermissionOutcome
 }
 
-func (g *permGate) wait(ctx context.Context, send func(*openclaudev4.ServerMessage) error, tl *turnLocal, toolName string, args map[string]any) bool {
+func grpcPermissionEngine(st *session.Store, sessionPersisted bool) (*toolpolicy.Engine, *toolpolicy.SessionStore) {
+	allowG, denyG := config.PermissionsFromViper()
+	merged := append([]string(nil), allowG...)
+	var ps *toolpolicy.SessionStore
+	if sessionPersisted && st != nil && st.Dir != "" && st.ID != "" {
+		p := toolpolicy.SessionPermissionsPath(st.Dir, st.ID)
+		ps = toolpolicy.NewSessionStore(p)
+		if extra, err := ps.Load(); err == nil {
+			merged = append(merged, extra...)
+		}
+	}
+	return toolpolicy.NewEngine(merged, denyG), ps
+}
+
+func (g *permGate) waitOutcome(ctx context.Context, send func(*openclaudev4.ServerMessage) error, tl *turnLocal, toolName string, args map[string]any) core.PermissionOutcome {
 	id := newPromptID()
 	tl.setPermPromptID(id)
 	argsJSON := ""
@@ -340,7 +369,7 @@ func (g *permGate) wait(ctx context.Context, send func(*openclaudev4.ServerMessa
 			argsJSON = string(b)
 		}
 	}
-	ch := make(chan bool, 1)
+	ch := make(chan core.PermissionOutcome, 1)
 
 	g.mu.Lock()
 	g.id = id
@@ -357,37 +386,74 @@ func (g *permGate) wait(ctx context.Context, send func(*openclaudev4.ServerMessa
 	}()
 
 	q := fmt.Sprintf("Approve tool %q with args %s?", toolName, core.FormatToolArgsForLog(args))
+	summary := toolName
+	if argsJSON != "" && len(argsJSON) < 400 {
+		summary = toolName + " — " + argsJSON
+	}
+	rhint := "dangerous_tool"
 	_ = send(&openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_PermissionRequired{PermissionRequired: &openclaudev4.PermissionRequired{
 		PromptId:      id,
 		ToolName:      toolName,
 		ArgumentsJson: argsJSON,
 		Question:      q,
+		Summary:       &summary,
+		ReasonHint:    &rhint,
 	}}})
 
 	select {
 	case v := <-ch:
 		return v
 	case <-ctx.Done():
-		return false
+		return core.DenyPermission("")
 	}
 }
 
-func (g *permGate) deliver(promptID, reply string) bool {
+func (g *permGate) deliverUI(ui *openclaudev4.UserInput) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if g.id == "" || g.ch == nil || promptID != g.id {
+	if g.id == "" || g.ch == nil || ui.GetPromptId() != g.id {
 		return false
 	}
 	ch := g.ch
 	g.ch = nil
 	g.id = ""
-	ch <- parseApproval(reply)
+	ch <- userInputToPermissionOutcome(ui)
 	return true
 }
 
-func parseApproval(reply string) bool {
-	s := strings.TrimSpace(strings.ToLower(reply))
-	return s == "y" || s == "yes"
+func userInputToPermissionOutcome(ui *openclaudev4.UserInput) core.PermissionOutcome {
+	if ui == nil {
+		return core.DenyPermission("")
+	}
+	reply := strings.TrimSpace(strings.ToLower(ui.GetReply()))
+	fb := strings.TrimSpace(ui.GetDeclineFeedback())
+	rule := strings.TrimSpace(ui.GetAddAllowRule())
+	auto := ui.GetEnableSessionAutoApprove()
+	if reply == "n" || reply == "no" {
+		return core.DenyPermission(fb)
+	}
+	if reply == "y" || reply == "yes" {
+		o := core.AllowPermission()
+		o.EnableSessionAutoApprove = auto
+		if rule != "" {
+			o.AddAllowRules = []string{rule}
+		}
+		return o
+	}
+	if reply == "" && auto {
+		o := core.AllowPermission()
+		o.EnableSessionAutoApprove = true
+		if rule != "" {
+			o.AddAllowRules = []string{rule}
+		}
+		return o
+	}
+	if reply == "" && rule != "" {
+		o := core.AllowPermission()
+		o.AddAllowRules = []string{rule}
+		return o
+	}
+	return core.DenyPermission(fb)
 }
 
 func newPromptID() string {
@@ -432,10 +498,16 @@ func serverMessageFromEvent(e core.Event, tl *turnLocal) *openclaudev4.ServerMes
 		if tl != nil {
 			pid = tl.takePermPromptID()
 		}
-		return &openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_PermissionAck{PermissionAck: &openclaudev4.PermissionAck{
-			PromptId: pid,
-			Approved: e.PermissionApproved,
-		}}}
+		dn := e.PermissionDeclineNote
+		sa := e.PermissionSessionAutoApprove
+		ack := &openclaudev4.PermissionAck{
+			PromptId:               pid,
+			Approved:               e.PermissionApproved,
+			DeclineNote:            &dn,
+			RulesAdded:             append([]string(nil), e.PermissionRulesAdded...),
+			SessionAutoApprove:     &sa,
+		}
+		return &openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_PermissionAck{PermissionAck: ack}}
 	case core.KindToolResult:
 		isErr := e.ToolExecError != ""
 		return &openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_ToolResult{ToolResult: &openclaudev4.ToolCallResult{
