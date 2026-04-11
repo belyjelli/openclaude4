@@ -26,6 +26,9 @@ import (
 	sdk "github.com/sashabaranov/go-openai"
 )
 
+// vpMarkdownResyncDebounce is the quiet period after the last prompt keystroke before running a full viewport sync (markdown/Chroma can be heavy on long transcripts).
+const vpMarkdownResyncDebounce = 1200 * time.Millisecond
+
 // Config drives the TUI session (kernel + transcript + input).
 type Config struct {
 	Ctx      context.Context
@@ -142,6 +145,8 @@ type model struct {
 	startSprite          *digitamaAnim // random Digitama mascot on empty transcript (embedded PNG)
 	// prStatusExtra is a short fragment from gh pr view (e.g. "PR #3 · pending"); empty when unavailable.
 	prStatusExtra string
+	// vpDebounceGen increments on each prompt edit; debouncedSyncVPMsg runs syncVP only when id matches (latest edit wins).
+	vpDebounceGen int
 	// Permission panel: Tab cycles "", "decline" (note), "rule" (allow rule text).
 	permEditMode string
 	permAuxTI    textinput.Model
@@ -170,6 +175,11 @@ type prStatusReadyMsg struct {
 }
 
 type prPollTickMsg struct{}
+
+// debouncedSyncVPMsg triggers a full viewport content sync after prompt edits stop (see vpMarkdownResyncDebounce).
+type debouncedSyncVPMsg struct {
+	id int
+}
 
 func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *permBridge) *model {
 	ti := textinput.New()
@@ -631,6 +641,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(textinput.Blink, c)
 		}
 		return m, textinput.Blink
+
+	case debouncedSyncVPMsg:
+		if msg.id != m.vpDebounceGen {
+			return m, nil
+		}
+		m.syncVP()
+		return m, nil
 	}
 
 	var cmd tea.Cmd
@@ -648,14 +665,29 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.ti, cmd = m.ti.Update(tiMsg)
-		if m.ti.Value() != oldInput {
+		inputChanged := m.ti.Value() != oldInput
+		if inputChanged {
 			m.resetHistoryNavigationOnEdit()
 			if m.compMode == compFile || m.compMode == compSkill || m.compMode == compMCPResource {
 				m.clearSuggestOverlay()
 			}
 		}
 		m.syncSuggestOverlay()
-		m.reflowLayout()
+		m.applyLayoutSizes()
+		var tick tea.Cmd
+		if inputChanged {
+			m.vpDebounceGen++
+			id := m.vpDebounceGen
+			tick = tea.Tick(vpMarkdownResyncDebounce, func(time.Time) tea.Msg {
+				return debouncedSyncVPMsg{id: id}
+			})
+		}
+		if tick != nil {
+			if cmd != nil {
+				return m, tea.Batch(cmd, tick)
+			}
+			return m, tick
+		}
 	}
 	return m, cmd
 }
@@ -1104,8 +1136,8 @@ func (m *model) setBusy(v bool) {
 	m.reflowLayout()
 }
 
-// reflowLayout recomputes viewport and input width from m.width/m.height and current chrome (permission panel, busy line).
-func (m *model) reflowLayout() {
+// applyLayoutSizes updates viewport and text-input geometry without rebuilding viewport markdown (cheap on every keystroke).
+func (m *model) applyLayoutSizes() {
 	if m.width <= 0 || m.height <= 0 {
 		return
 	}
@@ -1142,6 +1174,11 @@ func (m *model) reflowLayout() {
 			m.permAuxTI.Width = iw
 		}
 	}
+}
+
+// reflowLayout recomputes viewport and input width from m.width/m.height and current chrome (permission panel, busy line), then syncs viewport content.
+func (m *model) reflowLayout() {
+	m.applyLayoutSizes()
 	m.syncVP()
 }
 
