@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gitlawb/openclaude4/internal/core"
 )
 
 type permBridge struct {
@@ -30,24 +31,25 @@ func (b *permBridge) setProgram(p *tea.Program) {
 	b.prog = p
 }
 
-func (b *permBridge) Confirm(toolName string, args map[string]any) bool {
+// Confirm blocks until the TUI resolves the permission dialog (or context cancelled).
+func (b *permBridge) Confirm(toolName string, args map[string]any) core.PermissionOutcome {
 	if b.autoApprove.Load() {
-		return true
+		return core.AllowPermission()
 	}
 	b.mu.Lock()
 	p := b.prog
 	b.mu.Unlock()
 	if p == nil {
-		return false
+		return core.DenyPermission("")
 	}
-	ch := make(chan bool, 1)
+	ch := make(chan core.PermissionOutcome, 1)
 	p.Send(permPromptMsg{tool: toolName, args: args, result: ch})
 	select {
 	case <-b.ctx.Done():
-		return false
+		return core.DenyPermission("")
 	case v, ok := <-ch:
 		if !ok {
-			return false
+			return core.DenyPermission("")
 		}
 		return v
 	}
@@ -56,5 +58,5 @@ func (b *permBridge) Confirm(toolName string, args map[string]any) bool {
 type permPromptMsg struct {
 	tool   string
 	args   map[string]any
-	result chan bool
+	result chan core.PermissionOutcome
 }

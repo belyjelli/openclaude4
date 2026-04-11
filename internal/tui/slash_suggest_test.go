@@ -97,3 +97,14 @@ func TestOverlaySlashOnViewportTallOverlayClips(t *testing.T) {
 		t.Fatalf("got %q want %q", got, want)
 	}
 }
+
+func TestRenderSlashStylePickListNonEmpty(t *testing.T) {
+	entries := []slashEntry{
+		{primary: "approve", hint: "once"},
+		{primary: "deny", hint: "no"},
+	}
+	got := renderSlashStylePickList(60, entries, 0)
+	if got == "" || !strings.Contains(got, "/approve") {
+		t.Fatalf("unexpected pick list output: %q", got)
+	}
+}

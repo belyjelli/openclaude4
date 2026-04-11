@@ -21,16 +21,19 @@ type StreamClient interface {
 	StreamChatWithTools(ctx context.Context, messages []sdk.ChatCompletionMessage, toolList []sdk.Tool) (*sdk.ChatCompletionStream, error)
 }
 
-// ConfirmTool is invoked before running a dangerous tool; return false to skip.
-type ConfirmTool func(toolName string, args map[string]any) bool
+// ConfirmTool is invoked before running a dangerous tool (after [Agent.PermissionPolicy], if any).
+// The transport may set side effects on the outcome (session auto-approve, new allow rules) before returning.
+type ConfirmTool func(toolName string, args map[string]any) PermissionOutcome
 
 // Agent runs the multi-turn tool loop with streaming assistant text to out.
 type Agent struct {
 	Client        StreamClient
 	Registry      *tools.Registry
 	Confirm       ConfirmTool
-	Out           io.Writer
-	MaxIterations int
+	// PermissionPolicy, if set, runs before prompting; if it returns decided=true, Confirm is skipped.
+	PermissionPolicy PermissionPolicy
+	Out              io.Writer
+	MaxIterations    int
 	// OnEvent receives structured kernel events (streaming text, tool calls, errors).
 	// Optional; TUI / headless transports use this instead of scraping stdout.
 	OnEvent EventHandler
@@ -187,7 +190,7 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 				continue
 			}
 
-			if tool.IsDangerous() && a.Confirm != nil {
+			if tool.IsDangerous() {
 				skipConfirm := false
 				if name == "Bash" {
 					cmd, _ := args["command"].(string)
@@ -195,24 +198,63 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 						skipConfirm = true
 					}
 				}
-				var allowed bool
 				if skipConfirm {
-					allowed = true
+					// Read-only allowlisted bash: no prompt.
 				} else {
-					a.emit(Event{Kind: KindPermissionPrompt, PermissionTool: name, ToolArgs: args})
-					allowed = a.Confirm(name, args)
-					a.emit(Event{Kind: KindPermissionResult, PermissionTool: name, PermissionApproved: allowed})
-				}
-				if !allowed {
-					const declined = "User declined this tool execution."
-					*messages = append(*messages, toolResultMessage(tc.ID, name, declined, nil))
-					a.emit(Event{
-						Kind:           KindToolResult,
-						ToolCallID:     tc.ID,
-						ToolName:       name,
-						ToolResultText: declined,
-					})
-					continue
+					var permOutcome PermissionOutcome
+					permHandled := false
+					permReason := ""
+					if a.PermissionPolicy != nil {
+						if o, ok, tag := a.PermissionPolicy(name, args); ok {
+							permOutcome = o
+							permHandled = true
+							permReason = tag
+						}
+					}
+					if !permHandled && a.Confirm != nil {
+						a.emit(Event{
+							Kind:             KindPermissionPrompt,
+							PermissionTool:   name,
+							ToolArgs:         args,
+							PermissionReason: "dangerous_tool",
+						})
+						permOutcome = a.Confirm(name, args)
+						permHandled = true
+						if permOutcome.Allow {
+							permReason = "user_allow"
+						} else {
+							permReason = "user_deny"
+						}
+					}
+					if permHandled {
+						if permReason == "" {
+							if permOutcome.Allow {
+								permReason = "user_allow"
+							} else {
+								permReason = "user_deny"
+							}
+						}
+						a.emit(Event{
+							Kind:                         KindPermissionResult,
+							PermissionTool:               name,
+							PermissionApproved:           permOutcome.Allow,
+							PermissionDeclineNote:        permOutcome.DeclineUserNote,
+							PermissionRulesAdded:         append([]string(nil), permOutcome.AddAllowRules...),
+							PermissionSessionAutoApprove: permOutcome.EnableSessionAutoApprove,
+							PermissionReason:             permReason,
+						})
+						if !permOutcome.Allow {
+							declined := DeclineToolMessage(permOutcome.DeclineUserNote)
+							*messages = append(*messages, toolResultMessage(tc.ID, name, declined, nil))
+							a.emit(Event{
+								Kind:           KindToolResult,
+								ToolCallID:     tc.ID,
+								ToolName:       name,
+								ToolResultText: declined,
+							})
+							continue
+						}
+					}
 				}
 			}
 

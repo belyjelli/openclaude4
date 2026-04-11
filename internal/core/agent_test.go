@@ -475,8 +475,8 @@ func TestRunUserTurn_UserDeclinesDangerousTool(t *testing.T) {
 		Client:   newTestStreamClient(t, srv),
 		Registry: reg,
 		Out:      &out,
-		Confirm: func(string, map[string]any) bool {
-			return false
+		Confirm: func(string, map[string]any) PermissionOutcome {
+			return DenyPermission("")
 		},
 	}
 

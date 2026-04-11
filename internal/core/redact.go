@@ -107,6 +107,15 @@ func RedactEventForLog(e Event) Event {
 	e.ToolArgsJSON = RedactStringForLog(e.ToolArgsJSON)
 	e.ToolResultText = RedactStringForLog(e.ToolResultText)
 	e.ToolExecError = RedactStringForLog(e.ToolExecError)
+	e.PermissionReason = RedactStringForLog(e.PermissionReason)
+	e.PermissionDeclineNote = RedactStringForLog(e.PermissionDeclineNote)
+	if len(e.PermissionRulesAdded) > 0 {
+		rules := make([]string, len(e.PermissionRulesAdded))
+		for i, r := range e.PermissionRulesAdded {
+			rules[i] = RedactStringForLog(r)
+		}
+		e.PermissionRulesAdded = rules
+	}
 	if len(e.ToolArgs) > 0 {
 		if cloned, ok := redactAnyValue(e.ToolArgs).(map[string]any); ok {
 			e.ToolArgs = cloned

@@ -20,6 +20,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/ghstatus"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/providerwizard"
+	"github.com/gitlawb/openclaude4/internal/toolpolicy"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
 )
@@ -85,6 +86,7 @@ type model struct {
 	lastStreamChange  time.Time
 	stallSmoothed     float64
 	perm              *permState
+	permSel           int // index in permMenuEntries while perm != nil
 	pwiz              *providerWiz
 	width             int
 	height            int
@@ -122,12 +124,15 @@ type model struct {
 	startSprite          *digitamaAnim // random Digitama mascot on empty transcript (embedded PNG)
 	// prStatusExtra is a short fragment from gh pr view (e.g. "PR #3 · pending"); empty when unavailable.
 	prStatusExtra string
+	// Permission panel: Tab cycles "", "decline" (note), "rule" (allow rule text).
+	permEditMode string
+	permAuxTI    textinput.Model
 }
 
 type permState struct {
 	tool string
 	args map[string]any
-	ch   chan bool
+	ch   chan core.PermissionOutcome
 }
 
 type kernelMsg struct {
@@ -157,11 +162,16 @@ func newModel(cfg Config, send func(tea.Msg), getAgent func() *core.Agent, pb *p
 	vp := viewport.New(0, 0)
 	vp.MouseWheelEnabled = true
 
+	paux := textinput.New()
+	paux.CharLimit = 800
+	paux.Width = 72
+
 	m := &model{
 		cfg:               cfg,
 		send:              send,
 		vp:                vp,
 		ti:                ti,
+		permAuxTI:         paux,
 		permBr:            pb,
 		getAgent:          getAgent,
 		stickBottom:       true,
@@ -280,6 +290,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.pwiz.ti.Width = tw
 		}
+		tw := msg.Width - 8
+		if tw < 20 {
+			tw = 20
+		}
+		m.permAuxTI.Width = tw
 		m.reflowLayout()
 		return m, nil
 
@@ -345,17 +360,72 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if m.perm != nil {
+			if m.permEditMode != "" {
+				switch msg.Type { //nolint:exhaustive
+				case tea.KeyEsc:
+					m.permEditMode = ""
+					m.permAuxTI.Blur()
+					m.permAuxTI.SetValue("")
+					m.reflowLayout()
+					return m, textinput.Blink
+				case tea.KeyEnter:
+					m.submitPermAuxInput()
+					m.reflowLayout()
+					return m, textinput.Blink
+				}
+				var cmd tea.Cmd
+				m.permAuxTI, cmd = m.permAuxTI.Update(msg)
+				return m, cmd
+			}
+			entries := m.permMenuEntries()
+			nOpts := len(entries)
+			switch msg.Type { //nolint:exhaustive
+			case tea.KeyUp:
+				if nOpts > 1 {
+					m.permSel = (m.permSel - 1 + nOpts) % nOpts
+				}
+				return m, nil
+			case tea.KeyDown:
+				if nOpts > 1 {
+					m.permSel = (m.permSel + 1) % nOpts
+				}
+				return m, nil
+			case tea.KeyEnter:
+				m.applyPermMenuSelection()
+				m.reflowLayout()
+				return m, nil
+			case tea.KeyTab:
+				switch m.permEditMode {
+				case "":
+					m.permEditMode = "decline"
+					m.permAuxTI.SetValue("")
+					m.permAuxTI.Placeholder = "Optional note if you deny (Enter to deny with note)"
+					m.permAuxTI.Focus()
+				case "decline":
+					m.permEditMode = "rule"
+					if m.perm != nil {
+						m.permAuxTI.SetValue(toolpolicy.SuggestedAllowRule(m.perm.tool, m.perm.args))
+					}
+					m.permAuxTI.Placeholder = "Edit allow rule (Enter to approve + save rule)"
+					m.permAuxTI.Focus()
+				default:
+					m.permEditMode = ""
+					m.permAuxTI.Blur()
+					m.permAuxTI.SetValue("")
+				}
+				return m, textinput.Blink
+			}
 			switch strings.ToLower(msg.String()) {
 			case "y":
-				m.answerPerm(true)
+				m.answerPermOutcome(core.AllowPermission())
 				m.reflowLayout()
 				return m, nil
 			case "n":
-				m.answerPerm(false)
+				m.answerPermOutcome(core.DenyPermission(""))
 				m.reflowLayout()
 				return m, nil
 			case "esc", "q":
-				m.answerPerm(false)
+				m.answerPermOutcome(core.DenyPermission(""))
 				m.reflowLayout()
 				return m, nil
 			}
@@ -476,6 +546,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case permPromptMsg:
 		m.perm = &permState{tool: msg.tool, args: msg.args, ch: msg.result}
+		m.permSel = 0
+		m.permEditMode = ""
+		m.permAuxTI.SetValue("")
+		m.permAuxTI.Blur()
+		m.permAuxTI.Placeholder = ""
 		m.rebuildSlashMatches()
 		m.reflowLayout()
 		return m, nil
@@ -553,17 +628,98 @@ func (m *model) slashSuggestActive() bool {
 	return len(m.slashMatches) > 0
 }
 
-func (m *model) answerPerm(ok bool) {
+func (m *model) answerPermOutcome(o core.PermissionOutcome) {
 	if m.perm == nil {
 		return
 	}
 	ch := m.perm.ch
 	m.perm = nil
+	m.permSel = 0
+	m.permEditMode = ""
+	m.permAuxTI.Blur()
+	m.permAuxTI.SetValue("")
 	select {
-	case ch <- ok:
+	case ch <- o:
 	default:
 	}
 	m.rebuildSlashMatches()
+}
+
+func (m *model) submitPermAuxInput() {
+	if m.perm == nil {
+		return
+	}
+	switch m.permEditMode {
+	case "decline":
+		m.answerPermOutcome(core.DenyPermission(m.permAuxTI.Value()))
+	case "rule":
+		rule := strings.TrimSpace(m.permAuxTI.Value())
+		o := core.AllowPermission()
+		if rule != "" {
+			o.AddAllowRules = []string{rule}
+		}
+		m.answerPermOutcome(o)
+	default:
+		m.answerPermOutcome(core.DenyPermission(""))
+	}
+}
+
+// permMenuEntries lists choices in slash-suggestion style (/primary + hint column).
+func (m *model) permMenuEntries() []slashEntry {
+	es := []slashEntry{
+		{primary: "approve", hint: "run this tool once"},
+		{primary: "allow-rule", hint: "save rule + run once"},
+	}
+	if m.cfg.AutoApprove != nil {
+		es = append(es, slashEntry{primary: "permissions", hint: "don't ask again (session)"})
+	}
+	es = append(es, slashEntry{primary: "deny", hint: "cancel tool"})
+	return es
+}
+
+func (m *model) clampPermSel() {
+	n := len(m.permMenuEntries())
+	if n == 0 {
+		return
+	}
+	if m.permSel < 0 {
+		m.permSel = 0
+	}
+	if m.permSel >= n {
+		m.permSel = n - 1
+	}
+}
+
+func (m *model) applyPermMenuSelection() {
+	if m.perm == nil {
+		return
+	}
+	m.clampPermSel()
+	entries := m.permMenuEntries()
+	if m.permSel < 0 || m.permSel >= len(entries) {
+		return
+	}
+	switch entries[m.permSel].primary {
+	case "approve":
+		m.answerPermOutcome(core.AllowPermission())
+	case "allow-rule":
+		m.permEditMode = "rule"
+		m.permAuxTI.SetValue(toolpolicy.SuggestedAllowRule(m.perm.tool, m.perm.args))
+		m.permAuxTI.Placeholder = "Edit allow rule (Enter to approve + save)"
+		m.permAuxTI.Focus()
+	case "permissions":
+		o := core.AllowPermission()
+		if m.cfg.AutoApprove != nil {
+			m.cfg.AutoApprove.Store(true)
+			m.commitLine(dimStyle.Render("auto-approve: on"))
+			o.EnableSessionAutoApprove = true
+		}
+		m.answerPermOutcome(o)
+	case "deny":
+		m.answerPermOutcome(core.DenyPermission(""))
+	default:
+		m.answerPermOutcome(core.DenyPermission(""))
+	}
 }
 
 func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
@@ -735,10 +891,18 @@ func (m *model) applyKernel(e core.Event) {
 		// Interactive modal is driven by permPromptMsg from Confirm; no extra line.
 	case core.KindPermissionResult:
 		switch {
+		case strings.TrimSpace(e.PermissionReason) == "policy_allow":
+			m.commitLine(dimStyle.Render(fmt.Sprintf("[policy allow] %s", e.PermissionTool)))
+		case strings.TrimSpace(e.PermissionReason) == "policy_deny":
+			m.commitLine(errStyle.Render(fmt.Sprintf("[policy deny] %s", e.PermissionTool)))
 		case autoApproveEnabled(m.cfg.AutoApprove) && e.PermissionApproved:
 			m.commitLine(dimStyle.Render(fmt.Sprintf("[auto-approved] %s", e.PermissionTool)))
 		case e.PermissionApproved:
-			m.commitLine(okStyle.Render("Approved: ") + e.PermissionTool)
+			msg := okStyle.Render("Approved: ") + e.PermissionTool
+			if len(e.PermissionRulesAdded) > 0 {
+				msg += "\n" + dimStyle.Render("rules: "+strings.Join(e.PermissionRulesAdded, ", "))
+			}
+			m.commitLine(msg)
 		default:
 			m.commitLine(errStyle.Render("Declined: ") + e.PermissionTool)
 			m.pendingToastCmd = m.pushToast("Declined: "+e.PermissionTool, toastWarn)
@@ -943,15 +1107,33 @@ func (m *model) View() string {
 
 	var permBlock string
 	if m.perm != nil {
+		m.clampPermSel()
+		detail := permDetailLines(m.perm.tool, m.perm.args)
 		args := formatToolArgs("", m.perm.args)
+		if len(detail) == 0 {
+			detail = []string{dimStyle.Render(args)}
+		}
+		menu := renderSlashStylePickList(m.width, m.permMenuEntries(), m.permSel)
+		hint := dimStyle.Render("↑↓ Enter · y approve · n/Esc deny · Tab note/rule")
+		auxLine := ""
+		if m.permEditMode != "" {
+			auxLine = lipgloss.JoinVertical(lipgloss.Left,
+				dimStyle.Render("Edit (Esc cancel):"),
+				m.permAuxTI.View(),
+			)
+		}
 		box := lipgloss.JoinVertical(
 			lipgloss.Left,
 			errStyle.Bold(true).Render("Permission required"),
 			"",
 			fmt.Sprintf("Tool: %s", m.perm.tool),
-			dimStyle.Render(args),
+			lipgloss.JoinVertical(lipgloss.Left, detail...),
 			"",
-			okStyle.Render("[y]")+" approve  "+dimStyle.Render("[n]")+" deny  "+dimStyle.Render("[esc]")+" deny",
+			dimStyle.Render("Do you want to proceed?"),
+			menu,
+			auxLine,
+			"",
+			hint,
 		)
 		permBlock = lipgloss.NewStyle().
 			Width(m.width-2).

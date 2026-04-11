@@ -52,10 +52,14 @@ type Event struct {
 	ToolArgsJSON string         `json:"toolArgsJson,omitempty"`
 
 	// PermissionPrompt / PermissionResult (prompt also sets ToolArgs for the pending call).
-	PermissionTool string `json:"permissionTool,omitempty"`
+	PermissionTool   string `json:"permissionTool,omitempty"`
+	PermissionReason string `json:"permissionReason,omitempty"` // e.g. dangerous_tool, policy_allow, policy_deny
 
 	// PermissionResult
-	PermissionApproved bool `json:"permissionApproved,omitempty"`
+	PermissionApproved           bool     `json:"permissionApproved,omitempty"`
+	PermissionDeclineNote        string   `json:"permissionDeclineNote,omitempty"`
+	PermissionRulesAdded         []string `json:"permissionRulesAdded,omitempty"`
+	PermissionSessionAutoApprove bool     `json:"permissionSessionAutoApprove,omitempty"`
 
 	// ToolResult (content matches what is sent back to the model)
 	ToolResultText string `json:"toolResultText,omitempty"`

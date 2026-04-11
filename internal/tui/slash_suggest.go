@@ -167,6 +167,33 @@ func renderSlashSuggestRow(width, col1W, gap int, e slashEntry, argMode, isSelec
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftCell, strings.Repeat(" ", gap), rightCell)
 }
 
+// renderSlashStylePickList renders a bordered option list with the same row styling as slash
+// command suggestions (selected row: purple background, orange label, pink hint).
+func renderSlashStylePickList(termWidth int, entries []slashEntry, selected int) string {
+	if len(entries) == 0 || termWidth < 1 {
+		return ""
+	}
+	if selected < 0 {
+		selected = 0
+	}
+	if selected >= len(entries) {
+		selected = len(entries) - 1
+	}
+	innerW := slashSuggestBoxInnerWidth(termWidth)
+	col1W, colGap := slashSuggestColumnWidths(innerW, entries, false)
+	rows := make([]string, len(entries))
+	for i, e := range entries {
+		rows[i] = renderSlashSuggestRow(innerW, col1W, colGap, e, false, i == selected)
+	}
+	body := lipgloss.JoinVertical(lipgloss.Left, rows...)
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(0, 1).
+		Width(termWidth - 2).
+		Render(body)
+}
+
 func (e slashEntry) matchesStem(stem string) bool {
 	stem = strings.ToLower(strings.TrimSpace(stem))
 	p := strings.ToLower(e.primary)
