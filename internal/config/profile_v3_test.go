@@ -35,6 +35,22 @@ func TestMergeV3Profile_Gemini(t *testing.T) {
 	}
 }
 
+func TestMergeV3Profile_OpenAI_OPENAI_MODEL(t *testing.T) {
+	tmp := t.TempDir()
+	t.Chdir(tmp)
+	prof := filepath.Join(tmp, ".openclaude-profile.json")
+	raw := `{"profile":"openai","env":{"OPENAI_API_KEY":"sk-test","OPENAI_MODEL":"gpt-4o"}}`
+	if err := os.WriteFile(prof, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	viper.Reset()
+	Load("")
+	if Model() != "gpt-4o" {
+		t.Fatalf("Model() = %q, want gpt-4o from profile openai.model", Model())
+	}
+}
+
 func TestMergeV3Profile_YamlOverridesProfile(t *testing.T) {
 	tmp := t.TempDir()
 	t.Chdir(tmp)

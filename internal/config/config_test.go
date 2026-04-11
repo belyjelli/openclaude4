@@ -59,3 +59,25 @@ func TestProviderName_OllamaFromEnv(t *testing.T) {
 		t.Fatalf("Model() = %q, want mistral", Model())
 	}
 }
+
+// OPENAI_MODEL must not override the model when a non-openai provider is selected (stale shells / v3 habits).
+func TestModel_OllamaIgnoresOPENAI_MODEL(t *testing.T) {
+	t.Setenv("OPENCLAUDE_PROVIDER", "ollama")
+	t.Setenv("OPENAI_MODEL", "gpt-4o")
+	t.Setenv("OLLAMA_MODEL", "")
+	viper.Reset()
+	Load("")
+	if got := Model(); got != defaultOllamaModel {
+		t.Fatalf("Model() = %q, want default Ollama %q", got, defaultOllamaModel)
+	}
+}
+
+func TestModel_OpenAIUsesOPENAI_MODEL(t *testing.T) {
+	t.Setenv("OPENCLAUDE_PROVIDER", "openai")
+	t.Setenv("OPENAI_MODEL", "gpt-4o")
+	viper.Reset()
+	Load("")
+	if got := Model(); got != "gpt-4o" {
+		t.Fatalf("Model() = %q, want gpt-4o", got)
+	}
+}

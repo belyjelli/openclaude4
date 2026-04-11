@@ -84,14 +84,20 @@ func Model() string {
 	}
 }
 
+// openAIModel resolves the chat model for provider openai (default when OPENCLAUDE_PROVIDER is unset).
+// Precedence: provider.model (--model / openclaude.yaml provider.model) then OPENAI_MODEL (openai.model) then default.
 func openAIModel() string {
 	if v := viper.GetString("provider.model"); v != "" {
+		return v
+	}
+	if v := viper.GetString("openai.model"); v != "" {
 		return v
 	}
 	return defaultModel
 }
 
-// OllamaModel returns the Ollama tag (ollama.model / OLLAMA_MODEL / provider.model / default).
+// OllamaModel returns the Ollama tag (OLLAMA_MODEL / ollama.model, then --model / yaml provider.model, then default).
+// OPENAI_MODEL is not consulted; pair OPENCLAUDE_PROVIDER=ollama with OLLAMA_MODEL or provider.model in config.
 func OllamaModel() string {
 	if v := viper.GetString("ollama.model"); v != "" {
 		return v
@@ -131,7 +137,8 @@ func GeminiBaseURL() string {
 	return strings.TrimRight(DefaultGeminiOpenAIBase, "/")
 }
 
-// GeminiModel returns the Gemini model id.
+// GeminiModel returns the Gemini model id (GEMINI_MODEL / gemini.model, then --model / yaml provider.model).
+// OPENAI_MODEL is not consulted when this provider is active.
 func GeminiModel() string {
 	if v := viper.GetString("gemini.model"); v != "" {
 		return v
@@ -167,6 +174,7 @@ func OpenRouterChatBase() string {
 }
 
 // OpenRouterModel returns the model id for provider openrouter (OpenRouter-style slugs).
+// OPENROUTER_MODEL / openrouter.model, then --model / yaml provider.model; OPENAI_MODEL is not used here.
 func OpenRouterModel() string {
 	if v := viper.GetString("openrouter.model"); v != "" {
 		return v
@@ -196,7 +204,8 @@ func GitHubModelsBaseURL() string {
 	return ""
 }
 
-// GitHubModelsModel returns the GitHub Models model id.
+// GitHubModelsModel returns the GitHub Models model id (GITHUB_MODEL / github.model, then --model / yaml provider.model).
+// OPENAI_MODEL is not consulted when this provider is active.
 func GitHubModelsModel() string {
 	if v := viper.GetString("github.model"); v != "" {
 		return v

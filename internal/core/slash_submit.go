@@ -9,3 +9,9 @@ type SlashSubmitUser struct {
 func (e SlashSubmitUser) Error() string {
 	return "slash: deferred user turn"
 }
+
+// SlashStartProviderWizard is returned from the slash handler when the TUI should open
+// the interactive provider wizard overlay (plain REPL uses stdin instead).
+type SlashStartProviderWizard struct{}
+
+func (SlashStartProviderWizard) Error() string { return "slash: start provider wizard" }

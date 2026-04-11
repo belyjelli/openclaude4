@@ -17,6 +17,8 @@ const (
 	promptChromeLines = 4
 	// permPanelReserveLines approximates the permission modal height for viewport budgeting.
 	permPanelReserveLines = 10
+	// pwizPanelReserveLines approximates the provider wizard panel (menu + hints + border).
+	pwizPanelReserveLines = 16
 )
 
 // horizontalRule returns a line of box-drawing characters exactly totalWidth cells wide (clamped).

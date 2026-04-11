@@ -4,13 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os"
-	"os/exec"
 	"strings"
 
-	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
-	"github.com/spf13/viper"
+	"github.com/gitlawb/openclaude4/internal/providerwizard"
 )
 
 func handleProviderWizard(st chatState, out io.Writer) error {
@@ -20,7 +17,7 @@ func handleProviderWizard(st chatState, out io.Writer) error {
 	client := effectiveClient(st)
 	if st.providerWizardIn == nil {
 		if st.allowConfigEditorWizard {
-			return runProviderWizardOpenEditor(out, client)
+			return core.SlashStartProviderWizard{}
 		}
 		_, _ = fmt.Fprintln(out, "Stdin wizard needs the plain REPL. Current session:")
 		printProviderInfoTo(client, out)
@@ -29,38 +26,6 @@ func handleProviderWizard(st chatState, out io.Writer) error {
 		return nil
 	}
 	return runProviderInteractiveWizard(out, st.providerWizardIn, client)
-}
-
-func runProviderWizardOpenEditor(out io.Writer, client core.StreamClient) error {
-	path, err := config.WritableConfigPath()
-	if err != nil {
-		_, _ = fmt.Fprintf(out, "Could not resolve writable config path: %v\n\n", err)
-		printProviderInfoTo(client, out)
-		_, _ = fmt.Fprintln(out)
-		printProviderSetupGuide(out)
-		return nil
-	}
-	_, _ = fmt.Fprintln(out, "=== Provider setup (config file) ===")
-	printProviderInfoTo(client, out)
-	_, _ = fmt.Fprintln(out)
-	printProviderSetupGuide(out)
-	_, _ = fmt.Fprintf(out, "\nOpening %q in your editor (create or edit, save, then restart openclaude).\n", path)
-	ed := strings.TrimSpace(os.Getenv("VISUAL"))
-	if ed == "" {
-		ed = strings.TrimSpace(os.Getenv("EDITOR"))
-	}
-	if ed == "" {
-		ed = "vi"
-	}
-	cmd := exec.Command(ed, path)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("editor %q: %w", ed, err)
-	}
-	_, _ = fmt.Fprintln(out, "(editor closed — restart openclaude after saving config changes)")
-	return nil
 }
 
 func printProviderSetupGuide(out io.Writer) {
@@ -133,35 +98,88 @@ func runProviderInteractiveWizard(out io.Writer, in io.Reader, client core.Strea
 		return fmt.Errorf("provider wizard: nil reader")
 	}
 	r := bufio.NewReader(in)
+	w := providerwizard.New()
 
 	_, _ = fmt.Fprintln(out, "=== Provider setup wizard ===")
 	_, _ = fmt.Fprintln(out, "This prints recommended YAML/env only. Restart openclaude after editing config.")
 	_, _ = fmt.Fprintln(out)
 	printProviderInfoTo(client, out)
 	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "Choose provider:  1 = openai   2 = ollama   3 = gemini   4 = github   5 = openrouter   (empty = cancel)")
-	line, err := readWizardLine(r)
-	if err != nil {
-		return err
+
+	for !w.Finished() {
+		switch w.StepKind() {
+		case providerwizard.StepMenu:
+			_, _ = fmt.Fprintln(out, w.Title())
+			if b := w.Body(); strings.TrimSpace(b) != "" {
+				_, _ = fmt.Fprintln(out, b)
+			}
+			for i, opt := range w.MenuOptions() {
+				_, _ = fmt.Fprintf(out, "  %d) %s\n", i+1, opt)
+			}
+			_, _ = fmt.Fprintln(out, w.HintLine())
+			_, _ = fmt.Fprint(out, "> ")
+			line, err := readWizardLine(r)
+			if err != nil {
+				return err
+			}
+			if providerwizard.ParseBackInput(line) {
+				if !w.Back() && w.IsProviderMenu() {
+					w.Cancel()
+				}
+				continue
+			}
+			if w.IsProviderMenu() {
+				if strings.TrimSpace(line) == "" {
+					w.Cancel()
+					continue
+				}
+				ok, cancel := w.ParseProviderMenuInput(line)
+				if cancel {
+					w.Cancel()
+					continue
+				}
+				if !ok {
+					_, _ = fmt.Fprintln(out, "Try 1–5 or a provider name (openai, ollama, gemini, github, openrouter).")
+				}
+				continue
+			}
+			if w.IsOllamaModelMenu() {
+				if !w.ParseOllamaMenuInput(line) {
+					_, _ = fmt.Fprintf(out, "Try a number 1–%d, or b to go back.\n", len(w.MenuOptions()))
+				}
+			}
+
+		case providerwizard.StepText:
+			_, _ = fmt.Fprintln(out, w.Title())
+			if h := w.TextHint(); strings.TrimSpace(h) != "" {
+				_, _ = fmt.Fprintln(out, h)
+			}
+			_, _ = fmt.Fprintln(out, w.HintLine())
+			_, _ = fmt.Fprintf(out, "%s [%s]: ", w.TextLabel(), w.TextDefault())
+			line, err := readWizardLine(r)
+			if err != nil {
+				return err
+			}
+			if providerwizard.ParseBackInput(line) {
+				_ = w.Back()
+				continue
+			}
+			if err := w.SubmitText(strings.TrimSpace(line)); err != nil {
+				_, _ = fmt.Fprintln(out, err.Error())
+			}
+
+		default:
+			continue
+		}
 	}
-	switch strings.TrimSpace(line) {
-	case "":
+
+	if w.Cancelled() {
 		_, _ = fmt.Fprintln(out, "(cancelled)")
 		return nil
-	case "1":
-		return wizardOpenAI(out, r)
-	case "2":
-		return wizardOllama(out, r)
-	case "3":
-		return wizardGemini(out, r)
-	case "4":
-		return wizardGitHub(out, r)
-	case "5":
-		return wizardOpenRouter(out, r)
-	default:
-		_, _ = fmt.Fprintln(out, "Unrecognized choice — try 1, 2, 3, 4, or 5.")
-		return nil
 	}
+	_, _ = fmt.Fprintln(out, w.Result())
+	_, _ = fmt.Fprintln(out, "\nRestart openclaude after saving config changes.")
+	return nil
 }
 
 func readWizardLine(r *bufio.Reader) (string, error) {
@@ -170,216 +188,4 @@ func readWizardLine(r *bufio.Reader) (string, error) {
 		return "", err
 	}
 	return line, nil
-}
-
-func wizardOpenAI(out io.Writer, r *bufio.Reader) error {
-	defModel := "gpt-4o-mini"
-	if config.ProviderName() == "openai" {
-		if m := strings.TrimSpace(config.Model()); m != "" {
-			defModel = m
-		}
-	}
-	_, _ = fmt.Fprintf(out, "Model [%s]: ", defModel)
-	line, err := readWizardLine(r)
-	if err != nil {
-		return err
-	}
-	model := strings.TrimSpace(line)
-	if model == "" {
-		model = defModel
-	}
-	_, _ = fmt.Fprint(out, "Base URL (empty = default api.openai.com / SDK default): ")
-	line, err = readWizardLine(r)
-	if err != nil {
-		return err
-	}
-	base := strings.TrimSpace(line)
-
-	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "provider:\n  name: openai\n  model: %q\n", model)
-	if base != "" {
-		_, _ = fmt.Fprintf(&b, "  base_url: %q\n", base)
-	}
-	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "Add to openclaude.yaml (or set env equivalents). Use OPENAI_API_KEY in the environment.")
-	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprint(out, b.String())
-	_, _ = fmt.Fprintln(out)
-	return nil
-}
-
-func wizardGitHub(out io.Writer, r *bufio.Reader) error {
-	defModel := "gpt-4o"
-	if config.ProviderName() == "github" {
-		if m := strings.TrimSpace(config.GitHubModelsModel()); m != "" {
-			defModel = m
-		}
-	}
-	_, _ = fmt.Fprintf(out, "GitHub Models model [%s]: ", defModel)
-	line, err := readWizardLine(r)
-	if err != nil {
-		return err
-	}
-	model := strings.TrimSpace(line)
-	if model == "" {
-		model = defModel
-	}
-	_, _ = fmt.Fprint(out, "Base URL (empty = omit; use https://<region>.models.ai.azure.com if needed): ")
-	line, err = readWizardLine(r)
-	if err != nil {
-		return err
-	}
-	base := strings.TrimSpace(line)
-	base = strings.TrimRight(base, "/")
-
-	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "provider:\n  name: github\ngithub:\n  model: %q\n", model)
-	if base != "" {
-		_, _ = fmt.Fprintf(&b, "  base_url: %q\n", base)
-	}
-	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "Set GITHUB_TOKEN or GITHUB_PAT in the environment, then merge YAML or use:")
-	_, _ = fmt.Fprintf(out, "  export OPENCLAUDE_PROVIDER=github\n  export GITHUB_MODEL=%q\n", model)
-	if base != "" {
-		_, _ = fmt.Fprintf(out, "  export GITHUB_BASE_URL=%q\n", base)
-	}
-	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "YAML snippet:")
-	_, _ = fmt.Fprint(out, b.String())
-	_, _ = fmt.Fprintln(out)
-	return nil
-}
-
-func wizardOllama(out io.Writer, r *bufio.Reader) error {
-	defHost := ollamaHostForWizard()
-	_, _ = fmt.Fprintf(out, "Ollama host [%s]: ", defHost)
-	line, err := readWizardLine(r)
-	if err != nil {
-		return err
-	}
-	host := strings.TrimSpace(line)
-	if host == "" {
-		host = defHost
-	}
-	host = strings.TrimRight(host, "/")
-
-	defModel := "llama3.2"
-	if config.ProviderName() == "ollama" {
-		if m := strings.TrimSpace(config.OllamaModel()); m != "" {
-			defModel = m
-		}
-	}
-	_, _ = fmt.Fprintf(out, "Ollama model tag [%s]: ", defModel)
-	line, err = readWizardLine(r)
-	if err != nil {
-		return err
-	}
-	model := strings.TrimSpace(line)
-	if model == "" {
-		model = defModel
-	}
-
-	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "provider:\n  name: ollama\nollama:\n  host: %q\n  model: %q\n", host, model)
-	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "Merge into openclaude.yaml, or run with:")
-	_, _ = fmt.Fprintf(out, "  export OPENCLAUDE_PROVIDER=ollama\n  export OLLAMA_HOST=%q\n  export OLLAMA_MODEL=%q\n", host, model)
-	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "YAML snippet:")
-	_, _ = fmt.Fprint(out, b.String())
-	_, _ = fmt.Fprintln(out)
-	return nil
-}
-
-func wizardOpenRouter(out io.Writer, r *bufio.Reader) error {
-	defModel := "openai/gpt-4o-mini"
-	if config.ProviderName() == "openrouter" {
-		if m := strings.TrimSpace(config.OpenRouterModel()); m != "" {
-			defModel = m
-		}
-	}
-	_, _ = fmt.Fprintf(out, "OpenRouter model [%s]: ", defModel)
-	line, err := readWizardLine(r)
-	if err != nil {
-		return err
-	}
-	model := strings.TrimSpace(line)
-	if model == "" {
-		model = defModel
-	}
-	defBase := strings.TrimRight(config.DefaultOpenRouterOpenAIBase, "/")
-	_, _ = fmt.Fprintf(out, "Base URL (empty = %s): ", defBase)
-	line, err = readWizardLine(r)
-	if err != nil {
-		return err
-	}
-	base := strings.TrimSpace(line)
-	base = strings.TrimRight(base, "/")
-
-	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "Set OPENROUTER_KEY or OPENROUTER_API_KEY in the environment, then merge YAML or use:")
-	_, _ = fmt.Fprintf(out, "  export OPENCLAUDE_PROVIDER=openrouter\n  export OPENROUTER_MODEL=%q\n", model)
-	if base != "" {
-		_, _ = fmt.Fprintf(out, "  export OPENAI_BASE_URL=%q\n", base)
-	}
-	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "YAML snippet:")
-	if base != "" {
-		_, _ = fmt.Fprintf(out, "provider:\n  name: openrouter\n  base_url: %q\nopenrouter:\n  model: %q\n", base, model)
-	} else {
-		_, _ = fmt.Fprintf(out, "provider:\n  name: openrouter\nopenrouter:\n  model: %q\n", model)
-	}
-	_, _ = fmt.Fprintln(out)
-	return nil
-}
-
-// ollamaHostForWizard returns ollama.host from config (no /v1 suffix), for YAML examples.
-func ollamaHostForWizard() string {
-	raw := strings.TrimSpace(viper.GetString("ollama.host"))
-	if raw == "" {
-		return "http://127.0.0.1:11434"
-	}
-	raw = strings.TrimRight(raw, "/")
-	if strings.HasSuffix(raw, "/v1") {
-		return strings.TrimSuffix(raw, "/v1")
-	}
-	return raw
-}
-
-func wizardGemini(out io.Writer, r *bufio.Reader) error {
-	defModel := "gemini-2.0-flash"
-	if config.ProviderName() == "gemini" {
-		if m := strings.TrimSpace(config.GeminiModel()); m != "" {
-			defModel = m
-		}
-	}
-	_, _ = fmt.Fprintf(out, "Gemini model [%s]: ", defModel)
-	line, err := readWizardLine(r)
-	if err != nil {
-		return err
-	}
-	model := strings.TrimSpace(line)
-	if model == "" {
-		model = defModel
-	}
-	_, _ = fmt.Fprint(out, "Custom base URL (empty = Google default OpenAI-compat endpoint): ")
-	line, err = readWizardLine(r)
-	if err != nil {
-		return err
-	}
-	base := strings.TrimSpace(line)
-
-	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "provider:\n  name: gemini\ngemini:\n  model: %q\n", model)
-	if base != "" {
-		_, _ = fmt.Fprintf(&b, "  base_url: %q\n", base)
-	}
-	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "Set GEMINI_API_KEY or GOOGLE_API_KEY in the environment, then merge YAML or use:")
-	_, _ = fmt.Fprintf(out, "  export OPENCLAUDE_PROVIDER=gemini\n  export GEMINI_MODEL=%q\n", model)
-	_, _ = fmt.Fprintln(out)
-	_, _ = fmt.Fprintln(out, "YAML snippet:")
-	_, _ = fmt.Fprint(out, b.String())
-	_, _ = fmt.Fprintln(out)
-	return nil
 }

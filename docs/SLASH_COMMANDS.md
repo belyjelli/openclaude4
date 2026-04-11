@@ -16,7 +16,7 @@ In **`openclaude --tui`**, the prompt offers **slash typeahead**: after `/`, mat
 | Help | `/help` | `/help` |
 | Exit | `/exit`, `/quit` | `/exit`, `/quit` (alias on exit command) |
 | Onboarding / doctor | `/onboard`, `/setup`, **`/doctor`** | `/doctor`, GitHub onboarding, many config/UI commands |
-| Provider | `/provider`, **`/provider <name>`**, `/provider wizard` (stdin REPL; **TUI: `$EDITOR` + guide**) | `/provider` (interactive wizard, etc.) |
+| Provider | `/provider`, **`/provider <name>`**, `/provider wizard` (step-by-step REPL or **TUI panel**) | `/provider` (interactive wizard, etc.) |
 | MCP | `/mcp list`, **`/mcp config`**, `/mcp doctor`, **`/mcp add`** (shell hint), `/mcp help` | `/mcp` (broader subcommands + UI) |
 | Transcript | `/clear`, `/compact` | `/clear`, `/compact` |
 | Session | `/session …`, **`/resume`** | `/session`, `/resume`, … (richer) |
@@ -43,7 +43,7 @@ In **`openclaude --tui`**, the prompt offers **slash typeahead**: after `/`, mat
 | `/context`, `/tokens` | Message count, rough tokens ([`RoughTokenEstimate`](../internal/session/tokens.go)), compact keep + threshold |
 | `/model` | No args: print current model. `/model <id>`: set model for active provider (`viper` + new client; [`LiveChat`](../internal/chatlive/live.go)). TUI: blocked while a turn is in progress |
 | `/provider` | Show provider info |
-| `/provider wizard` | Plain REPL: stdin wizard. **TUI:** opens [`WritableConfigPath`](../internal/config/mcp_configfile.go) in `$VISUAL` / `$EDITOR` / `vi` after printing YAML/env guide |
+| `/provider wizard` | **REPL:** stdin prompts; type **`b`** / **`back`** to go back. **TUI:** in-app bordered panel ([`internal/tui/provider_wiz.go`](../internal/tui/provider_wiz.go)): **↑↓** move, **Enter** confirm, **`b`** back, **esc** cancel. Prints YAML/env snippet to the transcript when done (restart after editing config). Optional Ollama model list via host `/api/tags`. |
 | `/provider show`, `/status` | Same as bare `/provider` |
 | `/provider help` | Subcommand help |
 | `/provider openai\|ollama\|gemini\|github\|openrouter` | Switch `provider.name`, validate, new stream client |

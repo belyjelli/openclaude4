@@ -2,9 +2,23 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/gitlawb/openclaude4/internal/core"
 )
+
+func TestHandleProviderWizard_TUI_StartsProviderWizard(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	st := chatState{providerWizardIn: nil, allowConfigEditorWizard: true}
+	err := handleProviderWizard(st, &buf)
+	var want core.SlashStartProviderWizard
+	if !errors.As(err, &want) {
+		t.Fatalf("expected SlashStartProviderWizard, got %v", err)
+	}
+}
 
 func TestHandleProviderWizard_NoStdin_StaticGuide(t *testing.T) {
 	t.Parallel()
@@ -41,6 +55,19 @@ func TestRunProviderInteractiveWizard_OpenAI(t *testing.T) {
 	s := buf.String()
 	if !strings.Contains(s, `name: openai`) || !strings.Contains(s, "gpt-4o-mini") {
 		t.Fatalf("missing openai yaml: %q", s)
+	}
+}
+
+func TestRunProviderInteractiveWizard_BackFromOpenAI(t *testing.T) {
+	t.Parallel()
+	// openai → model step → back to menu → empty cancel
+	in := strings.NewReader("1\nb\n\n")
+	var buf bytes.Buffer
+	if err := runProviderInteractiveWizard(&buf, in, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "cancelled") {
+		t.Fatalf("expected cancel after back to root: %q", buf.String())
 	}
 }
 

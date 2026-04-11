@@ -85,7 +85,7 @@ Failed servers are skipped with a message on stderr; chat still starts if built-
 | `OPENCLAUDE_PROVIDER` | `openai` (default), `ollama`, `gemini`, `github`, `openrouter`, or `codex` |
 | `OPENAI_API_KEY` | API key for OpenAI-compatible APIs |
 | `OPENAI_BASE_URL` | Custom base URL (OpenAI-compatible); if it targets OpenRouter (`openrouter.ai`), `OPENROUTER_KEY` may be used when this key is empty |
-| `OPENAI_MODEL` | Model id (bound to `provider.model`) |
+| `OPENAI_MODEL` | Model id for **provider openai** only (`openai.model`; after `--model` / yaml `provider.model`) |
 | `OLLAMA_HOST` | Ollama server URL (default `http://127.0.0.1:11434`) |
 | `OLLAMA_MODEL` | Ollama model tag |
 | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Gemini API key |
@@ -170,7 +170,7 @@ Unknown `provider.name` values are rejected when the chat (or serve) command loa
 
 ## In-session slash commands (REPL)
 
-Handled in the chat loop (not config keys): `/help`, `/onboard` / `/setup`, `/provider` (and **`/provider wizard`** for interactive YAML/env setup in the plain REPL; in `--tui`, wizard prints a static copy-paste guide), `/mcp list`, `/mcp doctor`, `/mcp help`, `/skills list`, `/skills read <name>`, `/session` (show, list, **running** / **ps**, load, new, save), `/compact` (lossy transcript trim: keeps system + last N messages, default 24; override via `session.compact_keep_messages`), `/clear`, `/exit`, `/quit`. From the shell: **`openclaude sessions`** (saved sessions + running registry), **`openclaude mcp list`** (config only), **`openclaude mcp doctor`** (connect + list tools; exit 1 if any server fails), **`openclaude mcp add`** (append a `mcp.servers` entry — repeats `--exec` per argv token; **`--dry-run`** to preview; YAML comments are not preserved on rewrite).
+Handled in the chat loop (not config keys): `/help`, `/onboard` / `/setup`, `/provider` (and **`/provider wizard`** for step-by-step YAML/env hints in the plain REPL or **`--tui`** in-app panel; see [SLASH_COMMANDS.md](./SLASH_COMMANDS.md)), `/mcp list`, `/mcp doctor`, `/mcp help`, `/skills list`, `/skills read <name>`, `/session` (show, list, **running** / **ps**, load, new, save), `/compact` (lossy transcript trim: keeps system + last N messages, default 24; override via `session.compact_keep_messages`), `/clear`, `/exit`, `/quit`. From the shell: **`openclaude sessions`** (saved sessions + running registry), **`openclaude mcp list`** (config only), **`openclaude mcp doctor`** (connect + list tools; exit 1 if any server fails), **`openclaude mcp add`** (append a `mcp.servers` entry — repeats `--exec` per argv token; **`--dry-run`** to preview; YAML comments are not preserved on rewrite).
 
 ## Diagnostics
 

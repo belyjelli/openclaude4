@@ -81,6 +81,7 @@ type model struct {
 	lastStreamChange  time.Time
 	stallSmoothed     float64
 	perm              *permState
+	pwiz              *providerWiz
 	width             int
 	height            int
 	permBr            *permBridge
@@ -268,11 +269,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		if m.pwiz != nil {
+			tw := msg.Width - 8
+			if tw < 20 {
+				tw = 20
+			}
+			m.pwiz.ti.Width = tw
+		}
 		m.reflowLayout()
 		return m, nil
 
 	case tea.MouseMsg:
-		if m.perm == nil {
+		if m.perm == nil && m.pwiz == nil {
 			if msg.Action == tea.MouseActionPress {
 				switch msg.Button { //nolint:exhaustive
 				case tea.MouseButtonWheelUp:
@@ -349,6 +357,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+		if m.pwiz != nil {
+			mod, cmd := m.updateProviderWizKey(msg)
+			return mod, cmd
+		}
 		if msg.Type == tea.KeyShiftTab && !m.busy && !m.slashSuggestActive() {
 			if m.cfg.AutoApprove != nil {
 				v := !m.cfg.AutoApprove.Load()
@@ -362,14 +374,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		vimNor := m.cfg.VimKeys != nil && m.cfg.VimKeys.Enabled() && m.vimNormal
-		if msg.Type == tea.KeyTab && !m.busy && m.perm == nil && !m.slashSuggestActive() && !vimNor {
+		if msg.Type == tea.KeyTab && !m.busy && m.perm == nil && m.pwiz == nil && !m.slashSuggestActive() && !vimNor {
 			if m.tryExpandNonSlashTab() {
 				m.syncSuggestOverlay()
 				m.reflowLayout()
 				return m, textinput.Blink
 			}
 		}
-		if !m.slashSuggestActive() && m.perm == nil && !m.busy {
+		if !m.slashSuggestActive() && m.perm == nil && m.pwiz == nil && !m.busy {
 			vimBlockHist := m.cfg.VimKeys != nil && m.cfg.VimKeys.Enabled() && m.vimNormal
 			if !vimBlockHist {
 				if msg.Type == tea.KeyUp {
@@ -517,7 +529,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	if m.perm == nil {
+	if m.perm == nil && m.pwiz == nil {
 		oldInput := m.ti.Value()
 		m.vp, cmd = m.vp.Update(msg)
 		m.ti, cmd = m.ti.Update(msg)
@@ -575,6 +587,14 @@ func (m *model) submitLine(line string) (tea.Model, tea.Cmd) {
 				return m, textinput.Blink
 			}
 			return m.runModelTurnFromUserText(ut)
+		}
+		var spw core.SlashStartProviderWizard
+		if errors.As(err, &spw) {
+			m.pwiz = newProviderWiz(m.width)
+			m.ti.SetValue("")
+			m.clearSuggestOverlay()
+			m.reflowLayout()
+			return m, textinput.Blink
 		}
 		if err != nil {
 			m.commitLine(errStyle.Render("Error: ") + err.Error())
@@ -815,6 +835,9 @@ func (m *model) reflowLayout() {
 	if m.perm != nil {
 		footerH += permPanelReserveLines
 	}
+	if m.pwiz != nil {
+		footerH += pwizPanelReserveLines
+	}
 	vpH := m.height - headerH - toastH - footerH
 	if vpH < 6 {
 		vpH = 6
@@ -884,11 +907,12 @@ func (m *model) View() string {
 		m.width = 80
 	}
 	header := titleStyle.Width(m.width).Render("OpenClaude v4 — TUI")
-	status := strings.TrimSpace(m.cfg.StatusLine)
+	var status string
 	if m.cfg.StatusLineFunc != nil {
-		if s := strings.TrimSpace(m.cfg.StatusLineFunc()); s != "" {
-			status = s
-		}
+		status = strings.TrimSpace(m.cfg.StatusLineFunc())
+	}
+	if status == "" {
+		status = strings.TrimSpace(m.cfg.StatusLine)
 	}
 	if x := strings.TrimSpace(m.prStatusExtra); x != "" {
 		if status != "" {
@@ -958,7 +982,9 @@ func (m *model) View() string {
 		rows = append(rows, toastLine)
 	}
 	rows = append(rows, body)
-	if permBlock != "" {
+	if m.pwiz != nil {
+		rows = append(rows, m.renderProviderWizPanel())
+	} else if permBlock != "" {
 		rows = append(rows, permBlock)
 	}
 	rows = append(rows, promptStack)

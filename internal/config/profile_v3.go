@@ -91,7 +91,7 @@ func mergeOneV3Profile(path string) bool {
 		put(provider, "base_url", s)
 	}
 	if s := envStr(env, "OPENAI_MODEL"); s != "" {
-		put(provider, "model", s)
+		put(openai, "model", s)
 	}
 	if s := envStr(env, "GEMINI_API_KEY"); s != "" {
 		put(gemini, "api_key", s)

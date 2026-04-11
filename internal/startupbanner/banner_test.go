@@ -1,6 +1,9 @@
 package startupbanner
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSplashDisabled(t *testing.T) {
 	t.Setenv("OPENCLAUDE_NO_SPLASH", "")
@@ -14,6 +17,29 @@ func TestSplashDisabled(t *testing.T) {
 	t.Setenv("OPENCLAUDE_NO_SPLASH", "TRUE")
 	if !SplashDisabled() {
 		t.Fatal("expected splash disabled for OPENCLAUDE_NO_SPLASH=TRUE")
+	}
+}
+
+func TestTUIBannerContent_plainPointsAtSubtitle(t *testing.T) {
+	t.Parallel()
+	s := TUIBannerContent("9.9.9", "MCP: 1 tool", false, "")
+	if !strings.Contains(s, "subtitle") {
+		t.Fatalf("expected plain TUI banner to mention subtitle, got %q", s)
+	}
+	if strings.Contains(s, "Provider:") {
+		t.Fatalf("plain TUI banner should not mimic frozen provider card: %q", s)
+	}
+}
+
+func TestTUIBannerContent_ansiHasLiveHintNotProviderRows(t *testing.T) {
+	t.Parallel()
+	s := TUIBannerContent("1.0.0", "", true, "")
+	if !strings.Contains(s, "subtitle") {
+		t.Fatalf("expected ANSI TUI banner to mention subtitle: %q", s)
+	}
+	// Full Render() uses a "Provider" box-row key; TUI splash must not duplicate that card.
+	if strings.Contains(s, "Provider") {
+		t.Fatalf("TUI ANSI banner should not contain Provider row (stale after /provider): %q", s)
 	}
 }
 

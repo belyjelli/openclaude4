@@ -39,7 +39,7 @@ Unchecked items are **not** covered at v3 depth in v4 yet (even when a smaller a
 
 ### CLI / UX
 
-- [x] **Interactive `/provider` wizard** — [`/provider wizard`](./cmd/openclaude/slash.go) + [`slash_provider_wizard.go`](./cmd/openclaude/slash_provider_wizard.go); TUI falls back to static copy-paste guide
+- [x] **Interactive `/provider` wizard** — [`/provider wizard`](./cmd/openclaude/slash.go) + [`slash_provider_wizard.go`](./cmd/openclaude/slash_provider_wizard.go) + [`internal/providerwizard`](./internal/providerwizard/wizard.go); REPL stdin + **b** back; TUI overlay [`internal/tui/provider_wiz.go`](./internal/tui/provider_wiz.go)
 - [x] **Headless one-shot** mode (v3 `-p` / print) for scripts and CI — [`runPrintTurn`](./cmd/openclaude/chat.go); `--print` / `-p` (optional `-p -` stdin); incompatible with `--tui`; dangerous tools need `OPENCLAUDE_AUTO_APPROVE_TOOLS` or they are skipped (stderr)
 - [x] Optional: **concurrent session registry** / `ps`-style listing — [`<dir>/running/<pid>.json`](./internal/session/running.go) on chat/TUI start; [`openclaude sessions`](./cmd/openclaude/sessions.go); [`/session running`](./cmd/openclaude/slash.go) / `/session ps`
 - [x] Partial: **slash commands** — [`/onboard`](./cmd/openclaude/slash.go) / `/setup`, [`/mcp help`](./cmd/openclaude/slash.go); v3-deep items still open (e.g. `/onboard-github`, full MCP config from REPL)

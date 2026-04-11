@@ -272,6 +272,95 @@ func Render(client core.StreamClient, version, mcpLine, shellSuffix string) stri
 	return strings.Join(out, "\n")
 }
 
+// renderTUISplashANSI matches [Render] branding and layout but omits the Provider/Model/Endpoint rows.
+// In the Bubble Tea TUI those would freeze at startup while /provider updates the live client; the
+// subtitle under the title bar stays current via StatusLineFunc.
+func renderTUISplashANSI(version, mcpLine, shellSuffix string) string {
+	const W = 62
+	var out []string
+	out = append(out, "")
+
+	var logoLines []string
+	logoLines = append(logoLines, logoOpen...)
+	logoLines = append(logoLines, "")
+	logoLines = append(logoLines, logoClaude...)
+	total := len(logoLines)
+	for i, line := range logoLines {
+		if line == "" {
+			out = append(out, "")
+			continue
+		}
+		var t float64
+		if total > 1 {
+			t = float64(i) / float64(total-1)
+		}
+		out = append(out, paintLine(line, sunsetGrad, t))
+	}
+
+	out = append(out, "")
+	out = append(out, "  "+accent.ansiFG()+"✦"+reset+" "+cream.ansiFG()+"Any model. Every tool. Zero limits."+reset+" "+accent.ansiFG()+"✦"+reset)
+	out = append(out, "")
+
+	out = append(out, borderC.ansiFG()+"╔"+strings.Repeat("═", W-2)+"╗"+reset)
+
+	lbl := func(k, v string, vc rgb) (string, int) {
+		padK := fmt.Sprintf("%-9s", k)
+		s := " " + dim + dimCol.ansiFG() + padK + reset + " " + vc.ansiFG() + v + reset
+		raw := " " + padK + " " + v
+		return s, len([]rune(raw))
+	}
+
+	r, l := lbl("Live", "Connection details → subtitle under title ↑", cream)
+	out = append(out, boxRow(r, W, l))
+
+	out = append(out, borderC.ansiFG()+"╠"+strings.Repeat("═", W-2)+"╣"+reset)
+
+	sC := accent
+	sL := "cloud"
+	sRow := " " + sC.ansiFG() + "●" + reset + " " + dim + dimCol.ansiFG() + sL + reset + "    " + dim + dimCol.ansiFG() + "Ready — type " + reset + accent.ansiFG() + "/help" + reset + dim + dimCol.ansiFG() + " to begin" + reset
+	sLen := len([]rune(" ● " + sL + "    Ready — type /help to begin"))
+	out = append(out, boxRow(sRow, W, sLen))
+
+	out = append(out, borderC.ansiFG()+"╚"+strings.Repeat("═", W-2)+"╝"+reset)
+	verLine := "  " + dim + dimCol.ansiFG() + "openclaude " + reset + accent.ansiFG() + "v" + version + reset
+	if s := strings.TrimSpace(shellSuffix); s != "" {
+		verLine += " " + dim + dimCol.ansiFG() + s + reset
+	}
+	out = append(out, verLine)
+
+	if strings.TrimSpace(mcpLine) != "" {
+		out = append(out, "")
+		out = append(out, "  "+dim+dimCol.ansiFG()+mcpLine+reset)
+	}
+	out = append(out, "")
+
+	return strings.Join(out, "\n")
+}
+
+func plainTUISplash(version, mcpLine, shellSuffix string) string {
+	var b strings.Builder
+	shellPart := ""
+	if s := strings.TrimSpace(shellSuffix); s != "" {
+		shellPart = " " + s
+	}
+	_, _ = fmt.Fprintf(&b, "OpenClaude %s (TUI). Provider & model: see the subtitle under the title. Type /help.%s\n",
+		version, shellPart)
+	if strings.TrimSpace(mcpLine) != "" {
+		_, _ = fmt.Fprintln(&b, strings.TrimSpace(mcpLine))
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+// TUIBannerContent returns the splash embedded in the TUI transcript. Unlike [BannerContent], the ANSI
+// card does not list Provider/Model/Endpoint (those would not update after /provider); use the dim
+// subtitle line under “OpenClaude v4 — TUI” for the live connection.
+func TUIBannerContent(version, mcpLine string, ansi bool, shellSuffix string) string {
+	if !ansi {
+		return plainTUISplash(version, mcpLine, shellSuffix)
+	}
+	return renderTUISplashANSI(version, mcpLine, shellSuffix)
+}
+
 func plainFallback(client core.StreamClient, version, mcpLine, shellSuffix string) string {
 	var b strings.Builder
 	shellPart := ""

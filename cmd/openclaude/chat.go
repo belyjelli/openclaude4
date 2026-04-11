@@ -179,7 +179,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	if useTUI {
 		mcpLine := mcpSummaryLine(mcpMgr)
 		ansi := startupbanner.UseANSISplashFor(os.Stderr)
-		bannerStr := startupbanner.BannerContent(client, version, mcpLine, ansi, "") +
+		bannerStr := startupbanner.TUIBannerContent(version, mcpLine, ansi, "") +
 			"\n\nTUI: Ctrl+C to quit · same /commands as plain REPL."
 		var busyFlag int32
 		themeHolder := tui.NewThemeHolder()
@@ -680,7 +680,7 @@ func printChatHelpTo(w io.Writer) {
   /context, /tokens  Rough token estimate + message count + compact settings
   /model [<id>] List models for the active provider, or set model id (TUI: Tab after "/model "; not while busy)
   /provider     Show active provider, model, base URL, credential hint
-  /provider wizard  Plain REPL: stdin wizard. TUI: opens $EDITOR on config file + YAML/env guide
+  /provider wizard  Step-by-step YAML/env setup (REPL: stdin; TUI: in-app panel, ↑↓ Enter, b back, esc cancel)
   /provider <openai|ollama|gemini|github|openrouter>  Switch provider (in-memory viper + new client)
   /provider show|status|help
   /mcp list    MCP tools connected in this process

@@ -156,7 +156,7 @@ func (m *model) skillNamesList() []string {
 
 // tryQuestionMarkHelp runs /help when user types ? at an empty prompt (v3-style).
 func (m *model) tryQuestionMarkHelp(msg tea.KeyMsg) bool {
-	if m.busy || m.perm != nil || m.slashSuggestActive() {
+	if m.busy || m.perm != nil || m.pwiz != nil || m.slashSuggestActive() {
 		return false
 	}
 	if m.cfg.VimKeys != nil && m.cfg.VimKeys.Enabled() && m.vimNormal {

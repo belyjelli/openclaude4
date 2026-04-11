@@ -16,7 +16,7 @@ import (
 // After that, spf13/viper resolution applies on each Get* (highest wins):
 //  1. explicit viper.Set (rare)
 //  2. cobra flags bound with BindPFlag (e.g. --provider, --model, --base-url)
-//  3. environment variables (see bindViperEnv)
+//  3. environment variables (see bindViperEnv; OPENAI_MODEL binds to openai.model, not provider.model)
 //  4. keys from merged config (v3 + file)
 //  5. defaults implied by getters in config.go
 //
@@ -64,8 +64,8 @@ func bindViperEnv() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 	_ = viper.BindEnv("openai.api_key", "OPENAI_API_KEY")
+	_ = viper.BindEnv("openai.model", "OPENAI_MODEL")
 	_ = viper.BindEnv("provider.base_url", "OPENAI_BASE_URL")
-	_ = viper.BindEnv("provider.model", "OPENAI_MODEL")
 	_ = viper.BindEnv("provider.name", "OPENCLAUDE_PROVIDER")
 	_ = viper.BindEnv("ollama.host", "OLLAMA_HOST")
 	_ = viper.BindEnv("ollama.model", "OLLAMA_MODEL")
