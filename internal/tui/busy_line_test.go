@@ -18,6 +18,18 @@ func TestStallTargetIntensityToolSuppresses(t *testing.T) {
 	}
 }
 
+func TestStallTargetIntensitySchedulingSuppresses(t *testing.T) {
+	t.Parallel()
+	m := &model{
+		pendingToolScheduleCount: 2,
+		busyStart:                time.Now().Add(-10 * time.Minute),
+		lastStreamChange:         time.Now().Add(-10 * time.Minute),
+	}
+	if m.stallTargetIntensity(time.Now()) != 0 {
+		t.Fatalf("expected 0 while scheduling tools before first KindToolCall")
+	}
+}
+
 func TestPickBusyLineVerbOverride(t *testing.T) {
 	t.Parallel()
 	m := &model{cfg: Config{

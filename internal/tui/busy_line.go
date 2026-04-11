@@ -20,9 +20,9 @@ const (
 	busyTickInterval   = 50 * time.Millisecond
 	busyShowElapsed    = 3 * time.Second
 	busyShowTokens     = 30 * time.Second // v3 SHOW_TOKENS_AFTER_MS
-	reduceMotionFrames = 20              // ~1s pulse at 50ms ticks
-	stallQuietAfter    = 3 * time.Second // v3 useStalledAnimation: red after 3s no growth
-	stallRampDuration  = 2 * time.Second // v3: full red over 2s after threshold
+	reduceMotionFrames = 20               // ~1s pulse at 50ms ticks
+	stallQuietAfter    = 3 * time.Second  // v3 useStalledAnimation: red after 3s no growth
+	stallRampDuration  = 2 * time.Second  // v3: full red over 2s after threshold
 )
 
 type busyTickMsg time.Time
@@ -100,7 +100,7 @@ func (m *model) smoothStallTowards(target float64) {
 }
 
 func (m *model) stallTargetIntensity(now time.Time) float64 {
-	if m.runningTool != "" {
+	if m.runningTool != "" || m.pendingToolScheduleCount > 0 {
 		return 0
 	}
 	var since time.Duration
@@ -288,7 +288,15 @@ func (m *model) renderBusyAnimationLine() string {
 	}
 
 	var toolSeg string
-	if m.runningTool != "" {
+	if m.pendingToolScheduleCount > 0 && m.runningTool == "" {
+		plural := "s"
+		if m.pendingToolScheduleCount == 1 {
+			plural = ""
+		}
+		toolSeg = dimStyle.Render(fmt.Sprintf("scheduling %d tool call%s", m.pendingToolScheduleCount, plural))
+	} else if line := strings.TrimSpace(m.runningToolLine); line != "" {
+		toolSeg = toolStyle.Render(line)
+	} else if m.runningTool != "" {
 		toolSeg = toolStyle.Render(m.runningTool)
 	}
 

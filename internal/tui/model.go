@@ -77,30 +77,34 @@ type Config struct {
 }
 
 type model struct {
-	cfg               Config
-	send              func(tea.Msg)
-	vp                viewport.Model
-	ti                textinput.Model
-	busy              bool
-	busyFrame         int
-	busyVerb          string
-	busyStart         time.Time
-	seenAsstDelta     bool
-	busyReduceMotion  bool
-	lastStreamChange  time.Time
-	stallSmoothed     float64
-	perm              *permState
-	permSel           int // index in permMenuEntries while perm != nil
-	pwiz              *providerWiz
-	width             int
-	height            int
-	permBr            *permBridge
-	getAgent          func() *core.Agent
-	stickBottom       bool
-	runningTool       string
-	pendingImageURLs  []string
-	pendingImageFiles []string
-	vimNormal         bool // true = vim normal mode on prompt (movement); false = insert when VimKeys enabled
+	cfg              Config
+	send             func(tea.Msg)
+	vp               viewport.Model
+	ti               textinput.Model
+	busy             bool
+	busyFrame        int
+	busyVerb         string
+	busyStart        time.Time
+	seenAsstDelta    bool
+	busyReduceMotion bool
+	lastStreamChange time.Time
+	stallSmoothed    float64
+	perm             *permState
+	permSel          int // index in permMenuEntries while perm != nil
+	pwiz             *providerWiz
+	width            int
+	height           int
+	permBr           *permBridge
+	getAgent         func() *core.Agent
+	stickBottom      bool
+	runningTool      string
+	// runningToolLine is a short summary (name + key args) for the busy strip; empty when idle.
+	runningToolLine string
+	// pendingToolScheduleCount is >0 after assistant_finished with tools until the first KindToolCall.
+	pendingToolScheduleCount int
+	pendingImageURLs         []string
+	pendingImageFiles        []string
+	vimNormal                bool // true = vim normal mode on prompt (movement); false = insert when VimKeys enabled
 	// transcript
 	committed strings.Builder
 	liveAsst  strings.Builder
@@ -270,7 +274,7 @@ func (m *model) digitamaTickCmd() tea.Cmd {
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case busyTickMsg:
-		if !m.busy && m.runningTool == "" {
+		if !m.busy && m.runningTool == "" && m.pendingToolScheduleCount == 0 {
 			return m, nil
 		}
 		m.busyFrame++
@@ -561,6 +565,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case runTurnDoneMsg:
 		m.runningTool = ""
+		m.runningToolLine = ""
+		m.pendingToolScheduleCount = 0
 		m.setBusy(false)
 		if msg.clearImages {
 			m.pendingImageURLs = nil
@@ -600,6 +606,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case runTurnErrMsg:
 		m.runningTool = ""
+		m.runningToolLine = ""
+		m.pendingToolScheduleCount = 0
 		m.setBusy(false)
 		var c tea.Cmd
 		if msg.err != nil {
@@ -838,7 +846,7 @@ func (m *model) runModelTurnFromUserText(line string) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) headerSubLines() int {
-	if m.busy || m.runningTool != "" {
+	if m.busy || m.runningTool != "" || m.pendingToolScheduleCount > 0 {
 		return 2
 	}
 	return 1
@@ -865,7 +873,22 @@ func (m *model) applyKernel(e core.Event) {
 		}
 		m.liveAsst.Reset()
 		m.lastStreamChange = time.Now()
+		if e.ToolCallCount > 0 {
+			m.pendingToolScheduleCount = e.ToolCallCount
+		} else {
+			m.pendingToolScheduleCount = 0
+		}
 		if txt == "" {
+			if e.ToolCallCount > 0 {
+				m.stickBottom = true
+				label := asstStyle.Render("Assistant") + ":"
+				plural := "s"
+				if e.ToolCallCount == 1 {
+					plural = ""
+				}
+				ph := dimStyle.Render(fmt.Sprintf("(%d tool call%s)", e.ToolCallCount, plural))
+				m.commitLine(label + " " + ph)
+			}
 			m.syncVP()
 			break
 		}
@@ -885,10 +908,19 @@ func (m *model) applyKernel(e core.Event) {
 		m.committed.WriteByte('\n')
 		m.syncVP()
 	case core.KindToolCall:
+		m.pendingToolScheduleCount = 0
 		m.runningTool = e.ToolName
+		m.runningToolLine = core.ToolCallBusyLabel(e.ToolName, e.ToolArgs)
 		m.lastStreamChange = time.Now()
 		args := formatToolArgs(e.ToolArgsJSON, e.ToolArgs)
 		hdr := toolStyle.Render("Tool") + ": " + e.ToolName
+		if lbl := strings.TrimSpace(m.runningToolLine); lbl != "" && lbl != e.ToolName {
+			if rest, ok := strings.CutPrefix(lbl, e.ToolName+": "); ok && rest != "" {
+				hdr += dimStyle.Render(" — " + rest)
+			} else {
+				hdr += dimStyle.Render(" — " + lbl)
+			}
+		}
 		m.commitLine(hdr + "\n" + dimStyle.Render(args))
 	case core.KindPermissionPrompt:
 		// Interactive modal is driven by permPromptMsg from Confirm; no extra line.
@@ -912,6 +944,7 @@ func (m *model) applyKernel(e core.Event) {
 		}
 	case core.KindToolResult:
 		m.runningTool = ""
+		m.runningToolLine = ""
 		m.lastStreamChange = time.Now()
 		var b strings.Builder
 		b.WriteString(dimStyle.Render("Result (" + e.ToolName + "): "))
@@ -923,6 +956,8 @@ func (m *model) applyKernel(e core.Event) {
 		m.commitLine(b.String())
 	case core.KindError:
 		m.runningTool = ""
+		m.runningToolLine = ""
+		m.pendingToolScheduleCount = 0
 		m.commitLine(errStyle.Render("Error: ") + e.Message)
 		m.pendingToastCmd = m.pushToast(e.Message, toastErr)
 	case core.KindModelRefusal:
@@ -930,6 +965,8 @@ func (m *model) applyKernel(e core.Event) {
 		m.pendingToastCmd = m.pushToast(e.Message, toastWarn)
 	case core.KindTurnComplete:
 		m.runningTool = ""
+		m.runningToolLine = ""
+		m.pendingToolScheduleCount = 0
 	}
 	if m.headerSubLines() != sub0 {
 		m.reflowLayout()
@@ -974,6 +1011,9 @@ func (m *model) setBusy(v bool) {
 		m.lastStreamChange = time.Now()
 		m.stallSmoothed = 0
 		m.seenAsstDelta = false
+		m.pendingToolScheduleCount = 0
+		m.runningToolLine = ""
+		m.runningTool = ""
 	} else {
 		m.busyStart = time.Time{}
 		m.stallSmoothed = 0
@@ -994,7 +1034,7 @@ func (m *model) reflowLayout() {
 		return
 	}
 	subLines := 1
-	if m.busy || m.runningTool != "" {
+	if m.busy || m.runningTool != "" || m.pendingToolScheduleCount > 0 {
 		subLines = 2
 	}
 	headerH := 1 + subLines
@@ -1103,7 +1143,7 @@ func (m *model) View() string {
 		status = status + "    PgUp/PgDn Home/End · ↑↓ hist · prefix+↑ · Tab · ? · /help"
 	}
 	sub := dimStyle.Width(m.width).Render(status)
-	if m.busy || m.runningTool != "" {
+	if m.busy || m.runningTool != "" || m.pendingToolScheduleCount > 0 {
 		busyLine := m.renderBusyAnimationLine()
 		sub = lipgloss.JoinVertical(lipgloss.Left, sub, busyLine)
 	}
