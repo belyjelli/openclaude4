@@ -149,8 +149,8 @@ v3 reference: Ink [`PromptInput`](https://github.com/Gitlawb/openclaude/tree/mai
 
 **Follow-ups (v3 parity / polish)**
 
-- [ ] Nested **Task** / sub-agent transcript UX — nested runs forward parent [`OnEvent`](./internal/core/agent.go) today (flat transcript; see [`internal/tui/README.md`](./internal/tui/README.md)); annotate [`Event`](./internal/core/event.go) (or wrap `OnEvent`) with depth / parent tool-call id and teach [`applyKernel`](./internal/tui/model.go) to prefix, indent, fold, or optional expand sub-agent blocks (v3-style grouped agents + expand transcript).
-- [ ] Status / footer — optional **task depth** or **active sub-agent** hint on status/subtitle line (with broader task/coordinator counts when those features exist).
+- [x] Partial: Nested **Task** / sub-agent transcript UX — [`Event.SubTaskDepth`](./internal/core/event.go) stamped in [`Agent.emit`](./internal/core/agent.go); Task ([`task_tool.go`](./internal/core/task_tool.go)) and [`RunSkillForked`](./internal/core/skill_fork.go) bump [`Agent.EventSubTaskDepth`](./internal/core/agent.go); TUI [`applyKernel`](./internal/tui/model.go) indents committed lines. Still open: parent tool-call id on events, fold/expand blocks, v3-style grouped parallel agents.
+- [x] Partial: Status / footer — **sub-agent** (and depth when > 1) on the status strip while nested events stream ([`internal/tui/model.go`](./internal/tui/model.go) `kernelSubTaskDepth`). Broader task/coordinator counts still open (see Gaps vs v3).
 - [ ] Richer **transcript chrome** — collapsible or tightened tool blocks; extends [`md_chroma.go`](./internal/tui/md_chroma.go) / render path.
 - [ ] Prompt **mode** row or chip when the session supports multiple input modes (bash vs default, etc.).
 - [ ] Optional: footer **ghost** / suggestion row for non-slash completions; dedicated **history-search** UI beyond prefix filter on Up/Down.

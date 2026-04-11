@@ -86,6 +86,30 @@ func TestApplyKernel_ToolResultClearsRunningLine(t *testing.T) {
 	}
 }
 
+func TestApplyKernel_SubTaskDepthIndentAndDepthTracking(t *testing.T) {
+	t.Parallel()
+	m := &model{width: 100}
+	m.applyKernel(core.Event{
+		Kind:         core.KindToolCall,
+		SubTaskDepth: 2,
+		ToolName:     "Glob",
+		ToolArgs:     map[string]any{},
+		ToolArgsJSON: "{}",
+	})
+	if m.kernelSubTaskDepth != 2 {
+		t.Fatalf("kernelSubTaskDepth=%d want 2", m.kernelSubTaskDepth)
+	}
+	raw := stripANSI(m.committed.String())
+	lines := strings.Split(raw, "\n")
+	if len(lines) == 0 || !strings.HasPrefix(lines[0], "    ") {
+		t.Fatalf("want 4-space indent on first line, got %q", raw)
+	}
+	m.applyKernel(core.Event{Kind: core.KindTurnComplete})
+	if m.kernelSubTaskDepth != 0 {
+		t.Fatalf("after TurnComplete kernelSubTaskDepth=%d want 0", m.kernelSubTaskDepth)
+	}
+}
+
 func TestStallTargetIntensity_BusyFalsePendingOnly(t *testing.T) {
 	t.Parallel()
 	m := &model{

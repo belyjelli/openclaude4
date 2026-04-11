@@ -18,7 +18,8 @@ func WorkDir(ctx context.Context) string {
 	return v
 }
 
-// WithSubTaskDepth records nested Task depth (reserved for future policy hooks; Task child runs omit the Task tool).
+// WithSubTaskDepth records nested Task depth in context (policy hooks; nested Task runs omit the Task tool).
+// TUI transcript nesting uses core.Agent.EventSubTaskDepth / core.Event.SubTaskDepth, not this context value.
 func WithSubTaskDepth(ctx context.Context, depth int) context.Context {
 	return context.WithValue(ctx, subTaskDepthKey{}, depth)
 }
