@@ -146,7 +146,7 @@ func handleSlashLine(line string, st chatState, out io.Writer) error {
 			return handleProviderWizard(st, out)
 		case "help":
 			_, _ = fmt.Fprint(out, `/provider              Show active provider, model, base URL, credential hint
-/provider wizard      Step-by-step setup (REPL: stdin + b back; TUI: panel, ↑↓ Enter, b back, esc cancel)
+/provider wizard      Step-by-step setup (REPL: stdin + b back; TUI: panel, ↑↓ Enter, b back, esc cancel); applies to this session and prints YAML to save
 /provider show        Same as bare /provider
 /provider <name>     Switch provider: openai | ollama | gemini | github | openrouter (in-memory; also sets provider.name)
 `)

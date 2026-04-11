@@ -238,6 +238,83 @@ func (w *Wizard) Result() string {
 	return w.result
 }
 
+// finishedProvider returns which provider path completed at stFinished, or "".
+func (w *Wizard) finishedProvider() string {
+	if w.step != stFinished {
+		return ""
+	}
+	if w.ollamaHost != "" && w.ollamaModel != "" {
+		return "ollama"
+	}
+	if w.openaiModel != "" {
+		return "openai"
+	}
+	if w.geminiModel != "" {
+		return "gemini"
+	}
+	if w.githubModel != "" {
+		return "github"
+	}
+	if w.orModel != "" {
+		return "openrouter"
+	}
+	return ""
+}
+
+// ApplyToViper merges a successfully completed wizard into viper (in-memory),
+// matching the YAML emitted by [Wizard.Result]. Returns an error if the wizard
+// did not finish successfully, the finished branch cannot be inferred, or
+// [config.Validate] fails.
+func (w *Wizard) ApplyToViper() error {
+	if w.step != stFinished || w.Cancelled() {
+		return fmt.Errorf("provider wizard: not completed successfully")
+	}
+	if strings.TrimSpace(w.result) == "" {
+		return fmt.Errorf("provider wizard: empty result")
+	}
+	switch w.finishedProvider() {
+	case "openai":
+		viper.Set("provider.name", "openai")
+		viper.Set("provider.model", w.openaiModel)
+		if b := strings.TrimSpace(w.openaiBase); b != "" {
+			viper.Set("provider.base_url", strings.TrimRight(b, "/"))
+		} else {
+			viper.Set("provider.base_url", "")
+		}
+	case "ollama":
+		viper.Set("provider.name", "ollama")
+		viper.Set("ollama.host", w.ollamaHost)
+		viper.Set("ollama.model", w.ollamaModel)
+	case "gemini":
+		viper.Set("provider.name", "gemini")
+		viper.Set("gemini.model", w.geminiModel)
+		if b := strings.TrimSpace(w.geminiBase); b != "" {
+			viper.Set("gemini.base_url", strings.TrimRight(b, "/"))
+		} else {
+			viper.Set("gemini.base_url", "")
+		}
+	case "github":
+		viper.Set("provider.name", "github")
+		viper.Set("github.model", w.githubModel)
+		if b := strings.TrimSpace(w.githubBase); b != "" {
+			viper.Set("github.base_url", b)
+		} else {
+			viper.Set("github.base_url", "")
+		}
+	case "openrouter":
+		viper.Set("provider.name", "openrouter")
+		viper.Set("openrouter.model", w.orModel)
+		if b := strings.TrimSpace(w.orBase); b != "" {
+			viper.Set("provider.base_url", strings.TrimRight(b, "/"))
+		} else {
+			viper.Set("provider.base_url", "")
+		}
+	default:
+		return fmt.Errorf("provider wizard: cannot infer finished provider")
+	}
+	return config.Validate()
+}
+
 // Title for the current step panel / REPL header.
 func (w *Wizard) Title() string {
 	switch w.step {
@@ -266,7 +343,7 @@ func (w *Wizard) Title() string {
 func (w *Wizard) Body() string {
 	switch w.step {
 	case stChooseProvider:
-		return "This wizard prints recommended YAML/env only. Restart openclaude after editing config."
+		return "Applies provider settings to this session and prints YAML to merge into openclaude.yaml for the next start."
 	case stOllamaModelMenu:
 		return "Select a model from your Ollama host, or choose manual entry."
 	default:

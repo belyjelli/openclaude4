@@ -26,9 +26,13 @@ func captureProviderModelKeys() map[string]string {
 	keys := []string{
 		"provider.name",
 		"provider.model",
+		"provider.base_url",
+		"ollama.host",
 		"ollama.model",
 		"gemini.model",
+		"gemini.base_url",
 		"github.model",
+		"github.base_url",
 		"openrouter.model",
 	}
 	out := make(map[string]string, len(keys))

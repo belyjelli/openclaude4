@@ -43,7 +43,7 @@ In **`openclaude --tui`**, the prompt offers **slash typeahead**: after `/`, mat
 | `/context`, `/tokens` | Message count, rough tokens ([`RoughTokenEstimate`](../internal/session/tokens.go)), compact keep + threshold |
 | `/model` | No args: print current model. `/model <id>`: set model for active provider (`viper` + new client; [`LiveChat`](../internal/chatlive/live.go)). TUI: blocked while a turn is in progress |
 | `/provider` | Show provider info |
-| `/provider wizard` | **REPL:** stdin prompts; type **`b`** / **`back`** to go back. **TUI:** in-app bordered panel ([`internal/tui/provider_wiz.go`](../internal/tui/provider_wiz.go)): **↑↓** move, **Enter** confirm, **`b`** back, **esc** cancel. Prints YAML/env snippet to the transcript when done (restart after editing config). Optional Ollama model list via host `/api/tags`. |
+| `/provider wizard` | **REPL:** stdin prompts; type **`b`** / **`back`** to go back. **TUI:** in-app bordered panel ([`internal/tui/provider_wiz.go`](../internal/tui/provider_wiz.go)): **↑↓** move, **Enter** confirm, **`b`** back, **esc** cancel. Applies provider/model to the **current session** (viper + live client swap) and prints a YAML/env snippet to the transcript—merge into `openclaude.yaml` to persist for the next start. Optional Ollama model list via host `/api/tags`. |
 | `/provider show`, `/status` | Same as bare `/provider` |
 | `/provider help` | Subcommand help |
 | `/provider openai\|ollama\|gemini\|github\|openrouter` | Switch `provider.name`, validate, new stream client |

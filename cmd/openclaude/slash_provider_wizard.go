@@ -6,8 +6,10 @@ import (
 	"io"
 	"strings"
 
+	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/providerwizard"
+	"github.com/gitlawb/openclaude4/internal/providers"
 )
 
 func handleProviderWizard(st chatState, out io.Writer) error {
@@ -25,7 +27,35 @@ func handleProviderWizard(st chatState, out io.Writer) error {
 		printProviderSetupGuide(out)
 		return nil
 	}
-	return runProviderInteractiveWizard(out, st.providerWizardIn, client)
+	return runProviderInteractiveWizard(st, out, st.providerWizardIn, client)
+}
+
+// applyProviderWizardToSession updates viper from a finished wizard, builds a new
+// stream client, and swaps the live session client. info is a one-line confirmation
+// (empty on error). When out is non-nil, info is also written there on success.
+func applyProviderWizardToSession(st chatState, w *providerwizard.Wizard, out io.Writer) (info string, err error) {
+	if st.isBusy != nil && st.isBusy() {
+		return "", fmt.Errorf("wait for the current model turn to finish before changing provider")
+	}
+	snap := captureProviderModelKeys()
+	if err := w.ApplyToViper(); err != nil {
+		restoreProviderModelKeys(snap)
+		return "", err
+	}
+	nc, err := providers.NewStreamClient()
+	if err != nil {
+		restoreProviderModelKeys(snap)
+		return "", err
+	}
+	if st.live != nil {
+		st.live.SwapClient(nc)
+	}
+	providers.WarmChatModelCache()
+	info = fmt.Sprintf("(session updated: provider %s, model %q)", config.ProviderName(), config.Model())
+	if out != nil {
+		_, _ = fmt.Fprintln(out, info)
+	}
+	return info, nil
 }
 
 func printProviderSetupGuide(out io.Writer) {
@@ -93,7 +123,7 @@ Then restart openclaude. Run openclaude doctor to verify.
 	_, _ = fmt.Fprint(out, guide)
 }
 
-func runProviderInteractiveWizard(out io.Writer, in io.Reader, client core.StreamClient) error {
+func runProviderInteractiveWizard(st chatState, out io.Writer, in io.Reader, client core.StreamClient) error {
 	if in == nil {
 		return fmt.Errorf("provider wizard: nil reader")
 	}
@@ -101,7 +131,7 @@ func runProviderInteractiveWizard(out io.Writer, in io.Reader, client core.Strea
 	w := providerwizard.New()
 
 	_, _ = fmt.Fprintln(out, "=== Provider setup wizard ===")
-	_, _ = fmt.Fprintln(out, "This prints recommended YAML/env only. Restart openclaude after editing config.")
+	_, _ = fmt.Fprintln(out, "Applies to this session and prints YAML to save for the next start.")
 	_, _ = fmt.Fprintln(out)
 	printProviderInfoTo(client, out)
 	_, _ = fmt.Fprintln(out)
@@ -177,8 +207,13 @@ func runProviderInteractiveWizard(out io.Writer, in io.Reader, client core.Strea
 		_, _ = fmt.Fprintln(out, "(cancelled)")
 		return nil
 	}
+	if st.live != nil {
+		if _, err := applyProviderWizardToSession(st, w, out); err != nil {
+			_, _ = fmt.Fprintf(out, "Could not apply to session: %v\n", err)
+		}
+	}
 	_, _ = fmt.Fprintln(out, w.Result())
-	_, _ = fmt.Fprintln(out, "\nRestart openclaude after saving config changes.")
+	_, _ = fmt.Fprintln(out, "\nMerge YAML into openclaude.yaml to persist for the next start.")
 	return nil
 }
 

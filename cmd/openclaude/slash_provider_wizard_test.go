@@ -37,7 +37,7 @@ func TestRunProviderInteractiveWizard_Cancel(t *testing.T) {
 	t.Parallel()
 	in := strings.NewReader("\n")
 	var buf bytes.Buffer
-	if err := runProviderInteractiveWizard(&buf, in, nil); err != nil {
+	if err := runProviderInteractiveWizard(chatState{}, &buf, in, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "cancelled") {
@@ -49,7 +49,7 @@ func TestRunProviderInteractiveWizard_OpenAI(t *testing.T) {
 	t.Parallel()
 	in := strings.NewReader("1\n\n\n")
 	var buf bytes.Buffer
-	if err := runProviderInteractiveWizard(&buf, in, nil); err != nil {
+	if err := runProviderInteractiveWizard(chatState{}, &buf, in, nil); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()
@@ -63,7 +63,7 @@ func TestRunProviderInteractiveWizard_BackFromOpenAI(t *testing.T) {
 	// openai → model step → back to menu → empty cancel
 	in := strings.NewReader("1\nb\n\n")
 	var buf bytes.Buffer
-	if err := runProviderInteractiveWizard(&buf, in, nil); err != nil {
+	if err := runProviderInteractiveWizard(chatState{}, &buf, in, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "cancelled") {
@@ -75,7 +75,7 @@ func TestRunProviderInteractiveWizard_GitHub(t *testing.T) {
 	t.Parallel()
 	in := strings.NewReader("4\n\n\n")
 	var buf bytes.Buffer
-	if err := runProviderInteractiveWizard(&buf, in, nil); err != nil {
+	if err := runProviderInteractiveWizard(chatState{}, &buf, in, nil); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()
@@ -88,7 +88,7 @@ func TestRunProviderInteractiveWizard_OpenRouter(t *testing.T) {
 	t.Parallel()
 	in := strings.NewReader("5\n\n\n")
 	var buf bytes.Buffer
-	if err := runProviderInteractiveWizard(&buf, in, nil); err != nil {
+	if err := runProviderInteractiveWizard(chatState{}, &buf, in, nil); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()

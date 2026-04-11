@@ -18,6 +18,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
+	"github.com/gitlawb/openclaude4/internal/providerwizard"
 	"github.com/gitlawb/openclaude4/internal/providers"
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
 	"github.com/gitlawb/openclaude4/internal/session"
@@ -204,6 +205,12 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			WorkDir:        wd,
 			Live:           live,
 			Busy:           &busyFlag,
+			ApplyProviderWizard: func(w *providerwizard.Wizard) (string, error) {
+				return applyProviderWizardToSession(chatState{
+					live:   live,
+					isBusy: func() bool { return atomic.LoadInt32(&busyFlag) != 0 },
+				}, w, nil)
+			},
 			Theme:          themeHolder,
 			VimKeys:        vimKeysHolder,
 			ToolPreviewMax: tuiToolPreviewMax(),
@@ -680,7 +687,7 @@ func printChatHelpTo(w io.Writer) {
   /context, /tokens  Rough token estimate + message count + compact settings
   /model [<id>] List models for the active provider, or set model id (TUI: Tab after "/model "; not while busy)
   /provider     Show active provider, model, base URL, credential hint
-  /provider wizard  Step-by-step YAML/env setup (REPL: stdin; TUI: in-app panel, ↑↓ Enter, b back, esc cancel)
+  /provider wizard  Step-by-step setup (REPL: stdin; TUI: in-app panel); applies to this session + prints YAML to persist
   /provider <openai|ollama|gemini|github|openrouter>  Switch provider (in-memory viper + new client)
   /provider show|status|help
   /mcp list    MCP tools connected in this process

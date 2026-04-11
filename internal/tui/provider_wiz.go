@@ -50,8 +50,24 @@ func (m *model) finishProviderWiz() (tea.Model, tea.Cmd) {
 	if w.Cancelled() {
 		m.commitLine(dimStyle.Render("(provider wizard cancelled)"))
 	} else {
+		if fn := m.cfg.ApplyProviderWizard; fn != nil {
+			info, err := fn(w)
+			if err != nil {
+				msg := err.Error()
+				m.commitLine(errStyle.Render("Session config: ") + msg)
+				if c := m.pushToast(msg, toastErr); c != nil {
+					m.commitLine(w.Result())
+					m.commitLine(dimStyle.Render("Merge YAML into openclaude.yaml to persist for the next start."))
+					m.pwiz = nil
+					m.reflowLayout()
+					return m, tea.Batch(textinput.Blink, c)
+				}
+			} else if strings.TrimSpace(info) != "" {
+				m.commitLine(info)
+			}
+		}
 		m.commitLine(w.Result())
-		m.commitLine(dimStyle.Render("Restart openclaude after saving config changes."))
+		m.commitLine(dimStyle.Render("Merge YAML into openclaude.yaml to persist for the next start."))
 	}
 	m.pwiz = nil
 	m.reflowLayout()
@@ -164,8 +180,20 @@ func providerWizMenuHint(w *providerwizard.Wizard, opt string) string {
 	return ""
 }
 
-// renderProviderWizSlashMenu draws the wizard menu like slash-command suggestions
-// (dim header, bordered list, purple highlight on the selected row).
+// providerWizPanelInnerW is the lipgloss text width inside the provider wizard
+// frame: Width(termW-2) with Padding(1,2) wraps at (termW-2) minus horizontal padding.
+func providerWizPanelInnerW(termW int) int {
+	outer := termW - 2
+	if outer < 1 {
+		outer = 1
+	}
+	pad := lipgloss.NewStyle().Padding(1, 2).GetHorizontalPadding()
+	return max(20, outer-pad)
+}
+
+// renderProviderWizSlashMenu draws the wizard menu like slash-command rows
+// (dim header, no inner frame — outer panel already provides the border).
+// contentW must match providerWizPanelInnerW so row highlights align with wrapped body text.
 func renderProviderWizSlashMenu(contentW int, opts []string, cursor int, w *providerwizard.Wizard) string {
 	if len(opts) == 0 || contentW < 1 {
 		return ""
@@ -175,21 +203,14 @@ func renderProviderWizSlashMenu(contentW int, opts []string, cursor int, w *prov
 		entries = append(entries, slashEntry{primary: opt, hint: providerWizMenuHint(w, opt)})
 	}
 	argMode := true
-	innerW := max(1, contentW-4)
-	header := dimStyle.Width(contentW).Render("↑↓ select · Enter confirm · b back · Esc cancel")
-	col1W, colGap := slashSuggestColumnWidths(innerW, entries, argMode)
+	rowW := max(1, contentW)
+	header := dimStyle.Width(rowW).Render("↑↓ select · Enter confirm · b back · Esc cancel")
+	col1W, colGap := slashSuggestColumnWidths(rowW, entries, argMode)
 	menuRows := make([]string, 0, len(entries))
 	for i, e := range entries {
-		menuRows = append(menuRows, renderSlashSuggestRow(innerW, col1W, colGap, e, argMode, i == cursor))
+		menuRows = append(menuRows, renderSlashSuggestRow(rowW, col1W, colGap, e, argMode, i == cursor))
 	}
-	body := lipgloss.JoinVertical(lipgloss.Left, menuRows...)
-	box := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Padding(0, 1).
-		Width(max(3, contentW-2)).
-		Render(body)
-	return lipgloss.JoinVertical(lipgloss.Left, header, box)
+	return lipgloss.JoinVertical(lipgloss.Left, append([]string{header}, menuRows...)...)
 }
 
 func (m *model) renderProviderWizPanel() string {
@@ -197,10 +218,7 @@ func (m *model) renderProviderWizPanel() string {
 		return ""
 	}
 	w := m.pwiz.wiz
-	innerW := m.width - 4
-	if innerW < 20 {
-		innerW = 20
-	}
+	innerW := providerWizPanelInnerW(m.width)
 	var rows []string
 	rows = append(rows, titleStyle.Render(w.Title()))
 	if b := w.Body(); strings.TrimSpace(b) != "" {

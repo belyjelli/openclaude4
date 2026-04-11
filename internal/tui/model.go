@@ -19,6 +19,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/ghstatus"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
+	"github.com/gitlawb/openclaude4/internal/providerwizard"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
 )
@@ -65,6 +66,9 @@ type Config struct {
 	BusySpinnerVerb func() string
 	// WorkDir is the process working directory (used for optional gh PR status in the title bar). Empty disables.
 	WorkDir string
+	// ApplyProviderWizard, if non-nil, runs when the in-app provider wizard completes successfully
+	// (before the YAML snippet is committed). Returns a one-line confirmation and/or an error.
+	ApplyProviderWizard func(w *providerwizard.Wizard) (info string, err error)
 }
 
 type model struct {
