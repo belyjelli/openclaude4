@@ -23,14 +23,33 @@ func Run(cfg Config) error {
 	pb.setProgram(p)
 	m.send = p.Send
 
+	rawConfirm := pb.Confirm
 	agent = &core.Agent{
 		Client:   cfg.Client,
 		Registry: cfg.Registry,
 		Out:      io.Discard,
-		Confirm:  pb.Confirm,
 		OnEvent: func(e core.Event) {
 			p.Send(kernelMsg{e: e})
 		},
+	}
+	if cfg.PermissionEngine != nil {
+		eng := cfg.PermissionEngine
+		agent.PermissionPolicy = func(n string, a map[string]any) (core.PermissionOutcome, bool, string) {
+			return eng.Eval(n, a)
+		}
+	}
+	agent.Confirm = func(n string, a map[string]any) core.PermissionOutcome {
+		o := rawConfirm(n, a)
+		if cfg.PermissionStore != nil && len(o.AddAllowRules) > 0 {
+			_ = cfg.PermissionStore.AppendAllow(o.AddAllowRules)
+		}
+		if cfg.PermissionEngine != nil && len(o.AddAllowRules) > 0 {
+			cfg.PermissionEngine.AppendAllow(o.AddAllowRules)
+		}
+		if o.EnableSessionAutoApprove && cfg.AutoApprove != nil {
+			cfg.AutoApprove.Store(true)
+		}
+		return o
 	}
 	if cfg.Live != nil {
 		cfg.Live.BindAgent(agent)

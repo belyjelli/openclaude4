@@ -70,6 +70,10 @@ type Config struct {
 	// ApplyProviderWizard, if non-nil, runs when the in-app provider wizard completes successfully
 	// (before the YAML snippet is committed). Returns a one-line confirmation and/or an error.
 	ApplyProviderWizard func(w *providerwizard.Wizard) (info string, err error)
+	// PermissionEngine optional tool allow/deny rules (viper + session file) evaluated before TUI confirm.
+	PermissionEngine *toolpolicy.Engine
+	// PermissionStore optional session-local YAML append for user-added allow rules.
+	PermissionStore *toolpolicy.SessionStore
 }
 
 type model struct {
@@ -709,10 +713,9 @@ func (m *model) applyPermMenuSelection() {
 		m.permAuxTI.Focus()
 	case "permissions":
 		o := core.AllowPermission()
+		o.EnableSessionAutoApprove = true
 		if m.cfg.AutoApprove != nil {
-			m.cfg.AutoApprove.Store(true)
 			m.commitLine(dimStyle.Render("auto-approve: on"))
-			o.EnableSessionAutoApprove = true
 		}
 		m.answerPermOutcome(o)
 	case "deny":

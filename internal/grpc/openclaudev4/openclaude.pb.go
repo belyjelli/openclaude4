@@ -266,11 +266,14 @@ func (x *ChatRequest) GetImageInline() []*ImageAttachment {
 
 // Reply to PermissionRequired (yes/no or free text, same semantics as CLI confirm).
 type UserInput struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PromptId      string                 `protobuf:"bytes,1,opt,name=prompt_id,json=promptId,proto3" json:"prompt_id,omitempty"`
-	Reply         string                 `protobuf:"bytes,2,opt,name=reply,proto3" json:"reply,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	PromptId                 string                 `protobuf:"bytes,1,opt,name=prompt_id,json=promptId,proto3" json:"prompt_id,omitempty"`
+	Reply                    string                 `protobuf:"bytes,2,opt,name=reply,proto3" json:"reply,omitempty"`
+	DeclineFeedback          *string                `protobuf:"bytes,3,opt,name=decline_feedback,json=declineFeedback,proto3,oneof" json:"decline_feedback,omitempty"`
+	EnableSessionAutoApprove *bool                  `protobuf:"varint,4,opt,name=enable_session_auto_approve,json=enableSessionAutoApprove,proto3,oneof" json:"enable_session_auto_approve,omitempty"`
+	AddAllowRule             *string                `protobuf:"bytes,5,opt,name=add_allow_rule,json=addAllowRule,proto3,oneof" json:"add_allow_rule,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *UserInput) Reset() {
@@ -313,6 +316,27 @@ func (x *UserInput) GetPromptId() string {
 func (x *UserInput) GetReply() string {
 	if x != nil {
 		return x.Reply
+	}
+	return ""
+}
+
+func (x *UserInput) GetDeclineFeedback() string {
+	if x != nil && x.DeclineFeedback != nil {
+		return *x.DeclineFeedback
+	}
+	return ""
+}
+
+func (x *UserInput) GetEnableSessionAutoApprove() bool {
+	if x != nil && x.EnableSessionAutoApprove != nil {
+		return *x.EnableSessionAutoApprove
+	}
+	return false
+}
+
+func (x *UserInput) GetAddAllowRule() string {
+	if x != nil && x.AddAllowRule != nil {
+		return *x.AddAllowRule
 	}
 	return ""
 }
@@ -726,6 +750,8 @@ type PermissionRequired struct {
 	ToolName      string                 `protobuf:"bytes,2,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
 	ArgumentsJson string                 `protobuf:"bytes,3,opt,name=arguments_json,json=argumentsJson,proto3" json:"arguments_json,omitempty"`
 	Question      string                 `protobuf:"bytes,4,opt,name=question,proto3" json:"question,omitempty"`
+	Summary       *string                `protobuf:"bytes,5,opt,name=summary,proto3,oneof" json:"summary,omitempty"`
+	ReasonHint    *string                `protobuf:"bytes,6,opt,name=reason_hint,json=reasonHint,proto3,oneof" json:"reason_hint,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -788,12 +814,29 @@ func (x *PermissionRequired) GetQuestion() string {
 	return ""
 }
 
+func (x *PermissionRequired) GetSummary() string {
+	if x != nil && x.Summary != nil {
+		return *x.Summary
+	}
+	return ""
+}
+
+func (x *PermissionRequired) GetReasonHint() string {
+	if x != nil && x.ReasonHint != nil {
+		return *x.ReasonHint
+	}
+	return ""
+}
+
 type PermissionAck struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PromptId      string                 `protobuf:"bytes,1,opt,name=prompt_id,json=promptId,proto3" json:"prompt_id,omitempty"`
-	Approved      bool                   `protobuf:"varint,2,opt,name=approved,proto3" json:"approved,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	PromptId           string                 `protobuf:"bytes,1,opt,name=prompt_id,json=promptId,proto3" json:"prompt_id,omitempty"`
+	Approved           bool                   `protobuf:"varint,2,opt,name=approved,proto3" json:"approved,omitempty"`
+	DeclineNote        *string                `protobuf:"bytes,3,opt,name=decline_note,json=declineNote,proto3,oneof" json:"decline_note,omitempty"`
+	RulesAdded         []string               `protobuf:"bytes,4,rep,name=rules_added,json=rulesAdded,proto3" json:"rules_added,omitempty"`
+	SessionAutoApprove *bool                  `protobuf:"varint,5,opt,name=session_auto_approve,json=sessionAutoApprove,proto3,oneof" json:"session_auto_approve,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *PermissionAck) Reset() {
@@ -836,6 +879,27 @@ func (x *PermissionAck) GetPromptId() string {
 func (x *PermissionAck) GetApproved() bool {
 	if x != nil {
 		return x.Approved
+	}
+	return false
+}
+
+func (x *PermissionAck) GetDeclineNote() string {
+	if x != nil && x.DeclineNote != nil {
+		return *x.DeclineNote
+	}
+	return ""
+}
+
+func (x *PermissionAck) GetRulesAdded() []string {
+	if x != nil {
+		return x.RulesAdded
+	}
+	return nil
+}
+
+func (x *PermissionAck) GetSessionAutoApprove() bool {
+	if x != nil && x.SessionAutoApprove != nil {
+		return *x.SessionAutoApprove
 	}
 	return false
 }
@@ -1019,10 +1083,16 @@ const file_openclaude_proto_rawDesc = "" +
 	"\timage_url\x18\x05 \x03(\tR\bimageUrl\x12A\n" +
 	"\fimage_inline\x18\x06 \x03(\v2\x1e.openclaude.v4.ImageAttachmentR\vimageInlineB\b\n" +
 	"\x06_modelB\r\n" +
-	"\v_session_id\">\n" +
+	"\v_session_id\"\xa5\x02\n" +
 	"\tUserInput\x12\x1b\n" +
 	"\tprompt_id\x18\x01 \x01(\tR\bpromptId\x12\x14\n" +
-	"\x05reply\x18\x02 \x01(\tR\x05reply\"&\n" +
+	"\x05reply\x18\x02 \x01(\tR\x05reply\x12.\n" +
+	"\x10decline_feedback\x18\x03 \x01(\tH\x00R\x0fdeclineFeedback\x88\x01\x01\x12B\n" +
+	"\x1benable_session_auto_approve\x18\x04 \x01(\bH\x01R\x18enableSessionAutoApprove\x88\x01\x01\x12)\n" +
+	"\x0eadd_allow_rule\x18\x05 \x01(\tH\x02R\faddAllowRule\x88\x01\x01B\x13\n" +
+	"\x11_decline_feedbackB\x1e\n" +
+	"\x1c_enable_session_auto_approveB\x11\n" +
+	"\x0f_add_allow_rule\"&\n" +
 	"\fCancelSignal\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\"\xbb\x04\n" +
 	"\rServerMessage\x129\n" +
@@ -1049,15 +1119,27 @@ const file_openclaude_proto_rawDesc = "" +
 	"\vtool_use_id\x18\x02 \x01(\tR\ttoolUseId\x12\x16\n" +
 	"\x06output\x18\x03 \x01(\tR\x06output\x12\x19\n" +
 	"\bis_error\x18\x04 \x01(\bR\aisError\x12#\n" +
-	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\"\x91\x01\n" +
+	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\"\xf2\x01\n" +
 	"\x12PermissionRequired\x12\x1b\n" +
 	"\tprompt_id\x18\x01 \x01(\tR\bpromptId\x12\x1b\n" +
 	"\ttool_name\x18\x02 \x01(\tR\btoolName\x12%\n" +
 	"\x0earguments_json\x18\x03 \x01(\tR\rargumentsJson\x12\x1a\n" +
-	"\bquestion\x18\x04 \x01(\tR\bquestion\"H\n" +
+	"\bquestion\x18\x04 \x01(\tR\bquestion\x12\x1d\n" +
+	"\asummary\x18\x05 \x01(\tH\x00R\asummary\x88\x01\x01\x12$\n" +
+	"\vreason_hint\x18\x06 \x01(\tH\x01R\n" +
+	"reasonHint\x88\x01\x01B\n" +
+	"\n" +
+	"\b_summaryB\x0e\n" +
+	"\f_reason_hint\"\xf2\x01\n" +
 	"\rPermissionAck\x12\x1b\n" +
 	"\tprompt_id\x18\x01 \x01(\tR\bpromptId\x12\x1a\n" +
-	"\bapproved\x18\x02 \x01(\bR\bapproved\"\xa6\x01\n" +
+	"\bapproved\x18\x02 \x01(\bR\bapproved\x12&\n" +
+	"\fdecline_note\x18\x03 \x01(\tH\x00R\vdeclineNote\x88\x01\x01\x12\x1f\n" +
+	"\vrules_added\x18\x04 \x03(\tR\n" +
+	"rulesAdded\x125\n" +
+	"\x14session_auto_approve\x18\x05 \x01(\bH\x01R\x12sessionAutoApprove\x88\x01\x01B\x0f\n" +
+	"\r_decline_noteB\x17\n" +
+	"\x15_session_auto_approve\"\xa6\x01\n" +
 	"\x11AssistantFinished\x12\x1b\n" +
 	"\tfull_text\x18\x01 \x01(\tR\bfullText\x12&\n" +
 	"\x0ftool_call_count\x18\x02 \x01(\x05R\rtoolCallCount\x12#\n" +
@@ -1133,6 +1215,7 @@ func file_openclaude_proto_init() {
 		(*ClientMessage_Cancel)(nil),
 	}
 	file_openclaude_proto_msgTypes[2].OneofWrappers = []any{}
+	file_openclaude_proto_msgTypes[3].OneofWrappers = []any{}
 	file_openclaude_proto_msgTypes[5].OneofWrappers = []any{
 		(*ServerMessage_TextChunk)(nil),
 		(*ServerMessage_ToolStart)(nil),
@@ -1143,6 +1226,8 @@ func file_openclaude_proto_init() {
 		(*ServerMessage_TurnComplete)(nil),
 		(*ServerMessage_Error)(nil),
 	}
+	file_openclaude_proto_msgTypes[9].OneofWrappers = []any{}
+	file_openclaude_proto_msgTypes[10].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

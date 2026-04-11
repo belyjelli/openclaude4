@@ -51,6 +51,9 @@ message ChatRequest {
 message UserInput {
   string prompt_id = 1;
   string reply = 2;
+  optional string decline_feedback = 3;
+  optional bool enable_session_auto_approve = 4;
+  optional string add_allow_rule = 5;
 }
 
 message CancelSignal {
@@ -98,11 +101,16 @@ message PermissionRequired {
   string tool_name = 2;
   string arguments_json = 3;
   string question = 4;
+  optional string summary = 5;
+  optional string reason_hint = 6;
 }
 
 message PermissionAck {
   string prompt_id = 1;
   bool approved = 2;
+  optional string decline_note = 3;
+  repeated string rules_added = 4;
+  optional bool session_auto_approve = 5;
 }
 
 message AssistantFinished {
