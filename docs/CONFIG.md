@@ -7,9 +7,15 @@ Sources are merged in two phases.
 ### Phase A — file merge order (first merged = weakest)
 
 1. **v3 profile** — `.openclaude-profile.json` in the current working directory, then `$HOME/.openclaude-profile.json` (first file found). See `internal/config/profile_v3.go`.
-2. **v4 config file** — `openclaude.{yaml,yml,json}` from `./` then `~/.config/openclaude/`, **or** the path passed as `--config`. The first existing file wins among the search paths.
+2. **v4 config files (implicit, no `--config`)** — merged in this order; each step is skipped if that file does not exist:
+   - `$HOME/.config/openclaude/openclaude.{yaml,yml,json}` (first matching extension)
+   - `$HOME/.config/openclaude/openclaudev4.{yaml,yml,json}` (overrides the home `openclaude.*` file for the same keys)
+   - `./openclaude.{yaml,yml,json}` in the current working directory (strongest file layer; project overrides the home stack)
+3. **`--config /path/to/file`** — only that single file is read (no automatic merge of `openclaudev4.*` beside it). It overrides the v3 profile for the same keys.
 
-Later merges override earlier ones for the same keys (so the v4 file overrides the v3 profile).
+Later merges override earlier ones for the same keys (so YAML overrides the v3 profile).
+
+**Overlapping keys in multiple YAML files:** viper merges maps deeply where supported; for values that are **lists** (for example `mcp.servers` in two home files), the later file can **replace** the entire list rather than append. Prefer shared defaults in `openclaude.yaml` and v4-specific overrides in `openclaudev4.yaml`, and keep one file as the source of truth for large list blocks.
 
 ### Phase B — viper lookup order (on each read)
 
@@ -21,16 +27,19 @@ When the code calls `viper.Get*` for a key, **spf13/viper** applies (highest win
 4. Merged config from phase A
 5. Defaults implied by helpers in `internal/config/config.go` (e.g. default model names)
 
-**Summary:** `flags → env → openclaude.yaml (or --config) → .openclaude-profile.json → defaults`.
+**Summary:** `flags → env → merged openclaude YAML (cwd over home stack, or --config single file) → .openclaude-profile.json → defaults`.
 
-## Config file search
+## Config file search and merge
 
-Unless you pass `--config /path/to/file`:
+**With `--config /path/to/file`:** only that file is loaded (plus the v3 profile as in phase A).
 
-1. `./openclaude.yaml` (also `.yml`, `.json`)
-2. `~/.config/openclaude/openclaude.{yaml,yml,json}`
+**Without `--config`:** OpenClaude merges **up to three** files when they exist, in order:
 
-The first existing file wins.
+1. `~/.config/openclaude/openclaude.{yaml,yml,json}`
+2. `~/.config/openclaude/openclaudev4.{yaml,yml,json}`
+3. `./openclaude.{yaml,yml,json}`
+
+There is no `openclaudev4.*` in the project directory; the v4-only filename is only under `~/.config/openclaude/`.
 
 ## Example (`openclaude.yaml`)
 
@@ -85,7 +94,7 @@ Each entry runs **`command`** as a subprocess; OpenClaude talks to it over **std
 
 Failed servers are skipped with a message on stderr; chat still starts if built-in tools are enough.
 
-**CLI:** `openclaude mcp add --name <id> --exec <argv1> --exec <argv2> ...` appends a server to the config file [`config.WritableConfigPath`](../internal/config/mcp_configfile.go) would choose (same rules as loading: explicit `--config`, else first `openclaude.{yaml,yml,json}` on the search path, else `~/.config/openclaude/openclaude.yaml`). For npm-published MCP servers, **`--bunx`** prepends `bunx -y` (recommended); you still pass `--exec` for the package name and arguments. Local scripts: `--exec bun --exec run --exec ./server.ts`. Use `--approval always|never|ask`, `--dry-run` to preview. Rewriting YAML drops comments.
+**CLI:** `openclaude mcp add --name <id> --exec <argv1> --exec <argv2> ...` appends a server to the config file [`config.WritableConfigPath`](../internal/config/mcp_configfile.go) chooses: the file passed with **`--config`** if set; else **`./openclaude.{yaml,yml,json}`** if it exists; else **`~/.config/openclaude/openclaudev4.*`** if it exists; else **`~/.config/openclaude/openclaude.*`** if it exists; else **`~/.config/openclaude/openclaude.yaml`** is created (or `./openclaude.yaml` when `$HOME` is unset). For npm-published MCP servers, **`--bunx`** prepends `bunx -y` (recommended); you still pass `--exec` for the package name and arguments. Local scripts: `--exec bun --exec run --exec ./server.ts`. Use `--approval always|never|ask`, `--dry-run` to preview. Rewriting YAML drops comments.
 
 ## Environment variables
 

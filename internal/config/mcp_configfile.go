@@ -9,34 +9,45 @@ import (
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
-	"github.com/spf13/viper"
 )
 
 // WritableConfigPath picks where to persist changes (e.g. [AppendMCPServerToConfigFile]).
-// Order: viper's loaded config file; else first existing openclaude.{yaml,yml,json} in search dirs;
-// else ~/.config/openclaude/openclaude.yaml (directory created); else ./openclaude.yaml in cwd.
+//
+// When Load was given an explicit --config path ([ConfigExplicitPath] is set), that file is used.
+//
+// Otherwise (implicit merge): if ./openclaude.{yaml,yml,json} exists, that path wins; else if
+// ~/.config/openclaude/openclaudev4.* exists, use it; else if ~/.config/openclaude/openclaude.*
+// exists, use it; else create ~/.config/openclaude/openclaude.yaml (or ./openclaude.yaml if HOME
+// is empty).
 func WritableConfigPath() (string, error) {
-	if p := viper.ConfigFileUsed(); strings.TrimSpace(p) != "" {
+	if p := strings.TrimSpace(ConfigExplicitPath); p != "" {
 		return filepath.Abs(p)
 	}
+
 	home, _ := os.UserHomeDir()
-	for _, base := range configSearchDirs(home) {
-		for _, ext := range []string{"yaml", "yml", "json"} {
-			candidate := filepath.Join(base, "openclaude."+ext)
-			st, err := os.Stat(candidate)
-			if err != nil || st.IsDir() {
-				continue
-			}
-			return filepath.Abs(candidate)
-		}
+	cwd, _ := os.Getwd()
+	cwdDir := cwd
+	if cwdDir == "" {
+		cwdDir = "."
 	}
+	if p := firstConfigStemInDir(cwdDir, "openclaude"); p != "" {
+		return filepath.Abs(p)
+	}
+
 	if home != "" {
 		dir := filepath.Join(home, ".config", "openclaude")
+		if p := firstConfigStemInDir(dir, "openclaudev4"); p != "" {
+			return filepath.Abs(p)
+		}
+		if p := firstConfigStemInDir(dir, "openclaude"); p != "" {
+			return filepath.Abs(p)
+		}
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return "", fmt.Errorf("create config dir: %w", err)
 		}
 		return filepath.Join(dir, "openclaude.yaml"), nil
 	}
+
 	return filepath.Abs("openclaude.yaml")
 }
 

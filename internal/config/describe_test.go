@@ -13,6 +13,7 @@ import (
 func TestDescribeEffectiveConfig_NoPanic(t *testing.T) {
 	t.Parallel()
 	viper.Reset()
+	resetOpenClaudeMergeState()
 	bindViperEnv()
 	MergeV3Profile(t.TempDir(), "")
 	var buf bytes.Buffer

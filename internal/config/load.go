@@ -9,44 +9,130 @@ import (
 	"github.com/spf13/viper"
 )
 
+// ConfigExplicitPath is the absolute path passed to Load via --config, or empty when
+// implicit multi-file merge was used. WritableConfigPath uses this to persist to the
+// same file the user pointed at.
+var ConfigExplicitPath string
+
+// MergedHomeOpenClaudePath is the ~/.config/openclaude/openclaude.{yaml,yml,json}
+// merged in the last implicit Load, if any.
+var MergedHomeOpenClaudePath string
+
+// MergedHomeOpenClaudeV4Path is the ~/.config/openclaude/openclaudev4.{yaml,yml,json}
+// merged in the last implicit Load, if any (overrides home openclaude for same keys).
+var MergedHomeOpenClaudeV4Path string
+
+// MergedCwdOpenClaudePath is the cwd openclaude.{yaml,yml,json} merged in the last
+// implicit Load, if any (strongest file layer).
+var MergedCwdOpenClaudePath string
+
+func resetOpenClaudeMergeState() {
+	ConfigExplicitPath = ""
+	MergedHomeOpenClaudePath = ""
+	MergedHomeOpenClaudeV4Path = ""
+	MergedCwdOpenClaudePath = ""
+}
+
+// firstConfigStemInDir returns the first existing path among stem.yaml, stem.yml, stem.json
+// in dir, or "" if none exist or dir is empty.
+func firstConfigStemInDir(dir, stem string) string {
+	if strings.TrimSpace(dir) == "" {
+		return ""
+	}
+	for _, ext := range []string{"yaml", "yml", "json"} {
+		p := filepath.Join(dir, stem+"."+ext)
+		st, err := os.Stat(p)
+		if err != nil || st.IsDir() {
+			continue
+		}
+		return p
+	}
+	return ""
+}
+
 // Load merges configuration sources into viper in this call order:
-//  1. v3 .openclaude-profile.json (cwd, then $HOME; see profile_v3.go) — merged first (weakest)
-//  2. openclaude.{yaml,yml,json} or --config file — merged next; overrides v3 for the same keys
+//
+//	Explicit --config path: v3 profile, then that single file.
+//
+//	Implicit (no --config): v3 profile, then (weakest to strongest among YAML files):
+//	  ~/.config/openclaude/openclaude.{yaml,yml,json}
+//	  ~/.config/openclaude/openclaudev4.{yaml,yml,json}
+//	  ./openclaude.{yaml,yml,json}
 //
 // After that, spf13/viper resolution applies on each Get* (highest wins):
 //  1. explicit viper.Set (rare)
 //  2. cobra flags bound with BindPFlag (e.g. --provider, --model, --base-url)
 //  3. environment variables (see bindViperEnv; OPENAI_MODEL binds to openai.model, not provider.model)
-//  4. keys from merged config (v3 + file)
+//  4. keys from merged config (v3 + file(s))
 //  5. defaults implied by getters in config.go
 //
-// So in practice: flags beat env beat config file beat v3 profile (for the same logical key).
+// So in practice: flags beat env beat merged YAML beat v3 profile (for the same logical key).
 func Load(explicitPath string) {
 	bindViperEnv()
 
 	cwd, _ := os.Getwd()
 	home, _ := os.UserHomeDir()
+	resetOpenClaudeMergeState()
 	MergeV3Profile(cwd, home)
 
 	if strings.TrimSpace(explicitPath) != "" {
 		viper.SetConfigFile(explicitPath)
 		if err := viper.ReadInConfig(); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "openclaude: config: %v\n", err)
+			return
+		}
+		abs, err := filepath.Abs(explicitPath)
+		if err != nil {
+			ConfigExplicitPath = strings.TrimSpace(explicitPath)
+		} else {
+			ConfigExplicitPath = abs
 		}
 		return
 	}
 
-	for _, base := range configSearchDirs(home) {
-		for _, ext := range []string{"yaml", "yml", "json"} {
-			p := filepath.Join(base, "openclaude."+ext)
-			if _, err := os.Stat(p); err != nil {
-				continue
-			}
-			viper.SetConfigFile(p)
-			if err := viper.ReadInConfig(); err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "openclaude: config %s: %v\n", p, err)
-				return
-			}
+	loadImplicitOpenClaudeFiles(cwd, home)
+}
+
+func loadImplicitOpenClaudeFiles(cwd, home string) {
+	homeDir := ""
+	if home != "" {
+		homeDir = filepath.Join(home, ".config", "openclaude")
+	}
+
+	var paths []string
+	if p := firstConfigStemInDir(homeDir, "openclaude"); p != "" {
+		MergedHomeOpenClaudePath = p
+		paths = append(paths, p)
+	}
+	if p := firstConfigStemInDir(homeDir, "openclaudev4"); p != "" {
+		MergedHomeOpenClaudeV4Path = p
+		paths = append(paths, p)
+	}
+	cwdDir := cwd
+	if cwdDir == "" {
+		cwdDir = "."
+	}
+	if p := firstConfigStemInDir(cwdDir, "openclaude"); p != "" {
+		MergedCwdOpenClaudePath = p
+		paths = append(paths, p)
+	}
+
+	if len(paths) == 0 {
+		return
+	}
+
+	first := true
+	for _, p := range paths {
+		viper.SetConfigFile(p)
+		var err error
+		if first {
+			err = viper.ReadInConfig()
+			first = false
+		} else {
+			err = viper.MergeInConfig()
+		}
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "openclaude: config %s: %v\n", p, err)
 			return
 		}
 	}

@@ -45,8 +45,8 @@ var mcpAddCmd = &cobra.Command{
 	Use:   "add",
 	Short: "Append an MCP stdio server to your openclaude config file",
 	Long: strings.TrimSpace(`
-Writes under mcp.servers in the same config file Load would use (see docs/CONFIG.md):
-loaded --config path, else the first existing openclaude.{yaml,yml,json}, else ~/.config/openclaude/openclaude.yaml.
+Writes under mcp.servers in the same config file WritableConfigPath picks (see docs/CONFIG.md):
+--config path when set, else ./openclaude.{yaml,yml,json} if it exists, else ~/.config/openclaude/openclaudev4.* if it exists, else ~/.config/openclaude/openclaude.*, else a new ~/.config/openclaude/openclaude.yaml.
 
 Repeat --exec for each argv token, in order.
 

@@ -35,7 +35,7 @@ In **`openclaude --tui`**, the prompt offers **slash typeahead**: after `/`, mat
 | `/exit`, `/quit` | Leave chat |
 | `/onboard`, `/setup` | Short onboarding hints |
 | `/doctor` | Same output as `openclaude doctor` |
-| `/config` | [`DescribeEffectiveConfig`](../internal/config/describe.go): precedence, `viper` file, v3 profile path, search paths, writable config hint, provider/model/session/MCP names + approval (no secrets) |
+| `/config` | [`DescribeEffectiveConfig`](../internal/config/describe.go): precedence, merged YAML paths (`--config` or home `openclaude` / `openclaudev4` / cwd), v3 profile path, merge candidates listing, writable config hint, `viper.ConfigFileUsed` when implicit, provider/model/session/MCP names + approval (no secrets) |
 | `/permissions` | `OPENCLAUDE_AUTO_APPROVE_TOOLS`, MCP `approval` per server, cwd, pointer to [SECURITY.md](./SECURITY.md) |
 | `/version` | Same line as `openclaude version` (embedded version/commit) |
 | `/init` | Starter `openclaude.yaml` snippet + pointers to `openclaude.example.yaml` and CONFIG.md |
@@ -89,7 +89,7 @@ Below is a **prioritized** subset of v3 built-ins that are still missing in v4 b
 
 | v3-style command | Why | v4-shaped implementation |
 |------------------|-----|---------------------------|
-| **`/config`** | Users constantly ask “what is actually loaded?” | Print config **search order**, resolved file path(s), merged `provider.*` / session flags / MCP server **names** only (no secrets). Optionally `openclaude.yaml` path from [`WritableConfigPath`](../internal/config/mcp_configfile.go) when relevant. |
+| **`/config`** | Users constantly ask “what is actually loaded?” | Print config **merge order** (v3 profile, home `openclaude.*`, home `openclaudev4.*`, cwd `openclaude.*`), **`--config`** path when used, merged `provider.*` / session flags / MCP server **names** only (no secrets), plus the path from [`WritableConfigPath`](../internal/config/mcp_configfile.go) for persistence (`mcp add`, etc.). |
 | **`/version`** | Matches `/exit`-style discoverability | Alias for `openclaude version` output (embed `version`/`commit` from main). |
 | **`/export`** | Share or archive a conversation | Dump current in-memory transcript as **JSON** (and optionally a minimal **Markdown** turn list) to stdout or a user-given path; redact or warn on secrets. |
 | **`/permissions`** | Clarifies tool policy | Print `OPENCLAUDE_AUTO_APPROVE_TOOLS`, MCP `approval` summary from config, workspace rule one-liner (see [SECURITY.md](./SECURITY.md)). |
