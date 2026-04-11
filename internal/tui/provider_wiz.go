@@ -143,6 +143,55 @@ func (m *model) updateProviderWizText(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func providerWizMenuHint(w *providerwizard.Wizard, opt string) string {
+	if w.IsProviderMenu() {
+		switch strings.ToLower(strings.TrimSpace(opt)) {
+		case "openai":
+			return "OpenAI or compatible API"
+		case "ollama":
+			return "Local Ollama"
+		case "gemini":
+			return "Google Gemini"
+		case "github":
+			return "GitHub Models"
+		case "openrouter":
+			return "OpenRouter"
+		}
+	}
+	if w.IsOllamaModelMenu() && strings.HasPrefix(opt, "Other ") {
+		return "Type model name manually"
+	}
+	return ""
+}
+
+// renderProviderWizSlashMenu draws the wizard menu like slash-command suggestions
+// (dim header, bordered list, purple highlight on the selected row).
+func renderProviderWizSlashMenu(contentW int, opts []string, cursor int, w *providerwizard.Wizard) string {
+	if len(opts) == 0 || contentW < 1 {
+		return ""
+	}
+	entries := make([]slashEntry, 0, len(opts))
+	for _, opt := range opts {
+		entries = append(entries, slashEntry{primary: opt, hint: providerWizMenuHint(w, opt)})
+	}
+	argMode := true
+	innerW := max(1, contentW-4)
+	header := dimStyle.Width(contentW).Render("↑↓ select · Enter confirm · b back · Esc cancel")
+	col1W, colGap := slashSuggestColumnWidths(innerW, entries, argMode)
+	menuRows := make([]string, 0, len(entries))
+	for i, e := range entries {
+		menuRows = append(menuRows, renderSlashSuggestRow(innerW, col1W, colGap, e, argMode, i == cursor))
+	}
+	body := lipgloss.JoinVertical(lipgloss.Left, menuRows...)
+	box := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(0, 1).
+		Width(max(3, contentW-2)).
+		Render(body)
+	return lipgloss.JoinVertical(lipgloss.Left, header, box)
+}
+
 func (m *model) renderProviderWizPanel() string {
 	if m.pwiz == nil {
 		return ""
@@ -159,22 +208,16 @@ func (m *model) renderProviderWizPanel() string {
 	}
 	switch w.StepKind() {
 	case providerwizard.StepMenu:
-		for i, opt := range w.MenuOptions() {
-			line := fmt.Sprintf("%d) %s", i+1, opt)
-			if i == w.MenuCursor() {
-				line = okStyle.Render("› "+line) + " " + dimStyle.Render("(Enter)")
-			} else {
-				line = "  " + line
-			}
-			rows = append(rows, lipgloss.NewStyle().Width(innerW).Render(line))
-		}
+		rows = append(rows, renderProviderWizSlashMenu(innerW, w.MenuOptions(), w.MenuCursor(), w))
 	case providerwizard.StepText:
 		if h := w.TextHint(); strings.TrimSpace(h) != "" {
 			rows = append(rows, dimStyle.Width(innerW).Render(h))
 		}
 		rows = append(rows, fmt.Sprintf("%s: %s", w.TextLabel(), m.pwiz.ti.View()))
 	}
-	rows = append(rows, dimStyle.Width(innerW).Render(w.HintLine()))
+	if w.StepKind() != providerwizard.StepMenu {
+		rows = append(rows, dimStyle.Width(innerW).Render(w.HintLine()))
+	}
 	box := lipgloss.JoinVertical(lipgloss.Left, rows...)
 	return lipgloss.NewStyle().
 		Width(m.width - 2).
