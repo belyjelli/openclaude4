@@ -53,6 +53,18 @@ func TestSkillNameMatches(t *testing.T) {
 	}
 }
 
+func TestPathStemPrefersFile(t *testing.T) {
+	if !pathStemPrefersFile("./internal") {
+		t.Fatal("expected ./ prefix")
+	}
+	if !pathStemPrefersFile("foo.go") {
+		t.Fatal("expected extension")
+	}
+	if pathStemPrefersFile("zzzNoSuchPath999") {
+		t.Fatal("plain token without path signals should prefer skill")
+	}
+}
+
 func TestPathCompletionMatches(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "apple.txt"), []byte("x"), 0o600); err != nil {

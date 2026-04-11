@@ -25,24 +25,32 @@ var (
 	quotedAtRe = regexp.MustCompile(`(?:^|\s)@"([^"]+)"`)
 	// @ then non-space, not starting with " (quoted handled separately)
 	regularAtRe = regexp.MustCompile(`(?:^|\s)@([^\s"]+)`)
-	// v3: (^|\s)@(?!")([^\s"]+:[^\s"]+)\b
-	mcpAtRe = regexp.MustCompile(`(?:^|\s)@(?!")([^\s"]+:[^\s"]+)\b`)
+	// Go regexp has no (?!"); exclude @"…" matches in code.
+	mcpAtLoose = regexp.MustCompile(`(?:^|\s)@(\S+:\S+)`)
 )
 
 // ExtractMCPResourceMentions returns "server:uri" keys (no leading @), v3-compatible.
 func ExtractMCPResourceMentions(content string) []string {
 	var out []string
 	seen := map[string]struct{}{}
-	for _, m := range mcpAtRe.FindAllStringSubmatch(content, -1) {
+	for _, m := range mcpAtLoose.FindAllStringSubmatch(content, -1) {
 		if len(m) < 2 {
 			continue
 		}
 		key := strings.TrimSpace(m[1])
-		if key == "" {
+		if key == "" || strings.HasPrefix(key, `"`) {
+			continue
+		}
+		if strings.HasPrefix(strings.ToLower(key), "mcp:") {
 			continue
 		}
 		// Windows drive: never MCP
 		if matched, _ := regexp.MatchString(`^[A-Za-z]:[\\/]`, key); matched {
+			continue
+		}
+		// Drop trailing punctuation often not part of URI
+		key = strings.TrimRight(key, ".,);!?")
+		if key == "" {
 			continue
 		}
 		if _, ok := seen[key]; ok {

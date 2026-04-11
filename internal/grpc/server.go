@@ -17,7 +17,9 @@ import (
 
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
+	"github.com/gitlawb/openclaude4/internal/core/mentions"
 	"github.com/gitlawb/openclaude4/internal/grpc/openclaudev4"
+	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/session"
 	"github.com/gitlawb/openclaude4/internal/toolpolicy"
 	"github.com/gitlawb/openclaude4/internal/tools"
@@ -59,6 +61,8 @@ type Kernel struct {
 	TaskParent *atomic.Pointer[core.Agent]
 	// Session enables on-disk transcript load/save per stream when Disabled is false and Dir is non-empty.
 	Session SessionOpts
+	// MCPManager is optional; used to expand @server:uri mentions in user text.
+	MCPManager *mcpclient.Manager
 }
 
 // SessionOpts configures optional gRPC session_id binding to [session.Store] files.
@@ -195,9 +199,16 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 				userText := strings.TrimSpace(req.GetUserText())
 				inlines := grpcInlineImagesFromProto(req.GetImageInline())
 				hasImg := grpcNonEmptyImageURLs(req.GetImageUrl()) || len(inlines) > 0
-				if userText == "" && !hasImg {
+				hasAtPaths := false
+				for _, ap := range req.GetAtPaths() {
+					if ap != nil && strings.TrimSpace(ap.GetPath()) != "" {
+						hasAtPaths = true
+						break
+					}
+				}
+				if userText == "" && !hasImg && !hasAtPaths {
 					_ = send(&openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_Error{Error: &openclaudev4.ErrorEvent{
-						Message: "chat_request.user_text or at least one image (image_url / image_inline) is required",
+						Message: "chat_request.user_text, at_paths, or at least one image (image_url / image_inline) is required",
 						Code:    "invalid_argument",
 					}}})
 					continue
@@ -205,7 +216,7 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 				turnWG.Add(1)
 				urlCopy := append([]string(nil), req.GetImageUrl()...)
 				inlineCopy := append([]core.GRPCInlineImage(nil), inlines...)
-				go func(req *openclaudev4.ChatRequest, userText string, imageURLs []string, inlines []core.GRPCInlineImage, hasImg bool) {
+				go func(req *openclaudev4.ChatRequest, imageURLs []string, inlines []core.GRPCInlineImage, hasImg bool) {
 					defer turnWG.Done()
 					s.serveTurnMu.Lock()
 					defer s.serveTurnMu.Unlock()
@@ -276,8 +287,34 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 						s.Kernel.TaskParent.Store(agent)
 						defer s.Kernel.TaskParent.Store(nil)
 					}
+
+					var synth []mentions.SyntheticAtPath
+					for _, ap := range req.GetAtPaths() {
+						if ap == nil {
+							continue
+						}
+						p := strings.TrimSpace(ap.GetPath())
+						if p == "" {
+							continue
+						}
+						synth = append(synth, mentions.SyntheticAtPath{
+							Path:      p,
+							LineStart: ap.GetLineStart(),
+							LineEnd:   ap.GetLineEnd(),
+						})
+					}
+					merged := mentions.AppendSyntheticAtMentions(strings.TrimSpace(req.GetUserText()), wdSave, synth)
+					expanded, err := mentions.ExpandUserText(turnCtx, merged, mentions.Deps{MCP: s.Kernel.MCPManager})
+					if err != nil {
+						_ = send(&openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_Error{Error: &openclaudev4.ErrorEvent{
+							Message: err.Error(),
+							Code:    "invalid_argument",
+						}}})
+						return
+					}
+
 					if hasImg {
-						parts, err := core.BuildUserContentPartsFromGRPC(req.GetUserText(), imageURLs, inlines)
+						parts, err := core.BuildUserContentPartsFromGRPC(expanded, imageURLs, inlines)
 						if err != nil {
 							_ = send(&openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_Error{Error: &openclaudev4.ErrorEvent{
 								Message: err.Error(),
@@ -287,13 +324,13 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 						}
 						_ = agent.RunUserTurnMulti(turnCtx, &messages, parts)
 					} else {
-						_ = agent.RunUserTurn(turnCtx, &messages, userText)
+						_ = agent.RunUserTurn(turnCtx, &messages, expanded)
 					}
 
 					if persist && activeStore != nil {
 						_ = activeStore.Save(session.RepairTranscript(messages), wdSave)
 					}
-				}(req, userText, urlCopy, inlineCopy, hasImg)
+				}(req, urlCopy, inlineCopy, hasImg)
 
 			case *openclaudev4.ClientMessage_UserInput:
 				ui := p.UserInput

@@ -17,6 +17,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/chatlive"
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
+	"github.com/gitlawb/openclaude4/internal/core/mentions"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/providerwizard"
 	"github.com/gitlawb/openclaude4/internal/providers"
@@ -171,7 +172,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	pendingImgFiles := imgFiles
 
 	if printMode {
-		if err := runPrintTurn(ctx, cmd, client, reg, &messages, beforeUserTurn, autoApprove, &agent, pendingImgURLs, pendingImgFiles); err != nil {
+		if err := runPrintTurn(ctx, cmd, client, reg, &messages, beforeUserTurn, autoApprove, &agent, pendingImgURLs, pendingImgFiles, mcpMgr); err != nil {
 			return err
 		}
 		return nil
@@ -344,7 +345,12 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		urls := append([]string(nil), pendingURLs...)
 		files := append([]string(nil), pendingFiles...)
 		hasVis := len(urls) > 0 || len(files) > 0
-		parts, err := core.BuildUserContentParts(runAsUser, urls, files)
+		expanded, err := mentions.ExpandUserText(ctx, runAsUser, mentions.Deps{MCP: mcpMgr})
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			continue
+		}
+		parts, err := core.BuildUserContentParts(expanded, urls, files)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
@@ -381,6 +387,7 @@ func runPrintTurn(
 	agent **core.Agent,
 	imageURLs []string,
 	imageFiles []string,
+	mcpMgr *mcpclient.Manager,
 ) error {
 	printArg, _ := cmd.Flags().GetString("print")
 	var prompt string
@@ -401,7 +408,11 @@ func runPrintTurn(
 		return err
 	}
 
-	parts, err := core.BuildUserContentParts(prompt, imageURLs, imageFiles)
+	expanded, err := mentions.ExpandUserText(ctx, prompt, mentions.Deps{MCP: mcpMgr})
+	if err != nil {
+		return err
+	}
+	parts, err := core.BuildUserContentParts(expanded, imageURLs, imageFiles)
 	if err != nil {
 		return err
 	}

@@ -495,6 +495,11 @@ func (m *model) refreshFileSkillMCPOverlay(val string) {
 		return
 	}
 	if strings.HasPrefix(token, "@") {
+		stem := strings.TrimPrefix(token, "@")
+		if pathStemPrefersFile(stem) {
+			m.fillAtPathOverlay(val, ts, te, token, stem)
+			return
+		}
 		m.fillSkillOverlay(val, ts, te, token)
 		return
 	}
@@ -510,6 +515,27 @@ func (m *model) fillPathOverlay(val string, ts, te int, token string) {
 	var buf []slashEntry
 	for _, x := range matches {
 		buf = append(buf, slashEntry{primary: x, hint: "path"})
+	}
+	m.slashMatches = buf
+	m.slashSel = 0
+	m.slashSuggestIsArg = false
+	m.compMode = compFile
+	m.replaceStart, m.replaceEnd = ts, te
+	m.clampSlashSel()
+}
+
+// fillAtPathOverlay completes paths for an @-prefixed token (primary values include leading @).
+func (m *model) fillAtPathOverlay(val string, ts, te int, tokenWithAt, stem string) {
+	_ = val
+	_ = tokenWithAt
+	matches := pathCompletionMatches(stem)
+	if len(matches) == 0 {
+		m.clearSuggestOverlay()
+		return
+	}
+	var buf []slashEntry
+	for _, x := range matches {
+		buf = append(buf, slashEntry{primary: "@" + x, hint: "path"})
 	}
 	m.slashMatches = buf
 	m.slashSel = 0
@@ -611,9 +637,39 @@ func (m *model) tryExpandNonSlashTab() bool {
 		return m.tabExpandMCPResource(val, ts, te, token)
 	}
 	if strings.HasPrefix(token, "@") {
+		stem := strings.TrimPrefix(token, "@")
+		if pathStemPrefersFile(stem) {
+			return m.tabExpandAtPath(val, ts, te, token, stem)
+		}
 		return m.tabExpandSkill(val, ts, te, token)
 	}
 	return m.tabExpandPath(val, ts, te, token)
+}
+
+func (m *model) tabExpandAtPath(val string, ts, te int, tokenWithAt, stem string) bool {
+	_ = tokenWithAt
+	matches := pathCompletionMatches(stem)
+	if len(matches) == 0 {
+		return false
+	}
+	if len(matches) == 1 {
+		rep := "@" + matches[0]
+		newVal := val[:ts] + rep + val[te:]
+		m.ti.SetValue(newVal)
+		m.ti.SetCursor(ts + len(rep))
+		return true
+	}
+	var buf []slashEntry
+	for _, x := range matches {
+		buf = append(buf, slashEntry{primary: "@" + x, hint: "path"})
+	}
+	m.slashMatches = buf
+	m.slashSel = 0
+	m.slashSuggestIsArg = false
+	m.compMode = compFile
+	m.replaceStart, m.replaceEnd = ts, te
+	m.slashEscDismiss = false
+	return true
 }
 
 func (m *model) tabExpandPath(val string, ts, te int, token string) bool {

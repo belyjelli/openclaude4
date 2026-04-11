@@ -31,6 +31,13 @@ message ImageAttachment {
   string mime_type = 2;
 }
 
+// IDE / headless structured @-path (merged into user_text as @path#L… before mention expansion).
+message AtMention {
+  string path = 1;
+  optional int32 line_start = 2;
+  optional int32 line_end = 3;
+}
+
 // Starts one user turn (append user message, run model↔tools until idle).
 message ChatRequest {
   string user_text = 1;
@@ -45,6 +52,7 @@ message ChatRequest {
   repeated string image_url = 5;
   // Vision: inline bytes → data URL parts. Max 16 entries; each data max 8 MiB (server rejects larger).
   repeated ImageAttachment image_inline = 6;
+  repeated AtMention at_paths = 7;
 }
 
 // Reply to PermissionRequired (yes/no or free text, same semantics as CLI confirm).

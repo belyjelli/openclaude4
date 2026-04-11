@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"unicode"
@@ -84,6 +85,30 @@ func tokenAtCursor(val string, pos int) (start, end int, token string) {
 	}
 	return start, end, token
 }
+
+// pathStemPrefersFile chooses path Tab completion over @-skill completion for a token stem (without leading @).
+func pathStemPrefersFile(stem string) bool {
+	stem = strings.TrimSpace(stem)
+	if stem == "" {
+		return false
+	}
+	if len(pathCompletionMatches(stem)) > 0 {
+		return true
+	}
+	if strings.HasPrefix(stem, "./") || strings.HasPrefix(stem, "../") || strings.HasPrefix(stem, "/") {
+		return true
+	}
+	if strings.Contains(stem, "/") || strings.Contains(stem, string(filepath.Separator)) {
+		return true
+	}
+	// File-ish suffix (foo.go) — avoids treating dotted skill names as paths when no FS match.
+	if fileExtSuffix.MatchString(stem) {
+		return true
+	}
+	return false
+}
+
+var fileExtSuffix = regexp.MustCompile(`\.[a-zA-Z0-9]{1,12}$`)
 
 func pathCompletionMatches(token string) []string {
 	if token == "" {

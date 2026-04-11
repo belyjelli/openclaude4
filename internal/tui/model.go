@@ -17,6 +17,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/chatlive"
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
+	"github.com/gitlawb/openclaude4/internal/core/mentions"
 	"github.com/gitlawb/openclaude4/internal/ghstatus"
 	"github.com/gitlawb/openclaude4/internal/mcpclient"
 	"github.com/gitlawb/openclaude4/internal/providerwizard"
@@ -815,7 +816,16 @@ func (m *model) runModelTurnFromUserText(line string) (tea.Model, tea.Cmd) {
 	urls := append([]string(nil), m.pendingImageURLs...)
 	files := append([]string(nil), m.pendingImageFiles...)
 	hasVis := len(urls) > 0 || len(files) > 0
-	parts, err := core.BuildUserContentParts(line, urls, files)
+	expanded, err := mentions.ExpandUserText(ctx, line, mentions.Deps{MCP: m.cfg.MCPManager})
+	if err != nil {
+		m.setBusy(false)
+		m.commitLine(errStyle.Render("Error: ") + err.Error())
+		if c := m.pushToast(err.Error(), toastErr); c != nil {
+			return m, tea.Batch(textinput.Blink, c)
+		}
+		return m, textinput.Blink
+	}
+	parts, err := core.BuildUserContentParts(expanded, urls, files)
 	if err != nil {
 		m.setBusy(false)
 		m.commitLine(errStyle.Render("Error: ") + err.Error())
