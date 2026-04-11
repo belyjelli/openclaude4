@@ -46,6 +46,8 @@ type Config struct {
 	StatusLine string
 	// ToolPreviewMax is the max UTF-8 runes of tool stdout in the transcript (0 = default 4000).
 	ToolPreviewMax int
+	// ToolResultMaxLines caps rendered tool result rows in the transcript (0 = unlimited).
+	ToolResultMaxLines int
 	// MarkdownAssist renders finished assistant turns with goldmark + Chroma (disable with OPENCLAUDE_TUI_MARKDOWN=0).
 	MarkdownAssist bool
 	// ImageURLs and ImageFiles apply to the first non-slash user message (vision); then cleared on success.
@@ -217,6 +219,10 @@ func (m *model) toolPreviewLimit() int {
 		return m.cfg.ToolPreviewMax
 	}
 	return 4000
+}
+
+func (m *model) toolResultMaxLines() int {
+	return m.cfg.ToolResultMaxLines
 }
 
 func (m *model) Init() tea.Cmd {
@@ -1004,7 +1010,7 @@ func (m *model) applyKernel(e core.Event) {
 		if e.ToolExecError != "" {
 			b.WriteString(errStyle.Render(e.ToolExecError))
 		} else {
-			b.WriteString(formatToolResultBody(m.toolPreviewLimit(), e.ToolResultText, m.vp.Width))
+			b.WriteString(formatToolResultBody(m.toolPreviewLimit(), m.toolResultMaxLines(), e.ToolResultText, m.vp.Width))
 		}
 		m.commitLine(indentTranscriptLines(e.SubTaskDepth, b.String()))
 	case core.KindError:

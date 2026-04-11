@@ -27,9 +27,21 @@ func TestLooksLikeDiff(t *testing.T) {
 func TestFormatToolResultBodyTruncate(t *testing.T) {
 	t.Parallel()
 	s := string([]rune{'a', 'b', 'c', 'd', 'e'})
-	got := formatToolResultBody(4, s, 80)
+	got := formatToolResultBody(4, 0, s, 80)
 	if got != "a..." {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestFormatToolResultBodyMaxLines(t *testing.T) {
+	t.Parallel()
+	s := "one\ntwo\nthree\nfour"
+	got := formatToolResultBody(100, 2, s, 80)
+	if !strings.HasPrefix(got, "one\ntwo") {
+		t.Fatalf("got %q", got)
+	}
+	if !strings.Contains(ansi.Strip(got), "more line") {
+		t.Fatalf("expected omission hint: %q", got)
 	}
 }
 

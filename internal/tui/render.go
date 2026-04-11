@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -57,16 +58,36 @@ func looksLikeDiff(s string) bool {
 }
 
 // formatToolResultBody trims and optionally styles diff-like output; truncates to maxRunes (UTF-8 runes) when not a diff.
-func formatToolResultBody(maxRunes int, body string, width int) string {
+// When maxLines > 0, output is capped to that many lines and a dim hint is appended if truncated.
+func formatToolResultBody(maxRunes int, maxLines int, body string, width int) string {
 	body = strings.TrimSpace(body)
 	if body == "" {
 		return ""
 	}
+	var out string
 	if looksLikeDiff(body) {
 		body = truncateRunes(body, maxRunes)
-		return styleDiffText(body, width)
+		out = styleDiffText(body, width)
+	} else {
+		out = truncateRunes(body, maxRunes)
 	}
-	return truncateRunes(body, maxRunes)
+	return limitToolOutputLines(out, maxLines)
+}
+
+// limitToolOutputLines keeps the first maxLines newline-separated rows; maxLines <= 0 means no limit.
+func limitToolOutputLines(s string, maxLines int) string {
+	s = strings.TrimRight(s, "\n")
+	if maxLines <= 0 || s == "" {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	if len(lines) <= maxLines {
+		return s
+	}
+	omitted := len(lines) - maxLines
+	prefix := strings.Join(lines[:maxLines], "\n")
+	hint := fmt.Sprintf("… (%d more line(s); raise OPENCLAUDE_TUI_TOOL_MAX_LINES or OPENCLAUDE_TUI_TOOL_PREVIEW)", omitted)
+	return prefix + "\n" + dimStyle.Render(hint)
 }
 
 func styleDiffText(s string, width int) string {

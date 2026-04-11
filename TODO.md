@@ -54,7 +54,7 @@ v3 reference: Ink [`PromptInput`](https://github.com/Gitlawb/openclaude/tree/mai
 
 - [ ] Prompt **mode** row or chip (`!` bash vs default, etc.) when the session supports multiple input modes; optional one-line status beside `❯` when non-default
 - [x] Partial: **Status subtitle** — TUI status line includes redacted **API key summary** (via [`RedactedAPIKeySummary`](./internal/providers/openaicomp/client.go)) + **MCP tool/server counts** ([`buildTUIStatusLine`](./cmd/openclaude/chat.go)); **Ollama** shows `local`. Optional task/coordinator counts: still open.
-- [ ] Richer **transcript chrome**: collapsible or tightened tool diff blocks, inline images where multimodal applies (v3 per-message components → v4 `applyKernel` / render path)
+- [x] Partial: Richer **transcript chrome** — per-tool **line cap** in TUI (`OPENCLAUDE_TUI_TOOL_MAX_LINES`, [`render.go`](./internal/tui/render.go)); still open: collapsible tool/diff blocks, inline images in transcript (`applyKernel` / multimodal path)
 
 **Prompt line**
 
@@ -151,7 +151,7 @@ v3 reference: Ink [`PromptInput`](https://github.com/Gitlawb/openclaude/tree/mai
 
 - [x] Partial: Nested **Task** / sub-agent transcript UX — [`Event.SubTaskDepth`](./internal/core/event.go) stamped in [`Agent.emit`](./internal/core/agent.go); Task ([`task_tool.go`](./internal/core/task_tool.go)) and [`RunSkillForked`](./internal/core/skill_fork.go) bump [`Agent.EventSubTaskDepth`](./internal/core/agent.go); TUI [`applyKernel`](./internal/tui/model.go) indents committed lines. Still open: parent tool-call id on events, fold/expand blocks, v3-style grouped parallel agents.
 - [x] Partial: Status / footer — **sub-agent** (and depth when > 1) on the status strip while nested events stream ([`internal/tui/model.go`](./internal/tui/model.go) `kernelSubTaskDepth`). Broader task/coordinator counts still open (see Gaps vs v3).
-- [ ] Richer **transcript chrome** — collapsible or tightened tool blocks; extends [`md_chroma.go`](./internal/tui/md_chroma.go) / render path.
+- [x] Partial: Richer **transcript chrome** — tool results tightened with **line cap** + dim hint ([`formatToolResultBody`](./internal/tui/render.go), `OPENCLAUDE_TUI_TOOL_MAX_LINES` in [CONFIG.md](./docs/CONFIG.md)); rune cap unchanged (`OPENCLAUDE_TUI_TOOL_PREVIEW`). Still open: collapsible blocks, inline multimodal images in transcript.
 - [ ] Prompt **mode** row or chip when the session supports multiple input modes (bash vs default, etc.).
 - [ ] Optional: footer **ghost** / suggestion row for non-slash completions; dedicated **history-search** UI beyond prefix filter on Up/Down.
 

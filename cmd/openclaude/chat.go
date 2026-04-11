@@ -223,8 +223,9 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			},
 			Theme:          themeHolder,
 			VimKeys:        vimKeysHolder,
-			ToolPreviewMax: tuiToolPreviewMax(),
-			MarkdownAssist: tuiMarkdownEnabled(),
+			ToolPreviewMax:     tuiToolPreviewMax(),
+			ToolResultMaxLines: tuiToolMaxLines(),
+			MarkdownAssist:     tuiMarkdownEnabled(),
 			ImageURLs:      pendingImgURLs,
 			ImageFiles:     pendingImgFiles,
 			BeforeUserTurn: beforeUserTurn,
@@ -672,6 +673,31 @@ func tuiToolPreviewMax() int {
 	const capMax = 1 << 20
 	if n > capMax {
 		return capMax
+	}
+	return n
+}
+
+// tuiToolMaxLines caps how many lines of each tool result are painted in the TUI transcript (after rune trim).
+// 0 = unlimited. Default when unset: 120. Set OPENCLAUDE_TUI_TOOL_MAX_LINES=0 to disable the line cap.
+func tuiToolMaxLines() int {
+	const defaultLines = 120
+	s := strings.TrimSpace(os.Getenv("OPENCLAUDE_TUI_TOOL_MAX_LINES"))
+	if s == "" {
+		return defaultLines
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return defaultLines
+	}
+	if n < 0 {
+		return defaultLines
+	}
+	if n == 0 {
+		return 0
+	}
+	const capLines = 10000
+	if n > capLines {
+		return capLines
 	}
 	return n
 }
