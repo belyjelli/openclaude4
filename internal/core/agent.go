@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gitlawb/openclaude4/internal/apialign"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
 )
@@ -117,8 +118,9 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 	}
 
 	user.Role = sdk.ChatMessageRoleUser
-	if strings.TrimSpace(user.Content) == "" && len(user.MultiContent) == 0 {
-		return errors.New("agent: empty user message")
+	// v3: createUserMessage uses content || NO_CONTENT_MESSAGE (never omit user content).
+	if user.Content == "" && len(user.MultiContent) == 0 {
+		user.Content = apialign.NoContentUserMessage
 	}
 	*messages = append(*messages, user)
 	a.emit(Event{Kind: KindUserMessage, UserText: UserMessageSummary(user)})
@@ -241,6 +243,9 @@ func toolResultMessage(toolCallID, name, result string, execErr error) sdk.ChatC
 			content += "\n"
 		}
 		content += "Error: " + execErr.Error()
+	}
+	if content == "" {
+		content = apialign.EmptyToolResultCompletedMessage(name)
 	}
 	return sdk.ChatCompletionMessage{
 		Role:       sdk.ChatMessageRoleTool,

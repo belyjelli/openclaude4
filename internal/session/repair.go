@@ -1,6 +1,7 @@
 package session
 
 import (
+	"github.com/gitlawb/openclaude4/internal/apialign"
 	sdk "github.com/sashabaranov/go-openai"
 )
 
@@ -52,5 +53,6 @@ func RepairTranscript(msgs []sdk.ChatCompletionMessage) []sdk.ChatCompletionMess
 		out = append(out[:end], append(insert, out[end:]...)...)
 		i = end + len(insert)
 	}
+	apialign.Transcript(out)
 	return out
 }
