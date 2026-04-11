@@ -23,13 +23,14 @@ func RunSkillForked(ctx context.Context, parent *Agent, allow []string, expanded
 	}
 	reg := parent.SubAgentRegistry(allow)
 	child := &Agent{
-		Client:           parent.Client,
-		Registry:         reg,
-		Confirm:          parent.Confirm,
-		PermissionPolicy: parent.PermissionPolicy,
-		Out:              io.Discard,
-		OnEvent:          parent.OnEvent,
-		MaxIterations:    subMax,
+		Client:            parent.Client,
+		Registry:          reg,
+		Confirm:           parent.Confirm,
+		PermissionPolicy:  parent.PermissionPolicy,
+		Out:               io.Discard,
+		OnEvent:           parent.OnEvent,
+		MaxIterations:     subMax,
+		EventSubTaskDepth: parent.EventSubTaskDepth + 1,
 	}
 	sys := SubTaskSystemPrompt + "\n\n--- Skill ---\n\n" + expandedBody
 	var subMsgs []sdk.ChatCompletionMessage

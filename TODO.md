@@ -139,11 +139,23 @@ v3 reference: Ink [`PromptInput`](https://github.com/Gitlawb/openclaude/tree/mai
 
 ## Phase 4 — Terminal UI
 
+**Shipped baseline**
+
 - [x] `internal/tui` Bubble Tea / Lipgloss consuming kernel events only ([`internal/tui/README.md`](./internal/tui/README.md))
 - [x] Rich streaming + tool call/result panels (vs plain stdout today)
 - [x] Interactive permission prompts polished for TUI
 - [x] Published `bin` / install story (goreleaser releases, semver)
 - [x] TUI polish: status line (provider · model · session), **PgUp/PgDn/Home/End** transcript scroll with stick-to-bottom on new output ([`internal/tui/model.go`](./internal/tui/model.go)), **Goldmark + Chroma** markdown on **streaming and finished** assistant text ([`internal/tui/md_chroma.go`](./internal/tui/md_chroma.go), [`internal/tui/render.go`](./internal/tui/render.go); `OPENCLAUDE_TUI_MARKDOWN=0` to disable), diff-like **tool result** coloring, configurable tool preview (`OPENCLAUDE_TUI_TOOL_PREVIEW` rune cap, default 4000)
+
+**Follow-ups (v3 parity / polish)**
+
+- [ ] Nested **Task** / sub-agent transcript UX — nested runs forward parent [`OnEvent`](./internal/core/agent.go) today (flat transcript; see [`internal/tui/README.md`](./internal/tui/README.md)); annotate [`Event`](./internal/core/event.go) (or wrap `OnEvent`) with depth / parent tool-call id and teach [`applyKernel`](./internal/tui/model.go) to prefix, indent, fold, or optional expand sub-agent blocks (v3-style grouped agents + expand transcript).
+- [ ] Status / footer — optional **task depth** or **active sub-agent** hint on status/subtitle line (with broader task/coordinator counts when those features exist).
+- [ ] Richer **transcript chrome** — collapsible or tightened tool blocks; extends [`md_chroma.go`](./internal/tui/md_chroma.go) / render path.
+- [ ] Prompt **mode** row or chip when the session supports multiple input modes (bash vs default, etc.).
+- [ ] Optional: footer **ghost** / suggestion row for non-slash completions; dedicated **history-search** UI beyond prefix filter on Up/Down.
+
+Further TUI detail and overlap with the bullets above: **Gaps vs v3 → TUI, prompt line, and hinting**. Kernel-driven architecture: [`internal/tui/README.md`](./internal/tui/README.md), [`core.Event`](./internal/core/event.go).
 
 ## Phase 5 — Sessions & compaction
 

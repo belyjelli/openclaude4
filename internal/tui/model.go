@@ -111,6 +111,8 @@ type model struct {
 	pendingImageURLs         []string
 	pendingImageFiles        []string
 	vimNormal                bool // true = vim normal mode on prompt (movement); false = insert when VimKeys enabled
+	// kernelSubTaskDepth mirrors last [core.Event].SubTaskDepth while a nested turn is active; cleared on KindTurnComplete.
+	kernelSubTaskDepth int
 	// transcript
 	committed strings.Builder
 	liveAsst  strings.Builder
@@ -896,9 +898,14 @@ func (m *model) headerSubLines() int {
 func (m *model) applyKernel(e core.Event) {
 	m.pendingToastCmd = nil
 	sub0 := m.headerSubLines()
+	if e.Kind == core.KindTurnComplete {
+		m.kernelSubTaskDepth = 0
+	} else {
+		m.kernelSubTaskDepth = e.SubTaskDepth
+	}
 	switch e.Kind {
 	case core.KindUserMessage:
-		m.commitLine(userStyle.Render("You") + ": " + e.UserText)
+		m.commitLine(indentTranscriptLines(e.SubTaskDepth, userStyle.Render("You")+": "+e.UserText))
 	case core.KindAssistantTextDelta:
 		m.seenAsstDelta = true
 		m.stickBottom = true
@@ -928,7 +935,7 @@ func (m *model) applyKernel(e core.Event) {
 					plural = ""
 				}
 				ph := dimStyle.Render(fmt.Sprintf("(%d tool call%s)", e.ToolCallCount, plural))
-				m.commitLine(label + " " + ph)
+				m.commitLine(indentTranscriptLines(e.SubTaskDepth, label+" "+ph))
 			}
 			m.syncVP()
 			break
@@ -940,12 +947,17 @@ func (m *model) applyKernel(e core.Event) {
 			glam = m.cfg.Theme.MarkdownStyle()
 		}
 		md := renderAssistantMarkdown(m.vp.Width, txt, m.cfg.MarkdownAssist, glam)
+		var block string
 		if md != "" {
-			m.committed.WriteString(lipgloss.JoinVertical(lipgloss.Left, label, md))
+			block = lipgloss.JoinVertical(lipgloss.Left, label, md)
 		} else {
 			body := lipgloss.NewStyle().Width(max(40, m.vp.Width)).Render(txt)
-			m.committed.WriteString(lipgloss.JoinVertical(lipgloss.Left, label, body))
+			block = lipgloss.JoinVertical(lipgloss.Left, label, body)
 		}
+		if e.SubTaskDepth > 0 {
+			block = lipgloss.NewStyle().MarginLeft(e.SubTaskDepth * 2).Render(block)
+		}
+		m.committed.WriteString(block)
 		m.committed.WriteByte('\n')
 		m.syncVP()
 	case core.KindToolCall:
@@ -962,25 +974,25 @@ func (m *model) applyKernel(e core.Event) {
 				hdr += dimStyle.Render(" — " + lbl)
 			}
 		}
-		m.commitLine(hdr + "\n" + dimStyle.Render(args))
+		m.commitLine(indentTranscriptLines(e.SubTaskDepth, hdr+"\n"+dimStyle.Render(args)))
 	case core.KindPermissionPrompt:
 		// Interactive modal is driven by permPromptMsg from Confirm; no extra line.
 	case core.KindPermissionResult:
 		switch {
 		case strings.TrimSpace(e.PermissionReason) == "policy_allow":
-			m.commitLine(dimStyle.Render(fmt.Sprintf("[policy allow] %s", e.PermissionTool)))
+			m.commitLine(indentTranscriptLines(e.SubTaskDepth, dimStyle.Render(fmt.Sprintf("[policy allow] %s", e.PermissionTool))))
 		case strings.TrimSpace(e.PermissionReason) == "policy_deny":
-			m.commitLine(errStyle.Render(fmt.Sprintf("[policy deny] %s", e.PermissionTool)))
+			m.commitLine(indentTranscriptLines(e.SubTaskDepth, errStyle.Render(fmt.Sprintf("[policy deny] %s", e.PermissionTool))))
 		case autoApproveEnabled(m.cfg.AutoApprove) && e.PermissionApproved:
-			m.commitLine(dimStyle.Render(fmt.Sprintf("[auto-approved] %s", e.PermissionTool)))
+			m.commitLine(indentTranscriptLines(e.SubTaskDepth, dimStyle.Render(fmt.Sprintf("[auto-approved] %s", e.PermissionTool))))
 		case e.PermissionApproved:
 			msg := okStyle.Render("Approved: ") + e.PermissionTool
 			if len(e.PermissionRulesAdded) > 0 {
 				msg += "\n" + dimStyle.Render("rules: "+strings.Join(e.PermissionRulesAdded, ", "))
 			}
-			m.commitLine(msg)
+			m.commitLine(indentTranscriptLines(e.SubTaskDepth, msg))
 		default:
-			m.commitLine(errStyle.Render("Declined: ") + e.PermissionTool)
+			m.commitLine(indentTranscriptLines(e.SubTaskDepth, errStyle.Render("Declined: ")+e.PermissionTool))
 			m.pendingToastCmd = m.pushToast("Declined: "+e.PermissionTool, toastWarn)
 		}
 	case core.KindToolResult:
@@ -994,15 +1006,15 @@ func (m *model) applyKernel(e core.Event) {
 		} else {
 			b.WriteString(formatToolResultBody(m.toolPreviewLimit(), e.ToolResultText, m.vp.Width))
 		}
-		m.commitLine(b.String())
+		m.commitLine(indentTranscriptLines(e.SubTaskDepth, b.String()))
 	case core.KindError:
 		m.runningTool = ""
 		m.runningToolLine = ""
 		m.pendingToolScheduleCount = 0
-		m.commitLine(errStyle.Render("Error: ") + e.Message)
+		m.commitLine(indentTranscriptLines(e.SubTaskDepth, errStyle.Render("Error: ")+e.Message))
 		m.pendingToastCmd = m.pushToast(e.Message, toastErr)
 	case core.KindModelRefusal:
-		m.commitLine(errStyle.Render("Refused: ") + e.Message)
+		m.commitLine(indentTranscriptLines(e.SubTaskDepth, errStyle.Render("Refused: ")+e.Message))
 		m.pendingToastCmd = m.pushToast(e.Message, toastWarn)
 	case core.KindTurnComplete:
 		m.runningTool = ""
@@ -1041,6 +1053,23 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// indentTranscriptLines prefixes each non-empty line with a dim margin for nested Task / skill-fork output.
+func indentTranscriptLines(depth int, s string) string {
+	if depth <= 0 || s == "" {
+		return s
+	}
+	margin := strings.Repeat("  ", depth)
+	prefix := dimStyle.Render(margin)
+	lines := strings.Split(s, "\n")
+	for i := range lines {
+		if strings.TrimSpace(lines[i]) == "" {
+			continue
+		}
+		lines[i] = prefix + lines[i]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m *model) setBusy(v bool) {
@@ -1177,6 +1206,16 @@ func (m *model) View() string {
 			status = status + " · "
 		}
 		status += x
+	}
+	if m.kernelSubTaskDepth > 0 {
+		if status != "" {
+			status = status + " · "
+		}
+		if m.kernelSubTaskDepth == 1 {
+			status += dimStyle.Render("sub-agent")
+		} else {
+			status += dimStyle.Render(fmt.Sprintf("sub-agent depth %d", m.kernelSubTaskDepth))
+		}
 	}
 	if status == "" {
 		status = "Ctrl+C quit · PgUp/PgDn Home/End · ↑↓ history · prefix+↑ · Tab paths · ? · /help"

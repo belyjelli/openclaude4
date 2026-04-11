@@ -35,6 +35,8 @@ type Agent struct {
 	PermissionPolicy PermissionPolicy
 	Out              io.Writer
 	MaxIterations    int
+	// EventSubTaskDepth is stamped on every emitted [Event] (0 main thread; incremented for Task / skill-fork children).
+	EventSubTaskDepth int
 	// OnEvent receives structured kernel events (streaming text, tool calls, errors).
 	// Optional; TUI / headless transports use this instead of scraping stdout.
 	OnEvent EventHandler
@@ -42,6 +44,7 @@ type Agent struct {
 
 func (a *Agent) emit(e Event) {
 	if a != nil && a.OnEvent != nil {
+		e.SubTaskDepth = a.EventSubTaskDepth
 		a.OnEvent(RedactEventForLog(e))
 	}
 }
@@ -125,13 +128,14 @@ func (a *Agent) RunUserTurnMultiScoped(ctx context.Context, messages *[]sdk.Chat
 
 func (a *Agent) forkLikeAgent(reg *tools.Registry) *Agent {
 	return &Agent{
-		Client:           a.Client,
-		Registry:         reg,
-		Confirm:          a.Confirm,
-		PermissionPolicy: a.PermissionPolicy,
-		Out:              a.Out,
-		OnEvent:          a.OnEvent,
-		MaxIterations:    a.MaxIterations,
+		Client:            a.Client,
+		Registry:          reg,
+		Confirm:           a.Confirm,
+		PermissionPolicy:  a.PermissionPolicy,
+		Out:               a.Out,
+		OnEvent:           a.OnEvent,
+		MaxIterations:     a.MaxIterations,
+		EventSubTaskDepth: a.EventSubTaskDepth,
 	}
 }
 

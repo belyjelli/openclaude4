@@ -12,7 +12,7 @@ Bubble Tea + Lipgloss front-end that renders **only from kernel [`core.Event`](.
 - Permission prompts use an inline panel; **y** / **n** / **Esc** respond. With auto-approve on (env or Shift+Tab), dangerous tools and MCP tools with `approval: ask` do not block on the panel.
 - **Slash typeahead:** when the prompt starts with `/` (and the session is not busy), a suggestion block appears above the prompt rules with up to four matching commands (built-ins plus loaded skill names). **Tab** completes the first token to the selected row; **Shift+Tab** moves selection backward; **Up** / **Down** move selection when there is more than one match; **Esc** hides the overlay until you change the input. **Shift+Tab** still toggles auto-approve when the overlay is hidden.
 - **Toast strip:** a single line under the status block and above the transcript shows errors, refusals, permission denials, and similar alerts; it auto-clears after about five seconds (new toasts replace the previous one).
-- Nested **Task** tool runs forward the parent’s `OnEvent`, so sub-agent streaming and tools appear in the same log.
+- Nested **Task** tool runs forward the parent’s `OnEvent`, so sub-agent streaming and tools appear in the same log. Each [`Event`](../core/event.go) carries **`subTaskDepth`** (incremented on the child [`Agent`](../core/agent.go)); the TUI indents transcript lines and shows **sub-agent** on the status strip while depth > 0.
 
 ## Entry
 

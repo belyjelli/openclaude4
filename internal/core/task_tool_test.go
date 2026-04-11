@@ -32,12 +32,14 @@ func TestTaskTool_Execute_SubAgentReplies(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	var agent *Agent
+	var evs []Event
 	reg := tools.NewRegistry()
 	reg.Register(NewTaskTool(func() *Agent { return agent }))
 	agent = &Agent{
 		Client:   newTestStreamClient(t, srv),
 		Registry: reg,
 		Out:      io.Discard,
+		OnEvent:  func(e Event) { evs = append(evs, e) },
 	}
 	tt, ok := reg.Get("Task")
 	if !ok {
@@ -49,5 +51,13 @@ func TestTaskTool_Execute_SubAgentReplies(t *testing.T) {
 	}
 	if !strings.Contains(out, "done") {
 		t.Fatalf("got %q", out)
+	}
+	for _, e := range evs {
+		if e.Kind == KindTurnComplete {
+			continue
+		}
+		if e.SubTaskDepth != 1 {
+			t.Fatalf("want SubTaskDepth 1 for nested events, got %d on %#v", e.SubTaskDepth, e)
+		}
 	}
 }

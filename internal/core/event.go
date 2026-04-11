@@ -30,6 +30,10 @@ const (
 type Event struct {
 	Kind EventKind `json:"kind"`
 
+	// SubTaskDepth is nesting level for nested agent runs (0 = main thread; 1+ = inside Task / skill fork).
+	// Set by [Agent.emit] from [Agent.EventSubTaskDepth]; tools do not set it on literals.
+	SubTaskDepth int `json:"subTaskDepth,omitempty"`
+
 	// UserMessage
 	UserText string `json:"userText,omitempty"`
 
