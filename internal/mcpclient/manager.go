@@ -201,6 +201,88 @@ func listAllResources(ctx context.Context, sess *mcp.ClientSession) ([]*mcp.Reso
 	return out, nil
 }
 
+// ReadResourceText loads a resource by URI, preferring the server named serverName when it lists that URI.
+func (m *Manager) ReadResourceText(ctx context.Context, serverName, uri string) (string, error) {
+	if m == nil {
+		return "", fmt.Errorf("mcp: manager is nil")
+	}
+	uri = strings.TrimSpace(uri)
+	if uri == "" {
+		return "", fmt.Errorf("mcp: empty resource uri")
+	}
+	serverName = strings.TrimSpace(serverName)
+
+	var sess *mcp.ClientSession
+	if serverName != "" {
+		for _, s := range m.Servers {
+			if !strings.EqualFold(strings.TrimSpace(s.Name), serverName) {
+				continue
+			}
+			for _, r := range s.Resources {
+				if strings.TrimSpace(r.URI) == uri {
+					sess = s.Session
+					break
+				}
+			}
+			if sess != nil {
+				break
+			}
+		}
+	}
+	if sess == nil {
+		for _, s := range m.Servers {
+			for _, r := range s.Resources {
+				if strings.TrimSpace(r.URI) == uri {
+					sess = s.Session
+					break
+				}
+			}
+			if sess != nil {
+				break
+			}
+		}
+	}
+	if sess == nil {
+		return "", fmt.Errorf("mcp: no connected resource with uri %q", uri)
+	}
+
+	res, err := sess.ReadResource(ctx, &mcp.ReadResourceParams{URI: uri})
+	if err != nil {
+		return "", err
+	}
+	if res == nil || len(res.Contents) == 0 {
+		return "", fmt.Errorf("mcp: empty resource contents for %q", uri)
+	}
+	var b strings.Builder
+	for _, c := range res.Contents {
+		if c == nil {
+			continue
+		}
+		if strings.TrimSpace(c.Text) != "" {
+			if b.Len() > 0 {
+				b.WriteByte('\n')
+			}
+			b.WriteString(c.Text)
+			continue
+		}
+		if len(c.Blob) > 0 {
+			if b.Len() > 0 {
+				b.WriteByte('\n')
+			}
+			mime := strings.TrimSpace(c.MIMEType)
+			if mime == "" {
+				mime = "application/octet-stream"
+			}
+			_, _ = fmt.Fprintf(&b, "[binary resource %s, %d bytes]", mime, len(c.Blob))
+		}
+	}
+	out := strings.TrimSpace(b.String())
+	if out == "" {
+		return "(empty resource)", nil
+	}
+	return out, nil
+}
+
 // ResourceSuggestCandidates returns resources whose URI, Name, or Title has a case-insensitive
 // prefix match to query. Empty query matches all. Results are deduped by URI and sorted by URI.
 func (m *Manager) ResourceSuggestCandidates(query string) []MCPResource {

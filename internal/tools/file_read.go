@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // FileRead reads a text file within the workspace (size-capped).
@@ -34,7 +35,15 @@ func (FileRead) Execute(ctx context.Context, args map[string]any) (string, error
 	if path == "" {
 		return "", fmt.Errorf("file_path is required")
 	}
-	abs, err := resolveUnderWorkdir(ctx, path)
+	return ReadWorkspaceText(ctx, path)
+}
+
+// ReadWorkspaceText reads a UTF-8 text file under the workspace with the same rules and size cap as [FileRead].
+func ReadWorkspaceText(ctx context.Context, relOrAbs string) (string, error) {
+	if strings.TrimSpace(relOrAbs) == "" {
+		return "", fmt.Errorf("path is required")
+	}
+	abs, err := resolveUnderWorkdir(ctx, relOrAbs)
 	if err != nil {
 		return "", err
 	}
@@ -43,7 +52,7 @@ func (FileRead) Execute(ctx context.Context, args map[string]any) (string, error
 		return "", err
 	}
 	if info.IsDir() {
-		return "", fmt.Errorf("path is a directory: %s", path)
+		return "", fmt.Errorf("path is a directory: %s", relOrAbs)
 	}
 	if info.Size() > maxReadFileBytes {
 		return "", fmt.Errorf("file too large (%d bytes; max %d)", info.Size(), maxReadFileBytes)

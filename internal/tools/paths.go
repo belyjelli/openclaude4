@@ -10,6 +10,11 @@ import (
 
 const maxReadFileBytes = 512 * 1024
 
+// ResolveUnderWorkdir resolves relOrAbs to an absolute path confined under [WorkDir](ctx).
+func ResolveUnderWorkdir(ctx context.Context, relOrAbs string) (string, error) {
+	return resolveUnderWorkdir(ctx, relOrAbs)
+}
+
 func resolveUnderWorkdir(ctx context.Context, relOrAbs string) (string, error) {
 	root := WorkDir(ctx)
 	if root == "" {
