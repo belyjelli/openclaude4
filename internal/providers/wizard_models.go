@@ -65,3 +65,29 @@ func WizardDefaultBaseModels(ctx context.Context, provider string) []string {
 		return nil
 	}
 }
+
+// WizardGitHubModelsAtBase lists model IDs from the GitHub Models OpenAI-compatible API at
+// baseURL (non-empty), using GITHUB_TOKEN or GITHUB_PAT from the environment only.
+// Returns nil on missing token, request error, or empty response (caller falls back to manual model entry).
+func WizardGitHubModelsAtBase(ctx context.Context, baseURL string) []string {
+	base := strings.TrimSpace(baseURL)
+	if base == "" {
+		return nil
+	}
+	tok := strings.TrimSpace(os.Getenv("GITHUB_TOKEN"))
+	if tok == "" {
+		tok = strings.TrimSpace(os.Getenv("GITHUB_PAT"))
+	}
+	if tok == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	defer cancel()
+	listURL := strings.TrimRight(base, "/") + "/models"
+	ids, err := FetchOpenAICompatModelsList(ctx, listURL, tok)
+	if err != nil || len(ids) == 0 {
+		return nil
+	}
+	sort.Strings(ids)
+	return dedupeSorted(ids)
+}

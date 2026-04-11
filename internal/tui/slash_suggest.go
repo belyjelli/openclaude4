@@ -167,10 +167,11 @@ func renderSlashSuggestRow(width, col1W, gap int, e slashEntry, argMode, isSelec
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftCell, strings.Repeat(" ", gap), rightCell)
 }
 
-// renderSlashStylePickList renders a bordered option list with the same row styling as slash
-// command suggestions (selected row: purple background, orange label, pink hint).
-func renderSlashStylePickList(termWidth int, entries []slashEntry, selected int) string {
-	if len(entries) == 0 || termWidth < 1 {
+// renderSlashStylePickListRows renders option rows like slash suggestions (selected row: purple
+// background, orange label, pink hint) for a fixed content width — no border. Use inside an
+// outer panel or wrap with [renderSlashStylePickList] for a standalone bordered list.
+func renderSlashStylePickListRows(contentW int, entries []slashEntry, selected int) string {
+	if len(entries) == 0 || contentW < 1 {
 		return ""
 	}
 	if selected < 0 {
@@ -179,13 +180,26 @@ func renderSlashStylePickList(termWidth int, entries []slashEntry, selected int)
 	if selected >= len(entries) {
 		selected = len(entries) - 1
 	}
-	innerW := slashSuggestBoxInnerWidth(termWidth)
-	col1W, colGap := slashSuggestColumnWidths(innerW, entries, false)
+	rowW := max(1, contentW)
+	col1W, colGap := slashSuggestColumnWidths(rowW, entries, false)
 	rows := make([]string, len(entries))
 	for i, e := range entries {
-		rows[i] = renderSlashSuggestRow(innerW, col1W, colGap, e, false, i == selected)
+		rows[i] = renderSlashSuggestRow(rowW, col1W, colGap, e, false, i == selected)
 	}
-	body := lipgloss.JoinVertical(lipgloss.Left, rows...)
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
+
+// renderSlashStylePickList renders a bordered option list with the same row styling as slash
+// command suggestions (selected row: purple background, orange label, pink hint).
+func renderSlashStylePickList(termWidth int, entries []slashEntry, selected int) string {
+	if len(entries) == 0 || termWidth < 1 {
+		return ""
+	}
+	innerW := slashSuggestBoxInnerWidth(termWidth)
+	body := renderSlashStylePickListRows(innerW, entries, selected)
+	if body == "" {
+		return ""
+	}
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).

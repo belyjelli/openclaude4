@@ -146,6 +146,43 @@ func TestWizard_Ollama_HostFetch_MenuFinish(t *testing.T) {
 	}
 }
 
+func TestWizard_GitHub_CustomBase_LiveModelMenu(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/models" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("GITHUB_TOKEN", "tok")
+
+	w := New()
+	if err := w.SelectMenuIndex(3); err != nil { // github
+		t.Fatal(err)
+	}
+	customIdx := len(w.MenuOptions()) - 1
+	if err := w.SelectMenuIndex(customIdx); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.SubmitText(srv.URL); err != nil {
+		t.Fatal(err)
+	}
+	if w.step != stGitHubModelMenu {
+		t.Fatalf("want model menu for live list, got step %d", w.step)
+	}
+	if err := w.SelectMenuIndex(0); err != nil {
+		t.Fatal(err)
+	}
+	got := w.Result()
+	if !strings.Contains(got, `name: github`) || !strings.Contains(got, "gpt-4o") {
+		t.Fatalf("missing github yaml: %q", got)
+	}
+	if !strings.Contains(got, srv.URL) {
+		t.Fatalf("result should include base URL: %q", got)
+	}
+}
+
 func TestNormalizeOpenRouterBase(t *testing.T) {
 	if s := normalizeOpenRouterBase(""); s != "" {
 		t.Fatalf("%q", s)

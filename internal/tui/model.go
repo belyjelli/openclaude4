@@ -1020,6 +1020,12 @@ func (m *model) reflowLayout() {
 	m.vp.Width = vpW
 	m.vp.Height = vpH
 	m.ti.Width = m.textInputWidth()
+	if m.perm != nil {
+		iw := providerWizPanelInnerW(m.width)
+		if iw > 0 {
+			m.permAuxTI.Width = iw
+		}
+	}
 	m.syncVP()
 }
 
@@ -1111,13 +1117,14 @@ func (m *model) View() string {
 	var permBlock string
 	if m.perm != nil {
 		m.clampPermSel()
-		detail := permDetailLines(m.perm.tool, m.perm.args)
+		innerW := providerWizPanelInnerW(m.width)
+		detail := permDetailLines(m.perm.tool, m.perm.args, innerW)
 		args := formatToolArgs("", m.perm.args)
 		if len(detail) == 0 {
-			detail = []string{dimStyle.Render(args)}
+			detail = []string{dimStyle.Width(innerW).Render(args)}
 		}
-		menu := renderSlashStylePickList(m.width, m.permMenuEntries(), m.permSel)
-		hint := dimStyle.Render("↑↓ Enter · y approve · n/Esc deny · Tab note/rule")
+		menu := renderSlashStylePickListRows(innerW, m.permMenuEntries(), m.permSel)
+		hint := dimStyle.Width(innerW).Render("↑↓ Enter · y approve · n/Esc deny · Tab note/rule")
 		auxLine := ""
 		if m.permEditMode != "" {
 			auxLine = lipgloss.JoinVertical(lipgloss.Left,
@@ -1125,14 +1132,16 @@ func (m *model) View() string {
 				m.permAuxTI.View(),
 			)
 		}
+		toolLine := fmt.Sprintf("Tool: %s", m.perm.tool)
+		toolLine = permTruncatePlain(toolLine, innerW)
 		box := lipgloss.JoinVertical(
 			lipgloss.Left,
 			errStyle.Bold(true).Render("Permission required"),
 			"",
-			fmt.Sprintf("Tool: %s", m.perm.tool),
+			toolLine,
 			lipgloss.JoinVertical(lipgloss.Left, detail...),
 			"",
-			dimStyle.Render("Do you want to proceed?"),
+			dimStyle.Width(innerW).Render("Do you want to proceed?"),
 			menu,
 			auxLine,
 			"",
@@ -1140,7 +1149,8 @@ func (m *model) View() string {
 		)
 		permBlock = lipgloss.NewStyle().
 			Width(m.width-2).
-			Border(lipgloss.DoubleBorder()).
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("240")).
 			Padding(1, 2).
 			Render(box)
 	}

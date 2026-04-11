@@ -325,6 +325,12 @@ func (w *Wizard) advanceGitHubModelStep() {
 			w.push(stGitHubModelMenu)
 			return
 		}
+	} else {
+		w.githubModelMenuTags = providers.WizardGitHubModelsAtBase(ctx, w.githubBase)
+		if len(w.githubModelMenuTags) > 0 {
+			w.push(stGitHubModelMenu)
+			return
+		}
 	}
 	w.push(stGitHubModelText)
 }
