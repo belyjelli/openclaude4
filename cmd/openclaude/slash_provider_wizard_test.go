@@ -46,8 +46,8 @@ func TestRunProviderInteractiveWizard_Cancel(t *testing.T) {
 }
 
 func TestRunProviderInteractiveWizard_OpenAI(t *testing.T) {
-	t.Parallel()
-	in := strings.NewReader("1\n\n\n")
+	t.Setenv("OPENAI_API_KEY", "")
+	in := strings.NewReader("1\n1\n\n")
 	var buf bytes.Buffer
 	if err := runProviderInteractiveWizard(chatState{}, &buf, in, nil); err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func TestRunProviderInteractiveWizard_BackFromOpenAI(t *testing.T) {
 
 func TestRunProviderInteractiveWizard_GitHub(t *testing.T) {
 	t.Parallel()
-	in := strings.NewReader("4\n\n\n")
+	in := strings.NewReader("4\n1\n1\n")
 	var buf bytes.Buffer
 	if err := runProviderInteractiveWizard(chatState{}, &buf, in, nil); err != nil {
 		t.Fatal(err)
@@ -86,7 +86,7 @@ func TestRunProviderInteractiveWizard_GitHub(t *testing.T) {
 
 func TestRunProviderInteractiveWizard_OpenRouter(t *testing.T) {
 	t.Parallel()
-	in := strings.NewReader("5\n\n\n")
+	in := strings.NewReader("5\n1\n\n")
 	var buf bytes.Buffer
 	if err := runProviderInteractiveWizard(chatState{}, &buf, in, nil); err != nil {
 		t.Fatal(err)

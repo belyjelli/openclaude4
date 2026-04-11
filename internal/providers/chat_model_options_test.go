@@ -48,7 +48,7 @@ func TestFetchOpenAICompatModelsList(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	ctx := context.Background()
-	got, err := fetchOpenAICompatModelsList(ctx, srv.URL, "test-token")
+	got, err := FetchOpenAICompatModelsList(ctx, srv.URL, "test-token")
 	if err != nil {
 		t.Fatal(err)
 	}

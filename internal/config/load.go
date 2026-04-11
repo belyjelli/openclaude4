@@ -151,7 +151,7 @@ func bindViperEnv() {
 	viper.AutomaticEnv()
 	_ = viper.BindEnv("openai.api_key", "OPENAI_API_KEY")
 	_ = viper.BindEnv("openai.model", "OPENAI_MODEL")
-	_ = viper.BindEnv("provider.base_url", "OPENAI_BASE_URL")
+	_ = viper.BindEnv("provider.base_url", "OPENAI_BASE_URL", "OPENROUTER_BASE_URL")
 	_ = viper.BindEnv("provider.name", "OPENCLAUDE_PROVIDER")
 	_ = viper.BindEnv("ollama.host", "OLLAMA_HOST")
 	_ = viper.BindEnv("ollama.model", "OLLAMA_MODEL")

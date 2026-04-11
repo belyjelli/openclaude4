@@ -8,9 +8,9 @@ import (
 	"github.com/OpenRouterTeam/go-sdk/models/components"
 )
 
-// fetchOpenRouterChatModelIDs lists model ids from the OpenRouter catalog using the official go-sdk
+// FetchOpenRouterChatModelIDs lists model ids from the OpenRouter catalog using the official go-sdk
 // (github.com/OpenRouterTeam/go-sdk). providerSlug filters to ids starting with "<slug>/"; empty = all chat-suitable models.
-func fetchOpenRouterChatModelIDs(ctx context.Context, apiKey, providerSlug string) ([]string, error) {
+func FetchOpenRouterChatModelIDs(ctx context.Context, apiKey, providerSlug string) ([]string, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
 		return nil, nil

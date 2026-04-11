@@ -36,7 +36,7 @@ func WarmChatModelCache() {
 
 // DefaultChatModelIDs returns built-in model id suggestions when live listing is unavailable.
 func DefaultChatModelIDs() []string {
-	return staticChatModelIDs(config.ProviderName())
+	return StaticChatModelIDs(config.ProviderName())
 }
 
 // CachedChatModelIDsForSuggest returns a cached list if fresh, otherwise static defaults for the active provider.
@@ -49,7 +49,7 @@ func CachedChatModelIDsForSuggest() []string {
 		copy(out, chatModelCache.ids)
 		return out
 	}
-	return staticChatModelIDs(config.ProviderName())
+	return StaticChatModelIDs(config.ProviderName())
 }
 
 // FetchChatModelIDs returns chat model IDs for the active provider (network when cache is stale).
@@ -106,11 +106,11 @@ func fetchChatModelIDsUncached(ctx context.Context) ([]string, []string, error) 
 		ids, err := fetchOllamaModelNames(ctx)
 		if err != nil {
 			warns = append(warns, "Ollama: "+err.Error()+" — showing common local tags; start Ollama or run `ollama pull <model>`.")
-			return staticChatModelIDs("ollama"), warns, nil
+			return StaticChatModelIDs("ollama"), warns, nil
 		}
 		if len(ids) == 0 {
 			warns = append(warns, "Ollama returned no models — use `ollama pull` or set /model manually.")
-			return staticChatModelIDs("ollama"), warns, nil
+			return StaticChatModelIDs("ollama"), warns, nil
 		}
 		return ids, warns, nil
 	case "gemini":
@@ -118,10 +118,10 @@ func fetchChatModelIDsUncached(ctx context.Context) ([]string, []string, error) 
 		if key == "" {
 			return nil, warns, openaicomp.ErrMissingGeminiKey
 		}
-		ids, err := fetchGeminiGenerateContentModels(ctx, key)
+		ids, err := FetchGeminiGenerateContentModels(ctx, key)
 		if err != nil {
 			warns = append(warns, "Gemini: "+err.Error()+" — showing common Gemini model IDs.")
-			return staticChatModelIDs("gemini"), warns, nil
+			return StaticChatModelIDs("gemini"), warns, nil
 		}
 		return ids, warns, nil
 	case "github":
@@ -132,12 +132,12 @@ func fetchChatModelIDsUncached(ctx context.Context) ([]string, []string, error) 
 		base := strings.TrimSpace(config.GitHubModelsBaseURL())
 		if base == "" {
 			warns = append(warns, "GITHUB_BASE_URL is unset — showing common GitHub Models IDs; set the Azure endpoint from GitHub docs.")
-			return staticChatModelIDs("github"), warns, nil
+			return StaticChatModelIDs("github"), warns, nil
 		}
-		ids, err := fetchOpenAICompatModelsList(ctx, strings.TrimRight(base, "/")+"/models", tok)
+		ids, err := FetchOpenAICompatModelsList(ctx, strings.TrimRight(base, "/")+"/models", tok)
 		if err != nil {
 			warns = append(warns, "GitHub Models: "+err.Error()+" — showing common model IDs.")
-			return staticChatModelIDs("github"), warns, nil
+			return StaticChatModelIDs("github"), warns, nil
 		}
 		return ids, warns, nil
 	case "openrouter":
@@ -146,22 +146,22 @@ func fetchChatModelIDsUncached(ctx context.Context) ([]string, []string, error) 
 			return nil, warns, openaicomp.ErrMissingOpenRouterKey
 		}
 		filter := config.OpenRouterProviderFilter()
-		ids, err := fetchOpenRouterChatModelIDs(ctx, key, filter)
+		ids, err := FetchOpenRouterChatModelIDs(ctx, key, filter)
 		if err != nil {
 			warns = append(warns, "OpenRouter: "+err.Error()+" — showing common OpenRouter model IDs.")
-			return staticChatModelIDs("openrouter"), warns, nil
+			return StaticChatModelIDs("openrouter"), warns, nil
 		}
 		if len(ids) == 0 {
 			if filter != "" {
 				warns = append(warns, "OpenRouter: no models matched OPENROUTER_PROVIDER="+filter+".")
 			}
-			return staticChatModelIDs("openrouter"), warns, nil
+			return StaticChatModelIDs("openrouter"), warns, nil
 		}
 		return ids, warns, nil
 	default:
 		if orKey := config.OpenRouterAPIKey(); orKey != "" {
 			filter := config.OpenRouterProviderFilter()
-			ids, err := fetchOpenRouterChatModelIDs(ctx, orKey, filter)
+			ids, err := FetchOpenRouterChatModelIDs(ctx, orKey, filter)
 			if err != nil {
 				warns = append(warns, "OpenRouter: "+err.Error()+" — try OPENROUTER_KEY or fall back below.")
 				// Fall through to OpenAI-compat list when OPENAI_API_KEY is also set.
@@ -176,7 +176,7 @@ func fetchChatModelIDsUncached(ctx context.Context) ([]string, []string, error) 
 		k := config.EffectiveOpenAICompatAPIKey()
 		if k == "" {
 			if config.OpenRouterAPIKey() != "" {
-				return staticChatModelIDs("openai"), warns, nil
+				return StaticChatModelIDs("openai"), warns, nil
 			}
 			if config.BaseURLLooksLikeOpenRouter(config.BaseURL()) {
 				return nil, warns, openaicomp.ErrMissingOpenRouterOrOpenAIKey
@@ -187,10 +187,10 @@ func fetchChatModelIDsUncached(ctx context.Context) ([]string, []string, error) 
 		if err != nil {
 			return nil, warns, err
 		}
-		ids, err := fetchOpenAICompatModelsList(ctx, listURL, k)
+		ids, err := FetchOpenAICompatModelsList(ctx, listURL, k)
 		if err != nil {
 			warns = append(warns, "OpenAI-compatible: "+err.Error()+" — showing common OpenAI-style IDs.")
-			return staticChatModelIDs("openai"), warns, nil
+			return StaticChatModelIDs("openai"), warns, nil
 		}
 		return filterLikelyChatModels(ids), warns, nil
 	}
@@ -241,7 +241,8 @@ func fetchOllamaModelNames(ctx context.Context) ([]string, error) {
 	return out, nil
 }
 
-func fetchGeminiGenerateContentModels(ctx context.Context, apiKey string) ([]string, error) {
+// FetchGeminiGenerateContentModels lists Gemini model IDs that support generateContent.
+func FetchGeminiGenerateContentModels(ctx context.Context, apiKey string) ([]string, error) {
 	u := "https://generativelanguage.googleapis.com/v1beta/models?key=" + apiKey
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
@@ -289,7 +290,8 @@ func fetchGeminiGenerateContentModels(ctx context.Context, apiKey string) ([]str
 	return out, nil
 }
 
-func fetchOpenAICompatModelsList(ctx context.Context, listURL, bearer string) ([]string, error) {
+// FetchOpenAICompatModelsList performs a GET on an OpenAI-style /models URL with a Bearer token.
+func FetchOpenAICompatModelsList(ctx context.Context, listURL, bearer string) ([]string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
 	if err != nil {
 		return nil, err
@@ -345,7 +347,8 @@ func filterLikelyChatModels(ids []string) []string {
 	return out
 }
 
-func staticChatModelIDs(provider string) []string {
+// StaticChatModelIDs returns built-in model suggestions when live listing is unavailable.
+func StaticChatModelIDs(provider string) []string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
 	case "ollama":
 		return []string{

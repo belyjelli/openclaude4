@@ -32,11 +32,13 @@ func TestApplyToViper_Cancelled(t *testing.T) {
 func TestApplyToViper_OpenAI(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
+	t.Setenv("OPENAI_API_KEY", "")
 	config.Load("")
 	w := New()
 	_ = w.SelectMenuIndex(0)
-	_ = w.SubmitText("gpt-custom")
+	_ = w.SelectMenuIndex(len(w.MenuOptions()) - 1) // custom base URL
 	_ = w.SubmitText("https://api.example/v1")
+	_ = w.SubmitText("gpt-custom")
 	if err := w.ApplyToViper(); err != nil {
 		t.Fatal(err)
 	}
@@ -54,12 +56,13 @@ func TestApplyToViper_OpenAI(t *testing.T) {
 func TestApplyToViper_OpenAI_ClearBase(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
+	t.Setenv("OPENAI_API_KEY", "")
 	config.Load("")
 	viper.Set("provider.base_url", "https://old.example/v1")
 	w := New()
 	_ = w.SelectMenuIndex(0)
+	_ = w.SelectMenuIndex(0) // default official base
 	_ = w.SubmitText("m1")
-	_ = w.SubmitText("")
 	if err := w.ApplyToViper(); err != nil {
 		t.Fatal(err)
 	}

@@ -13,20 +13,24 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
-	extast "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
+	extast "github.com/yuin/goldmark/extension/ast"
 	gmtext "github.com/yuin/goldmark/text"
 )
 
 // issueRefRE matches owner/repo#NNN (aligned with openclaude3 markdown linkify).
 var issueRefRE = regexp.MustCompile(`(^|[^\w./-])([A-Za-z0-9][\w-]*/[A-Za-z0-9][\w.-]*)#(\d+)\b`)
 
+// inlineHTMLBrRE maps common inline HTML line breaks to newlines (models often emit <br> in prose).
+var inlineHTMLBrRE = regexp.MustCompile(`(?i)<br\s*/?>`)
+
 var assistantMDParser = goldmark.New(
 	goldmark.WithExtensions(
 		extension.Table,
 		extension.Linkify,
+		extension.Strikethrough,
 		extension.TaskList,
 	),
 )
@@ -125,6 +129,9 @@ func (r *mdChromaRenderer) renderBlock(n ast.Node) string {
 		return r.renderHeading(n)
 	case *ast.Paragraph:
 		return r.wrapBlock(r.renderParagraphBlock(n)) + "\n"
+	case *ast.TextBlock:
+		// Tight lists: goldmark replaces ListItem Paragraph children with TextBlock (see list parser Close).
+		return r.renderTextBlock(n) + "\n"
 	case *ast.FencedCodeBlock:
 		return r.renderFencedCode(n) + "\n"
 	case *ast.CodeBlock:
@@ -138,10 +145,54 @@ func (r *mdChromaRenderer) renderBlock(n ast.Node) string {
 	case *extast.Table:
 		return r.renderTable(n) + "\n"
 	case *ast.HTMLBlock:
-		return ""
+		return r.renderHTMLBlock(n) + "\n"
 	default:
 		return ""
 	}
+}
+
+// renderHTMLBlock shows raw HTML from the source. Goldmark does not parse markdown inside HTML
+// blocks, but emitting the block text preserves <details>, tables-as-HTML, etc. — previously
+// these rendered as empty and hid most of the model output.
+func (r *mdChromaRenderer) renderHTMLBlock(b *ast.HTMLBlock) string {
+	raw := strings.TrimRight(string(b.Text(r.src)), "\n")
+	if raw == "" {
+		return ""
+	}
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	return r.wrapBlock(dim.Render(raw))
+}
+
+// renderTextBlock renders lines for tight-list TextBlock nodes (no paragraph wrapper in AST).
+// Re-parses the slice as markdown so **emphasis** and links in list items still render.
+func (r *mdChromaRenderer) renderTextBlock(tb *ast.TextBlock) string {
+	raw := strings.TrimRight(string(tb.Lines().Value(r.src)), "\n")
+	if strings.TrimSpace(raw) == "" {
+		return ""
+	}
+	sub := assistantMDParser.Parser().Parse(gmtext.NewReader([]byte(raw)))
+	d, ok := sub.(*ast.Document)
+	if !ok {
+		return r.wrapBlock(linkifyIssueRefs(raw))
+	}
+	subSrc := []byte(raw)
+	prev := r.src
+	r.src = subSrc
+	defer func() { r.src = prev }()
+
+	var parts []string
+	for c := d.FirstChild(); c != nil; c = c.NextSibling() {
+		switch n := c.(type) {
+		case *ast.Paragraph:
+			parts = append(parts, strings.TrimSpace(r.renderParagraphBlock(n)))
+		default:
+			parts = append(parts, strings.TrimSpace(strings.TrimRight(r.renderBlock(c), "\n")))
+		}
+	}
+	if len(parts) == 0 {
+		return r.wrapBlock(linkifyIssueRefs(raw))
+	}
+	return r.wrapBlock(strings.Join(parts, "\n"))
 }
 
 func (r *mdChromaRenderer) renderHeading(h *ast.Heading) string {
@@ -475,6 +526,19 @@ func (r *mdChromaRenderer) renderInline(n ast.Node, source []byte, insideLink bo
 			return "[x]"
 		}
 		return "[ ]"
+	case *extast.Strikethrough:
+		inner := r.renderInlines(n, source, insideLink)
+		return lipgloss.NewStyle().Strikethrough(true).Render(inner)
+	case *ast.RawHTML:
+		raw := string(n.Text(source))
+		if raw == "" {
+			return ""
+		}
+		raw = inlineHTMLBrRE.ReplaceAllString(raw, "\n")
+		if strings.TrimSpace(raw) == "" {
+			return raw
+		}
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(raw)
 	default:
 		return ""
 	}

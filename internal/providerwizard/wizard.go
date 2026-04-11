@@ -1,11 +1,14 @@
 package providerwizard
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
 	"github.com/gitlawb/openclaude4/internal/config"
+	"github.com/gitlawb/openclaude4/internal/providers"
 	"github.com/spf13/viper"
 )
 
@@ -13,22 +16,30 @@ type step int
 
 const (
 	stChooseProvider step = iota
-	stOpenAIModel
-	stOpenAIBase
+	stOpenAIBaseMenu
+	stOpenAIBaseText
+	stOpenAIModelMenu
+	stOpenAIModelText
 	stOllamaHost
 	stOllamaModelMenu
 	stOllamaModelText
-	stGeminiModel
-	stGeminiBase
-	stGitHubModel
-	stGitHubBase
-	stOpenRouterModel
-	stOpenRouterBase
+	stGeminiBaseMenu
+	stGeminiBaseText
+	stGeminiModelMenu
+	stGeminiModelText
+	stGitHubBaseMenu
+	stGitHubBaseText
+	stGitHubModelMenu
+	stGitHubModelText
+	stOpenRouterBaseMenu
+	stOpenRouterBaseText
+	stOpenRouterModelMenu
+	stOpenRouterModelText
 	stFinished
 	stCancelled
 )
 
-const ollamaOtherOption = "Other (type model name manually)"
+const modelOtherOption = "Other (type model name manually)"
 
 // Wizard is a multi-step provider setup flow with a back stack.
 type Wizard struct {
@@ -41,6 +52,12 @@ type Wizard struct {
 	textLabel   string
 	textDefault string
 	textHint    string
+
+	// Base menu: index of "from environment" row, or -1 if absent.
+	openaiBaseEnvIdx   int
+	geminiBaseEnvIdx   int
+	githubBaseEnvIdx   int
+	openRouterBaseEnvIdx int
 
 	// Collected
 	openaiModel string
@@ -58,6 +75,11 @@ type Wizard struct {
 
 	orModel string
 	orBase  string
+
+	openaiModelMenuTags   []string
+	geminiModelMenuTags   []string
+	githubModelMenuTags   []string
+	openRouterModelMenuTags []string
 
 	result string
 }
@@ -131,22 +153,93 @@ func defaultOpenRouterModel() string {
 	return def
 }
 
+func openRouterEnvBase() (envName, value string) {
+	if v := strings.TrimSpace(os.Getenv("OPENROUTER_BASE_URL")); v != "" {
+		return "OPENROUTER_BASE_URL", strings.TrimRight(v, "/")
+	}
+	if v := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")); v != "" {
+		return "OPENAI_BASE_URL", strings.TrimRight(v, "/")
+	}
+	return "", ""
+}
+
+func normalizeOpenRouterBase(s string) string {
+	s = strings.TrimRight(strings.TrimSpace(s), "/")
+	def := strings.TrimRight(config.DefaultOpenRouterOpenAIBase, "/")
+	if s == "" || strings.EqualFold(s, def) {
+		return ""
+	}
+	return s
+}
+
 func (w *Wizard) prepare() {
 	switch w.step {
 	case stChooseProvider:
 		w.menuOpts = []string{"openai", "ollama", "gemini", "github", "openrouter"}
 		w.menuCursor = clamp(w.menuCursor, 0, len(w.menuOpts)-1)
 	case stOllamaModelMenu:
-		w.menuOpts = append(append([]string{}, w.ollamaTags...), ollamaOtherOption)
+		w.menuOpts = append(append([]string{}, w.ollamaTags...), modelOtherOption)
 		w.menuCursor = clamp(w.menuCursor, 0, len(w.menuOpts)-1)
-	case stOpenAIModel:
+	case stOpenAIBaseMenu:
+		w.openaiBaseEnvIdx = -1
+		opts := []string{"Default (official OpenAI API — no base_url override)"}
+		if u := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")); u != "" {
+			w.openaiBaseEnvIdx = len(opts)
+			opts = append(opts, fmt.Sprintf("Use OPENAI_BASE_URL: %s", u))
+		}
+		opts = append(opts, "Custom base URL…")
+		w.menuOpts = opts
+		w.menuCursor = clamp(w.menuCursor, 0, len(w.menuOpts)-1)
+	case stGeminiBaseMenu:
+		w.geminiBaseEnvIdx = -1
+		opts := []string{"Default (Google Gemini OpenAI-compatible endpoint)"}
+		if u := strings.TrimSpace(os.Getenv("GEMINI_BASE_URL")); u != "" {
+			w.geminiBaseEnvIdx = len(opts)
+			opts = append(opts, fmt.Sprintf("Use GEMINI_BASE_URL: %s", u))
+		}
+		opts = append(opts, "Custom base URL…")
+		w.menuOpts = opts
+		w.menuCursor = clamp(w.menuCursor, 0, len(w.menuOpts)-1)
+	case stGitHubBaseMenu:
+		w.githubBaseEnvIdx = -1
+		opts := []string{"Default (no github.base_url — set GITHUB_BASE_URL for Azure endpoint)"}
+		if u := strings.TrimSpace(os.Getenv("GITHUB_BASE_URL")); u != "" {
+			w.githubBaseEnvIdx = len(opts)
+			opts = append(opts, fmt.Sprintf("Use GITHUB_BASE_URL: %s", u))
+		}
+		opts = append(opts, "Custom base URL…")
+		w.menuOpts = opts
+		w.menuCursor = clamp(w.menuCursor, 0, len(w.menuOpts)-1)
+	case stOpenRouterBaseMenu:
+		w.openRouterBaseEnvIdx = -1
+		opts := []string{fmt.Sprintf("Default (%s — no base_url override)", config.DefaultOpenRouterOpenAIBase)}
+		if name, u := openRouterEnvBase(); u != "" {
+			w.openRouterBaseEnvIdx = len(opts)
+			opts = append(opts, fmt.Sprintf("Use %s: %s", name, u))
+		}
+		opts = append(opts, "Custom base URL…")
+		w.menuOpts = opts
+		w.menuCursor = clamp(w.menuCursor, 0, len(w.menuOpts)-1)
+	case stOpenAIModelMenu:
+		w.menuOpts = append(append([]string{}, w.openaiModelMenuTags...), modelOtherOption)
+		w.menuCursor = clamp(w.menuCursor, 0, len(w.menuOpts)-1)
+	case stGeminiModelMenu:
+		w.menuOpts = append(append([]string{}, w.geminiModelMenuTags...), modelOtherOption)
+		w.menuCursor = clamp(w.menuCursor, 0, len(w.menuOpts)-1)
+	case stGitHubModelMenu:
+		w.menuOpts = append(append([]string{}, w.githubModelMenuTags...), modelOtherOption)
+		w.menuCursor = clamp(w.menuCursor, 0, len(w.menuOpts)-1)
+	case stOpenRouterModelMenu:
+		w.menuOpts = append(append([]string{}, w.openRouterModelMenuTags...), modelOtherOption)
+		w.menuCursor = clamp(w.menuCursor, 0, len(w.menuOpts)-1)
+	case stOpenAIBaseText:
+		w.textLabel = "Base URL"
+		w.textDefault = ""
+		w.textHint = "OpenAI-compatible root, usually ending in /v1"
+	case stOpenAIModelText:
 		w.textLabel = "Model"
 		w.textDefault = defaultOpenAIModel()
 		w.textHint = "Empty = use default. OPENAI_API_KEY in environment."
-	case stOpenAIBase:
-		w.textLabel = "Base URL"
-		w.textDefault = ""
-		w.textHint = "Empty = default api.openai.com / SDK default"
 	case stOllamaHost:
 		w.textLabel = "Ollama host"
 		w.textDefault = ollamaHostDefault()
@@ -155,30 +248,30 @@ func (w *Wizard) prepare() {
 		w.textLabel = "Ollama model tag"
 		w.textDefault = defaultOllamaModel()
 		w.textHint = "Model name as shown by ollama list"
-	case stGeminiModel:
+	case stGeminiBaseText:
+		w.textLabel = "Custom base URL"
+		w.textDefault = ""
+		w.textHint = "OpenAI-compatible Gemini endpoint (often ends with /v1beta/openai)"
+	case stGeminiModelText:
 		w.textLabel = "Gemini model"
 		w.textDefault = defaultGeminiModel()
 		w.textHint = "Set GEMINI_API_KEY or GOOGLE_API_KEY in the environment."
-	case stGeminiBase:
-		w.textLabel = "Custom base URL"
+	case stGitHubBaseText:
+		w.textLabel = "Base URL"
 		w.textDefault = ""
-		w.textHint = "Empty = Google default OpenAI-compat endpoint"
-	case stGitHubModel:
+		w.textHint = "GitHub Models Azure endpoint (https://<region>.models.ai.azure.com)"
+	case stGitHubModelText:
 		w.textLabel = "GitHub Models model"
 		w.textDefault = defaultGitHubModel()
 		w.textHint = "Set GITHUB_TOKEN or GITHUB_PAT in the environment."
-	case stGitHubBase:
+	case stOpenRouterBaseText:
 		w.textLabel = "Base URL"
 		w.textDefault = ""
-		w.textHint = "Empty = omit; use https://<region>.models.ai.azure.com if needed"
-	case stOpenRouterModel:
+		w.textHint = fmt.Sprintf("OpenAI-compatible root (e.g. %s); empty = official default", config.DefaultOpenRouterOpenAIBase)
+	case stOpenRouterModelText:
 		w.textLabel = "OpenRouter model"
 		w.textDefault = defaultOpenRouterModel()
 		w.textHint = "Set OPENROUTER_KEY or OPENROUTER_API_KEY in the environment."
-	case stOpenRouterBase:
-		w.textLabel = "Base URL"
-		w.textDefault = strings.TrimRight(config.DefaultOpenRouterOpenAIBase, "/")
-		w.textHint = "Empty = OpenRouter default"
 	default:
 		w.menuOpts = nil
 	}
@@ -200,12 +293,62 @@ func (w *Wizard) push(next step) {
 	w.prepare()
 }
 
+func (w *Wizard) advanceOpenAIModelStep() {
+	ctx := context.Background()
+	if strings.TrimSpace(w.openaiBase) == "" {
+		w.openaiModelMenuTags = providers.WizardDefaultBaseModels(ctx, "openai")
+		if len(w.openaiModelMenuTags) > 0 {
+			w.push(stOpenAIModelMenu)
+			return
+		}
+	}
+	w.push(stOpenAIModelText)
+}
+
+func (w *Wizard) advanceGeminiModelStep() {
+	ctx := context.Background()
+	if strings.TrimSpace(w.geminiBase) == "" {
+		w.geminiModelMenuTags = providers.WizardDefaultBaseModels(ctx, "gemini")
+		if len(w.geminiModelMenuTags) > 0 {
+			w.push(stGeminiModelMenu)
+			return
+		}
+	}
+	w.push(stGeminiModelText)
+}
+
+func (w *Wizard) advanceGitHubModelStep() {
+	ctx := context.Background()
+	if strings.TrimSpace(w.githubBase) == "" {
+		w.githubModelMenuTags = providers.WizardDefaultBaseModels(ctx, "github")
+		if len(w.githubModelMenuTags) > 0 {
+			w.push(stGitHubModelMenu)
+			return
+		}
+	}
+	w.push(stGitHubModelText)
+}
+
+func (w *Wizard) advanceOpenRouterModelStep() {
+	ctx := context.Background()
+	if strings.TrimSpace(w.orBase) == "" {
+		w.openRouterModelMenuTags = providers.WizardDefaultBaseModels(ctx, "openrouter")
+		if len(w.openRouterModelMenuTags) > 0 {
+			w.push(stOpenRouterModelMenu)
+			return
+		}
+	}
+	w.push(stOpenRouterModelText)
+}
+
 // StepKind reports how the UI should collect input.
 func (w *Wizard) StepKind() StepKind {
 	switch w.step {
 	case stFinished, stCancelled:
 		return StepDone
-	case stChooseProvider, stOllamaModelMenu:
+	case stChooseProvider, stOllamaModelMenu,
+		stOpenAIBaseMenu, stGeminiBaseMenu, stGitHubBaseMenu, stOpenRouterBaseMenu,
+		stOpenAIModelMenu, stGeminiModelMenu, stGitHubModelMenu, stOpenRouterModelMenu:
 		return StepMenu
 	default:
 		return StepText
@@ -222,6 +365,16 @@ func (w *Wizard) IsProviderMenu() bool { return w.step == stChooseProvider }
 
 // IsOllamaModelMenu is true when picking a tag from /api/tags.
 func (w *Wizard) IsOllamaModelMenu() bool { return w.step == stOllamaModelMenu }
+
+// IsModelPickMenu is true when choosing a model from a fetched or static list.
+func (w *Wizard) IsModelPickMenu() bool {
+	switch w.step {
+	case stOllamaModelMenu, stOpenAIModelMenu, stGeminiModelMenu, stGitHubModelMenu, stOpenRouterModelMenu:
+		return true
+	default:
+		return false
+	}
+}
 
 // Finished is true when the flow ended (success or cancel).
 func (w *Wizard) Finished() bool {
@@ -320,15 +473,15 @@ func (w *Wizard) Title() string {
 	switch w.step {
 	case stChooseProvider:
 		return "Provider setup — choose provider"
-	case stOpenAIModel, stOpenAIBase:
+	case stOpenAIBaseMenu, stOpenAIBaseText, stOpenAIModelMenu, stOpenAIModelText:
 		return "OpenAI (or compatible)"
 	case stOllamaHost, stOllamaModelMenu, stOllamaModelText:
 		return "Ollama"
-	case stGeminiModel, stGeminiBase:
+	case stGeminiBaseMenu, stGeminiBaseText, stGeminiModelMenu, stGeminiModelText:
 		return "Gemini"
-	case stGitHubModel, stGitHubBase:
+	case stGitHubBaseMenu, stGitHubBaseText, stGitHubModelMenu, stGitHubModelText:
 		return "GitHub Models"
-	case stOpenRouterModel, stOpenRouterBase:
+	case stOpenRouterBaseMenu, stOpenRouterBaseText, stOpenRouterModelMenu, stOpenRouterModelText:
 		return "OpenRouter"
 	case stFinished:
 		return "Done"
@@ -344,8 +497,12 @@ func (w *Wizard) Body() string {
 	switch w.step {
 	case stChooseProvider:
 		return "Applies provider settings to this session and prints YAML to merge into openclaude.yaml for the next start."
+	case stOpenAIBaseMenu, stGeminiBaseMenu, stGitHubBaseMenu, stOpenRouterBaseMenu:
+		return "Step 2: use the provider default API host, the URL from your environment if set, or a custom base URL."
 	case stOllamaModelMenu:
 		return "Select a model from your Ollama host, or choose manual entry."
+	case stOpenAIModelMenu, stGeminiModelMenu, stGitHubModelMenu, stOpenRouterModelMenu:
+		return "Pick a model from the list (official default API), or choose manual entry."
 	default:
 		return ""
 	}
@@ -416,27 +573,116 @@ func (w *Wizard) activateMenuSelection() error {
 		p := strings.ToLower(strings.TrimSpace(w.menuOpts[w.menuCursor]))
 		switch p {
 		case "openai":
-			w.push(stOpenAIModel)
+			w.push(stOpenAIBaseMenu)
 		case "ollama":
 			w.push(stOllamaHost)
 		case "gemini":
-			w.push(stGeminiModel)
+			w.push(stGeminiBaseMenu)
 		case "github":
-			w.push(stGitHubModel)
+			w.push(stGitHubBaseMenu)
 		case "openrouter":
-			w.push(stOpenRouterModel)
+			w.push(stOpenRouterBaseMenu)
 		default:
 			return fmt.Errorf("unknown provider")
 		}
 		return nil
+	case stOpenAIBaseMenu:
+		switch w.menuCursor {
+		case 0:
+			w.openaiBase = ""
+			w.advanceOpenAIModelStep()
+		case w.openaiBaseEnvIdx:
+			w.openaiBase = strings.TrimRight(strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")), "/")
+			w.advanceOpenAIModelStep()
+		default:
+			w.push(stOpenAIBaseText)
+		}
+		return nil
+	case stGeminiBaseMenu:
+		switch w.menuCursor {
+		case 0:
+			w.geminiBase = ""
+			w.advanceGeminiModelStep()
+		case w.geminiBaseEnvIdx:
+			w.geminiBase = strings.TrimRight(strings.TrimSpace(os.Getenv("GEMINI_BASE_URL")), "/")
+			w.advanceGeminiModelStep()
+		default:
+			w.push(stGeminiBaseText)
+		}
+		return nil
+	case stGitHubBaseMenu:
+		switch w.menuCursor {
+		case 0:
+			w.githubBase = ""
+			w.advanceGitHubModelStep()
+		case w.githubBaseEnvIdx:
+			w.githubBase = strings.TrimRight(strings.TrimSpace(os.Getenv("GITHUB_BASE_URL")), "/")
+			w.advanceGitHubModelStep()
+		default:
+			w.push(stGitHubBaseText)
+		}
+		return nil
+	case stOpenRouterBaseMenu:
+		switch w.menuCursor {
+		case 0:
+			w.orBase = ""
+			w.advanceOpenRouterModelStep()
+		case w.openRouterBaseEnvIdx:
+			_, v := openRouterEnvBase()
+			w.orBase = normalizeOpenRouterBase(v)
+			w.advanceOpenRouterModelStep()
+		default:
+			w.push(stOpenRouterBaseText)
+		}
+		return nil
 	case stOllamaModelMenu:
 		opt := w.menuOpts[w.menuCursor]
-		if opt == ollamaOtherOption {
+		if opt == modelOtherOption {
 			w.push(stOllamaModelText)
 			return nil
 		}
 		w.ollamaModel = opt
 		w.result = buildOllamaResult(w.ollamaHost, w.ollamaModel)
+		w.step = stFinished
+		return nil
+	case stOpenAIModelMenu:
+		opt := w.menuOpts[w.menuCursor]
+		if opt == modelOtherOption {
+			w.push(stOpenAIModelText)
+			return nil
+		}
+		w.openaiModel = opt
+		w.result = buildOpenAIResult(w.openaiModel, w.openaiBase)
+		w.step = stFinished
+		return nil
+	case stGeminiModelMenu:
+		opt := w.menuOpts[w.menuCursor]
+		if opt == modelOtherOption {
+			w.push(stGeminiModelText)
+			return nil
+		}
+		w.geminiModel = opt
+		w.result = buildGeminiResult(w.geminiModel, w.geminiBase)
+		w.step = stFinished
+		return nil
+	case stGitHubModelMenu:
+		opt := w.menuOpts[w.menuCursor]
+		if opt == modelOtherOption {
+			w.push(stGitHubModelText)
+			return nil
+		}
+		w.githubModel = opt
+		w.result = buildGitHubResult(w.githubModel, w.githubBase)
+		w.step = stFinished
+		return nil
+	case stOpenRouterModelMenu:
+		opt := w.menuOpts[w.menuCursor]
+		if opt == modelOtherOption {
+			w.push(stOpenRouterModelText)
+			return nil
+		}
+		w.orModel = opt
+		w.result = buildOpenRouterResult(w.orModel, w.orBase)
 		w.step = stFinished
 		return nil
 	default:
@@ -451,15 +697,15 @@ func (w *Wizard) SubmitText(s string) error {
 	}
 	s = strings.TrimSpace(s)
 	switch w.step {
-	case stOpenAIModel:
+	case stOpenAIBaseText:
+		w.openaiBase = strings.TrimRight(strings.TrimSpace(s), "/")
+		w.advanceOpenAIModelStep()
+	case stOpenAIModelText:
 		model := s
 		if model == "" {
 			model = w.textDefault
 		}
 		w.openaiModel = model
-		w.push(stOpenAIBase)
-	case stOpenAIBase:
-		w.openaiBase = strings.TrimSpace(s)
 		w.result = buildOpenAIResult(w.openaiModel, w.openaiBase)
 		w.step = stFinished
 	case stOllamaHost:
@@ -484,43 +730,38 @@ func (w *Wizard) SubmitText(s string) error {
 		w.ollamaModel = model
 		w.result = buildOllamaResult(w.ollamaHost, w.ollamaModel)
 		w.step = stFinished
-	case stGeminiModel:
+	case stGeminiBaseText:
+		w.geminiBase = strings.TrimRight(strings.TrimSpace(s), "/")
+		w.advanceGeminiModelStep()
+	case stGeminiModelText:
 		model := s
 		if model == "" {
 			model = w.textDefault
 		}
 		w.geminiModel = model
-		w.push(stGeminiBase)
-	case stGeminiBase:
-		w.geminiBase = strings.TrimSpace(s)
 		w.result = buildGeminiResult(w.geminiModel, w.geminiBase)
 		w.step = stFinished
-	case stGitHubModel:
+	case stGitHubBaseText:
+		w.githubBase = strings.TrimSpace(s)
+		w.githubBase = strings.TrimRight(w.githubBase, "/")
+		w.advanceGitHubModelStep()
+	case stGitHubModelText:
 		model := s
 		if model == "" {
 			model = w.textDefault
 		}
 		w.githubModel = model
-		w.push(stGitHubBase)
-	case stGitHubBase:
-		w.githubBase = strings.TrimSpace(s)
-		w.githubBase = strings.TrimRight(w.githubBase, "/")
 		w.result = buildGitHubResult(w.githubModel, w.githubBase)
 		w.step = stFinished
-	case stOpenRouterModel:
+	case stOpenRouterBaseText:
+		w.orBase = normalizeOpenRouterBase(s)
+		w.advanceOpenRouterModelStep()
+	case stOpenRouterModelText:
 		model := s
 		if model == "" {
 			model = w.textDefault
 		}
 		w.orModel = model
-		w.push(stOpenRouterBase)
-	case stOpenRouterBase:
-		base := strings.TrimSpace(s)
-		base = strings.TrimRight(base, "/")
-		if base == "" {
-			base = ""
-		}
-		w.orBase = base
 		w.result = buildOpenRouterResult(w.orModel, w.orBase)
 		w.step = stFinished
 	default:
@@ -572,6 +813,11 @@ func (w *Wizard) ParseProviderMenuInput(line string) (ok bool, cancel bool) {
 
 // ParseOllamaMenuInput maps a line to index 1..N for the Ollama model menu.
 func (w *Wizard) ParseOllamaMenuInput(line string) (ok bool) {
+	return w.ParseModelMenuInput(line)
+}
+
+// ParseModelMenuInput maps a line to index 1..N for any model-pick menu.
+func (w *Wizard) ParseModelMenuInput(line string) (ok bool) {
 	line = strings.TrimSpace(line)
 	if n, err := strconv.Atoi(line); err == nil {
 		if n >= 1 && n <= len(w.menuOpts) {
@@ -635,6 +881,7 @@ func buildGitHubResult(model, base string) string {
 }
 
 func buildOpenRouterResult(model, base string) string {
+	base = normalizeOpenRouterBase(base)
 	var b strings.Builder
 	_, _ = fmt.Fprintf(&b, "Set OPENROUTER_KEY or OPENROUTER_API_KEY in the environment, then merge YAML or use:\n")
 	_, _ = fmt.Fprintf(&b, "  export OPENCLAUDE_PROVIDER=openrouter\n  export OPENROUTER_MODEL=%q\n", model)

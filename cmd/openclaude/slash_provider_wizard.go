@@ -109,7 +109,7 @@ export OPENCLAUDE_PROVIDER=openrouter
 export OPENROUTER_KEY=...    # or OPENROUTER_API_KEY
 # optional:
 export OPENROUTER_MODEL=openai/gpt-4o-mini
-export OPENAI_BASE_URL=https://openrouter.ai/api/v1   # default if unset
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1   # default if unset (OPENROUTER_BASE_URL also works)
 
 provider:
   name: openrouter
@@ -173,8 +173,8 @@ func runProviderInteractiveWizard(st chatState, out io.Writer, in io.Reader, cli
 				}
 				continue
 			}
-			if w.IsOllamaModelMenu() {
-				if !w.ParseOllamaMenuInput(line) {
+			if w.IsModelPickMenu() {
+				if !w.ParseModelMenuInput(line) {
 					_, _ = fmt.Fprintf(out, "Try a number 1–%d, or b to go back.\n", len(w.MenuOptions()))
 				}
 			}

@@ -36,6 +36,44 @@ func TestRenderAssistantMarkdownChroma_streamingNoTrim(t *testing.T) {
 	}
 }
 
+func TestRenderAssistantMarkdownChroma_htmlBlockNotDropped(t *testing.T) {
+	md := "<details>\n<summary>More</summary>\n\nHidden **bold** here.\n</details>\n"
+	out := renderAssistantMarkdownChroma(72, md, true, true)
+	plain := ansi.Strip(out)
+	if !strings.Contains(plain, "details") || !strings.Contains(plain, "Hidden") {
+		t.Fatalf("expected HTML block body visible: %q", plain)
+	}
+}
+
+func TestRenderAssistantMarkdownChroma_inlineRawHTML(t *testing.T) {
+	md := "Line one<br>Line two"
+	out := renderAssistantMarkdownChroma(72, md, true, true)
+	plain := ansi.Strip(out)
+	if !strings.Contains(plain, "Line one") || !strings.Contains(plain, "Line two") {
+		t.Fatalf("expected <br> to become line break: %q", plain)
+	}
+}
+
+func TestRenderAssistantMarkdownChroma_strikethrough(t *testing.T) {
+	out := renderAssistantMarkdownChroma(72, "~~gone~~ stays", true, true)
+	plain := ansi.Strip(out)
+	if !strings.Contains(plain, "gone") || !strings.Contains(plain, "stays") {
+		t.Fatalf("expected strikethrough segment: %q", plain)
+	}
+}
+
+// Tight lists: goldmark replaces ListItem Paragraph children with TextBlock (goldmark parser/list.go Close).
+// Those must not render as empty in the TUI. Streaming path also parses markdown in model.syncVP;
+// incomplete fences use splitUnclosedFenceSuffix — see md_stream_fence_test.go.
+func TestRenderAssistantMarkdownChroma_tightListTextBlock(t *testing.T) {
+	md := "- **alpha**\n- beta\n"
+	out := renderAssistantMarkdownChroma(72, md, true, true)
+	plain := ansi.Strip(out)
+	if !strings.Contains(plain, "alpha") || !strings.Contains(plain, "beta") {
+		t.Fatalf("expected tight list item text: %q", plain)
+	}
+}
+
 func TestLinkifyIssueRefs(t *testing.T) {
 	s := "see org/repo#42 done"
 	out := linkifyIssueRefs(s)

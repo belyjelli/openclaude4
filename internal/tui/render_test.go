@@ -1,6 +1,11 @@
 package tui
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/charmbracelet/x/ansi"
+)
 
 func TestLooksLikeDiff(t *testing.T) {
 	t.Parallel()
@@ -25,5 +30,29 @@ func TestFormatToolResultBodyTruncate(t *testing.T) {
 	got := formatToolResultBody(4, s, 80)
 	if got != "a..." {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// renderAssistantMarkdown is the finished-turn path (model KindAssistantFinished).
+// When disabled (e.g. OPENCLAUDE_TUI_MARKDOWN=0 → MarkdownAssist false), callers fall back to plain lipgloss body.
+func TestRenderAssistantMarkdown_disabled(t *testing.T) {
+	t.Parallel()
+	if got := renderAssistantMarkdown(80, "# Title", false, "dark"); got != "" {
+		t.Fatalf("disabled: want empty, got %q", got)
+	}
+}
+
+func TestRenderAssistantMarkdown_enabled(t *testing.T) {
+	t.Parallel()
+	out := renderAssistantMarkdown(80, "# Title", true, "dark")
+	if !strings.Contains(ansi.Strip(out), "Title") {
+		t.Fatalf("enabled: expected heading text: %q", ansi.Strip(out))
+	}
+}
+
+func TestRenderAssistantMarkdown_whitespaceOnly(t *testing.T) {
+	t.Parallel()
+	if got := renderAssistantMarkdown(80, "  \n\t  ", true, "dark"); got != "" {
+		t.Fatalf("whitespace-only after trim: want empty, got %q", got)
 	}
 }

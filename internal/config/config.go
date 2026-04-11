@@ -44,6 +44,9 @@ func BaseURL() string {
 	if v := viper.GetString("OPENAI_BASE_URL"); v != "" {
 		return strings.TrimRight(strings.TrimSpace(v), "/")
 	}
+	if v := viper.GetString("OPENROUTER_BASE_URL"); v != "" {
+		return strings.TrimRight(strings.TrimSpace(v), "/")
+	}
 	if v := viper.GetString("provider.base_url"); v != "" {
 		return strings.TrimRight(strings.TrimSpace(v), "/")
 	}

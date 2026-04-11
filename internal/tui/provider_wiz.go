@@ -160,6 +160,15 @@ func (m *model) updateProviderWizText(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func providerWizMenuHint(w *providerwizard.Wizard, opt string) string {
+	if w.StepKind() == providerwizard.StepMenu && strings.HasPrefix(strings.TrimSpace(opt), "Default") {
+		return "Official API (no base_url in config)"
+	}
+	if w.StepKind() == providerwizard.StepMenu && strings.HasPrefix(opt, "Use ") {
+		return "From your shell environment"
+	}
+	if w.StepKind() == providerwizard.StepMenu && strings.Contains(opt, "Custom base URL") {
+		return "Type an OpenAI-compatible root URL"
+	}
 	if w.IsProviderMenu() {
 		switch strings.ToLower(strings.TrimSpace(opt)) {
 		case "openai":
@@ -174,7 +183,7 @@ func providerWizMenuHint(w *providerwizard.Wizard, opt string) string {
 			return "OpenRouter"
 		}
 	}
-	if w.IsOllamaModelMenu() && strings.HasPrefix(opt, "Other ") {
+	if w.IsModelPickMenu() && strings.HasPrefix(opt, "Other ") {
 		return "Type model name manually"
 	}
 	return ""
