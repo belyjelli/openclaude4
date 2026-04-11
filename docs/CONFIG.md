@@ -66,6 +66,15 @@ mcp:
       approval: ask        # ask | always | never — ask = confirm like other dangerous tools
       # env:                 # optional extra KEY: value pairs for the child process
       #   FOO: bar
+
+# Optional: tool permission rules (v3-style strings). Deny wins over allow.
+# Evaluated before the interactive prompt (TUI / REPL / gRPC). See docs/SECURITY.md.
+permissions:
+  allow:
+    - Bash(git:*)       # first shell token prefix
+    - FileEdit(src/*)   # file_path prefix (trailing * = prefix match)
+  deny:
+    - Bash(rm:*)        # block matching commands even if a broad allow exists
 ```
 
 ### MCP servers

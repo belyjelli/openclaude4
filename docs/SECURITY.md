@@ -16,6 +16,10 @@ File tools (`FileRead`, `FileWrite`, `FileEdit`) and directory-scoped tools (`Gr
 
 `Bash`, `FileWrite`, and `FileEdit` are marked dangerous. The stdin REPL prompts for confirmation unless `OPENCLAUDE_AUTO_APPROVE_TOOLS` is set to `1` or `true` (development convenience only).
 
+**Policy rules (`permissions.allow` / `permissions.deny` in config):** OpenClaude v4 evaluates these v3-style strings before showing a prompt. **Deny** rules take precedence over **allow**. Examples: `Bash(git:*)`, `FileWrite(docs/*)`, whole-tool `Task`, or an MCP OpenAI tool name such as `mcp_github__create_pull_request`. See [CONFIG.md](./CONFIG.md).
+
+**Session-local rules:** When session persistence is enabled, extra allow lines the user adds from the TUI or REPL are appended to `<session_id>_permissions.local.yaml` next to the session JSON under your session directory (same parent dir as the transcript file). They are merged on startup with global `permissions.allow`.
+
 Shell commands run with a **timeout** and workspace-oriented working directory; they are still **full shell** invocations—users should not auto-approve in untrusted environments.
 
 **Bash timeouts (`internal/tools/bash.go`):** default **120 seconds** per invocation; the model may pass `timeout_seconds` (capped at **600**). The timer is a `context.WithTimeout` around `sandbox.RunShell` (see `internal/sandbox/sandbox.go`). There is **no** extra OpenClaude rate limit on how often `Bash` may run; only the per-call timeout and the agent iteration cap below apply.

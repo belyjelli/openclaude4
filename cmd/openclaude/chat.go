@@ -190,6 +190,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		}
 		var autoApproveTUI atomic.Bool
 		autoApproveTUI.Store(autoApprove)
+		permEng, permStore := chatPermissionDeps(persist)
 		providers.WarmChatModelCache()
 		return tui.Run(tui.Config{
 			Ctx:            ctx,
@@ -224,6 +225,8 @@ func runChat(cmd *cobra.Command, _ []string) error {
 				}
 				return nil
 			},
+			PermissionEngine: permEng,
+			PermissionStore:  permStore,
 			Slash: func(line string) (string, bool, error) {
 				var out bytes.Buffer
 				err := handleSlashLine(line, chatState{
@@ -252,23 +255,33 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	_ = startupbanner.Write(os.Stderr, client, version, mcpLine, "")
 
 	reader := bufio.NewReader(os.Stdin)
+	permEng, permStore := chatPermissionDeps(persist)
 
 	agent = &core.Agent{
 		Client:   live.Client(),
 		Registry: reg,
 		Out:      os.Stdout,
-		Confirm: func(toolName string, args map[string]any) bool {
-			if autoApprove {
-				_, _ = fmt.Fprintf(os.Stderr, "[auto-approved] %s\n", toolName)
-				return true
+		PermissionPolicy: func(n string, a map[string]any) (core.PermissionOutcome, bool, string) {
+			return permEng.Eval(n, a)
+		},
+		Confirm: func(toolName string, args map[string]any) core.PermissionOutcome {
+			if autoApprove || replSessionAuto.Load() {
+				if autoApprove {
+					_, _ = fmt.Fprintf(os.Stderr, "[auto-approved] %s\n", toolName)
+				}
+				return core.AllowPermission()
 			}
-			_, _ = fmt.Fprintf(os.Stderr, "Approve tool %q with args %s? [y/N]: ", toolName, core.FormatToolArgsForLog(args))
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				return false
+			o := replConfirm(reader, toolName, args)
+			if permStore != nil && len(o.AddAllowRules) > 0 {
+				_ = permStore.AppendAllow(o.AddAllowRules)
 			}
-			line = strings.TrimSpace(strings.ToLower(line))
-			return line == "y" || line == "yes"
+			if len(o.AddAllowRules) > 0 {
+				permEng.AppendAllow(o.AddAllowRules)
+			}
+			if o.EnableSessionAutoApprove {
+				replSessionAuto.Store(true)
+			}
+			return o
 		},
 	}
 	live.BindAgent(agent)
@@ -397,13 +410,13 @@ func runPrintTurn(
 		Client:   client,
 		Registry: reg,
 		Out:      io.Discard,
-		Confirm: func(toolName string, args map[string]any) bool {
+		Confirm: func(toolName string, args map[string]any) core.PermissionOutcome {
 			if autoApprove {
 				_, _ = fmt.Fprintf(os.Stderr, "[auto-approved] %s\n", toolName)
-				return true
+				return core.AllowPermission()
 			}
 			_, _ = fmt.Fprintf(os.Stderr, "[print mode] skipping tool %q (set OPENCLAUDE_AUTO_APPROVE_TOOLS=1 to allow)\n", toolName)
-			return false
+			return core.DenyPermission("")
 		},
 	}
 	if len(parts) == 1 && parts[0].Type == sdk.ChatMessagePartTypeText {

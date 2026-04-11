@@ -391,13 +391,14 @@ func (g *permGate) waitOutcome(ctx context.Context, send func(*openclaudev4.Serv
 		summary = toolName + " — " + argsJSON
 	}
 	rhint := "dangerous_tool"
+	sumPtr, rhPtr := summary, rhint
 	_ = send(&openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_PermissionRequired{PermissionRequired: &openclaudev4.PermissionRequired{
-		PromptId:      id,
-		ToolName:      toolName,
-		ArgumentsJson: argsJSON,
-		Question:      q,
-		Summary:       &summary,
-		ReasonHint:    &rhint,
+		PromptId:        id,
+		ToolName:        toolName,
+		ArgumentsJson:   argsJSON,
+		Question:        q,
+		Summary:         &sumPtr,
+		ReasonHint:      &rhPtr,
 	}}})
 
 	select {
@@ -498,14 +499,18 @@ func serverMessageFromEvent(e core.Event, tl *turnLocal) *openclaudev4.ServerMes
 		if tl != nil {
 			pid = tl.takePermPromptID()
 		}
-		dn := e.PermissionDeclineNote
-		sa := e.PermissionSessionAutoApprove
 		ack := &openclaudev4.PermissionAck{
-			PromptId:               pid,
-			Approved:               e.PermissionApproved,
-			DeclineNote:            &dn,
-			RulesAdded:             append([]string(nil), e.PermissionRulesAdded...),
-			SessionAutoApprove:     &sa,
+			PromptId:   pid,
+			Approved:   e.PermissionApproved,
+			RulesAdded: append([]string(nil), e.PermissionRulesAdded...),
+		}
+		if e.PermissionDeclineNote != "" {
+			s := e.PermissionDeclineNote
+			ack.DeclineNote = &s
+		}
+		if e.PermissionSessionAutoApprove {
+			v := true
+			ack.SessionAutoApprove = &v
 		}
 		return &openclaudev4.ServerMessage{Event: &openclaudev4.ServerMessage_PermissionAck{PermissionAck: ack}}
 	case core.KindToolResult:

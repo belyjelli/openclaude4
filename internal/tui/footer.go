@@ -16,7 +16,7 @@ const (
 	// promptChromeLines is the exact row count below the transcript for: top rule, input, bottom rule, footer hint.
 	promptChromeLines = 4
 	// permPanelReserveLines approximates the permission modal height for viewport budgeting.
-	permPanelReserveLines = 15
+	permPanelReserveLines = 22
 	// pwizPanelReserveLines approximates the provider wizard panel (menu + hints + border).
 	pwizPanelReserveLines = 16
 )

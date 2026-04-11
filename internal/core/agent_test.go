@@ -492,6 +492,74 @@ func TestRunUserTurn_UserDeclinesDangerousTool(t *testing.T) {
 	}
 }
 
+func TestRunUserTurn_UserDeclinesDangerousToolWithNote(t *testing.T) {
+	tmp := t.TempDir()
+	bashArgs, err := json.Marshal(map[string]string{"command": "echo x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	toolChunk := sdk.ChatCompletionStreamResponse{
+		Choices: []sdk.ChatCompletionStreamChoice{{
+			Index: 0,
+			Delta: sdk.ChatCompletionStreamChoiceDelta{
+				ToolCalls: []sdk.ToolCall{{
+					Index: ptrIdx(0), ID: "call_bash", Type: sdk.ToolTypeFunction,
+					Function: sdk.FunctionCall{Name: "Bash", Arguments: string(bashArgs)},
+				}},
+			},
+		}},
+	}
+	finishTools := sdk.ChatCompletionStreamResponse{
+		Choices: []sdk.ChatCompletionStreamChoice{
+			{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{}, FinishReason: sdk.FinishReasonToolCalls},
+		},
+	}
+	textChunks := sseBody(
+		sdk.ChatCompletionStreamResponse{
+			Choices: []sdk.ChatCompletionStreamChoice{
+				{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{Content: "ok"}},
+			},
+		},
+		sdk.ChatCompletionStreamResponse{
+			Choices: []sdk.ChatCompletionStreamChoice{
+				{Index: 0, Delta: sdk.ChatCompletionStreamChoiceDelta{}, FinishReason: sdk.FinishReasonStop},
+			},
+		},
+	)
+	var n atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		switch n.Add(1) {
+		case 1:
+			_, _ = w.Write(sseBody(toolChunk, finishTools))
+		case 2:
+			_, _ = w.Write(textChunks)
+		default:
+			t.Error("unexpected request")
+		}
+	}))
+	t.Cleanup(srv.Close)
+	ctx := tools.WithWorkDir(context.Background(), tmp)
+	reg := tools.NewRegistry()
+	reg.Register(tools.Bash{})
+	agent := &Agent{
+		Client:   newTestStreamClient(t, srv),
+		Registry: reg,
+		Out:      io.Discard,
+		Confirm: func(string, map[string]any) PermissionOutcome {
+			return DenyPermission("please use a safer command")
+		},
+	}
+	var messages []sdk.ChatCompletionMessage
+	if err := agent.RunUserTurn(ctx, &messages, "run"); err != nil {
+		t.Fatal(err)
+	}
+	body := messages[3].Content
+	if !strings.Contains(body, "declined") || !strings.Contains(body, "safer command") {
+		t.Fatalf("expected decline + note, got %q", body)
+	}
+}
+
 func TestRunUserTurn_MaxIterations(t *testing.T) {
 	tmp := t.TempDir()
 	if err := os.WriteFile(filepath.Join(tmp, "f.txt"), []byte("x"), 0o600); err != nil {

@@ -81,3 +81,19 @@ func TestModel_OpenAIUsesOPENAI_MODEL(t *testing.T) {
 		t.Fatalf("Model() = %q, want gpt-4o", got)
 	}
 }
+
+func TestPermissionsFromViper(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	viper.Set("permissions", map[string]any{
+		"allow": []any{" Bash(x:*) ", "Task"},
+		"deny":  []any{"Bash(rm:*)"},
+	})
+	a, d := PermissionsFromViper()
+	if len(a) != 2 || a[0] != "Bash(x:*)" || a[1] != "Task" {
+		t.Fatalf("allow = %#v", a)
+	}
+	if len(d) != 1 || d[0] != "Bash(rm:*)" {
+		t.Fatalf("deny = %#v", d)
+	}
+}
