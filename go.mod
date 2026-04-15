@@ -16,7 +16,7 @@ require (
 	github.com/sashabaranov/go-openai v1.41.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
-	github.com/yuin/goldmark v1.7.13
+	github.com/yuin/goldmark v1.8.2
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/net v0.53.0
 	google.golang.org/grpc v1.80.0
