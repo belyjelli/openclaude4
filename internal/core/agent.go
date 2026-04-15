@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gitlawb/openclaude4/internal/apialign"
+	"github.com/gitlawb/openclaude4/internal/bashv2"
 	"github.com/gitlawb/openclaude4/internal/hooks"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
@@ -237,14 +238,29 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 			if tool.IsDangerous() {
 				skipConfirm := false
 				if name == "Bash" {
-					cmd, _ := args["command"].(string)
-					if tools.IsBashReadOnlyNoConfirm(cmd) {
-						skipConfirm = true
+					if bs := bashv2.FromContext(ctx); bs != nil {
+						gr := bs.Gate(ctx, tools.WorkDir(ctx), args)
+						switch gr.Phase {
+						case bashv2.PhaseDeny:
+							msg := strings.TrimSpace(gr.Message)
+							if msg == "" {
+								msg = "Bash command rejected by validation or policy."
+							}
+							*messages = append(*messages, toolResultMessage(tc.ID, name, "", errors.New(msg)))
+							a.emit(Event{
+								Kind:           KindToolResult,
+								ToolCallID:     tc.ID,
+								ToolName:       name,
+								ToolExecError:  msg,
+								ToolResultText: "",
+							})
+							continue
+						case bashv2.PhaseAllow:
+							skipConfirm = true
+						}
 					}
 				}
-				if skipConfirm {
-					// Read-only allowlisted bash: no prompt.
-				} else {
+				if !skipConfirm {
 					var permOutcome PermissionOutcome
 					permHandled := false
 					permReason := ""
@@ -309,7 +325,20 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 				"tool_input": args,
 			})
 
-			result, err := tool.Execute(ctx, args)
+			execCtx := tools.WithToolCallID(ctx, tc.ID)
+			if a.OnEvent != nil {
+				execCtx = bashv2.WithStreamHook(execCtx, func(toolCallID, chunk string, totalBytes int) {
+					a.emit(Event{
+						Kind:                 KindToolOutputDelta,
+						ToolCallID:           toolCallID,
+						TextChunk:            chunk,
+						ToolOutputTotalBytes: totalBytes,
+						ToolName:             name,
+					})
+				})
+			}
+
+			result, err := tool.Execute(execCtx, args)
 			*messages = append(*messages, toolResultMessage(tc.ID, name, result, err))
 			ev := Event{
 				Kind:           KindToolResult,

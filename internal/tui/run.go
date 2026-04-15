@@ -5,7 +5,10 @@ import (
 	"io"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gitlawb/openclaude4/internal/bashv2"
+	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
+	"github.com/gitlawb/openclaude4/internal/tools"
 )
 
 // Run starts the Bubble Tea UI, wiring the agent to kernel events only (stdout from the model is discarded).
@@ -13,6 +16,23 @@ func Run(cfg Config) error {
 	if cfg.Ctx == nil {
 		cfg.Ctx = context.Background()
 	}
+	var policy bashv2.PolicyHook
+	if cfg.PermissionEngine != nil {
+		eng := cfg.PermissionEngine
+		policy = func(toolName string, a map[string]any) (decided bool, allow bool, reason string) {
+			o, ok, tag := eng.Eval(toolName, a)
+			if !ok {
+				return false, false, ""
+			}
+			return true, o.Allow, tag
+		}
+	}
+	bashSess := bashv2.NewSession(bashv2.SessionOpts{
+		Config:                config.BashV2(),
+		Policy:                policy,
+		SafeReadOnlyNoConfirm: tools.IsBashReadOnlyNoConfirm,
+	})
+	cfg.Ctx = bashv2.WithSession(cfg.Ctx, bashSess)
 	pb := newPermBridge(cfg.Ctx, cfg.AutoApprove)
 
 	var agent *core.Agent

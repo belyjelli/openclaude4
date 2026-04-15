@@ -13,10 +13,22 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gitlawb/openclaude4/internal/bashv2"
 	"github.com/gitlawb/openclaude4/internal/session"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	sdk "github.com/sashabaranov/go-openai"
 )
+
+func bashTestSessionCtx(t *testing.T, dir string) context.Context {
+	t.Helper()
+	cfg := bashv2.DefaultConfig()
+	cfg.SandboxDisabled = true
+	ctx := tools.WithWorkDir(context.Background(), dir)
+	return bashv2.WithSession(ctx, bashv2.NewSession(bashv2.SessionOpts{
+		Config:                cfg,
+		SafeReadOnlyNoConfirm: tools.IsBashReadOnlyNoConfirm,
+	}))
+}
 
 // testChatReq is the subset of the OpenAI chat completion request we assert in tests.
 type testChatReq struct {
@@ -466,7 +478,7 @@ func TestRunUserTurn_UserDeclinesDangerousTool(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	ctx := tools.WithWorkDir(context.Background(), tmp)
+	ctx := bashTestSessionCtx(t, tmp)
 	reg := tools.NewRegistry()
 	reg.Register(tools.Bash{})
 
@@ -539,7 +551,7 @@ func TestRunUserTurn_UserDeclinesDangerousToolWithNote(t *testing.T) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	ctx := tools.WithWorkDir(context.Background(), tmp)
+	ctx := bashTestSessionCtx(t, tmp)
 	reg := tools.NewRegistry()
 	reg.Register(tools.Bash{})
 	agent := &Agent{

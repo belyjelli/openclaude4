@@ -1013,6 +1013,9 @@ func (m *model) applyKernel(e core.Event) {
 			}
 		}
 		m.commitLine(indentTranscriptLines(e.SubTaskDepth, hdr+"\n"+dimStyle.Render(args)))
+	case core.KindToolOutputDelta:
+		// Streaming tool output: refresh activity time only (avoid flooding transcript).
+		m.lastStreamChange = time.Now()
 	case core.KindPermissionPrompt:
 		// Interactive modal is driven by permPromptMsg from Confirm; no extra line.
 	case core.KindPermissionResult:

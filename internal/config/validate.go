@@ -28,5 +28,11 @@ func Validate() error {
 	if raw == "codex" {
 		return providererrs.ErrCodexNotImplemented
 	}
+	ds := strings.ToLower(strings.TrimSpace(viper.GetString("bashv2.darwinSandbox")))
+	switch ds {
+	case "", "best_effort", "required", "off":
+	default:
+		return fmt.Errorf("bashv2.darwinSandbox: unknown value %q (use best_effort, required, or off)", viper.GetString("bashv2.darwinSandbox"))
+	}
 	return nil
 }

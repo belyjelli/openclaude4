@@ -30,5 +30,12 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # Bubblewrap is required for bash v2 sandbox integration tests (internal/bashv2/bwrap_linux_test.go).
+      - name: Install bubblewrap
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap
+          command -v bwrap
+
       - name: Test
         run: go test ./...

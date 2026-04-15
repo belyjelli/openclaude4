@@ -3,21 +3,19 @@ package tools
 import (
 	"context"
 	"fmt"
-	"strings"
-	"time"
 
-	"github.com/gitlawb/openclaude4/internal/sandbox"
+	"github.com/gitlawb/openclaude4/internal/bashv2"
 )
 
-// Bash runs a shell command under the workspace with a timeout.
+// Bash runs a shell command under the workspace with the bash v2 pipeline (snapshot, sandbox, output shaping).
 type Bash struct{}
 
 func (Bash) Name() string      { return "Bash" }
 func (Bash) IsDangerous() bool { return true }
 func (Bash) Description() string {
-	return "Run a shell command (sh -c on Unix, cmd /C on Windows). Optional cwd relative to workspace. Output is merged stdout+stderr. " +
-		"For local repository work use git; for GitHub (issues, PRs, checks, releases, API-shaped data) use the gh CLI when available. " +
-		"Read-only gh, docker, and connect-cli commands that match the built-in allowlist (same idea as OpenClaude v3 for gh/docker) can run without an extra dangerous-tool approval prompt."
+	return "Run a shell command (bash v2: validated, sandboxed on Linux with bubblewrap when available, merged stdout+stderr). " +
+		"Optional cwd relative to workspace. Read-only gh/docker/connect/ss/netstat patterns may auto-approve when policy allows. " +
+		"Configure under `bashv2:` in openclaude.yaml."
 }
 
 func (Bash) Parameters() map[string]any {
@@ -34,7 +32,7 @@ func (Bash) Parameters() map[string]any {
 			},
 			"timeout_seconds": map[string]any{
 				"type":        "number",
-				"description": "Timeout in seconds (default 120, max 600)",
+				"description": "Timeout in seconds (default 120, max from bashv2.maxTimeoutSeconds)",
 			},
 		},
 		"required": []string{"command"},
@@ -42,50 +40,17 @@ func (Bash) Parameters() map[string]any {
 }
 
 func (Bash) Execute(ctx context.Context, args map[string]any) (string, error) {
-	cmdStr, _ := args["command"].(string)
-	if cmdStr == "" {
-		return "", fmt.Errorf("command is required")
+	s := bashv2.FromContext(ctx)
+	if s == nil {
+		return "", fmt.Errorf("Bash tool requires a bash v2 session on the context (internal wiring error)")
 	}
-	cmdStr = stripBashCommentLines(cmdStr)
-
 	absRoot, err := resolveUnderWorkdir(ctx, ".")
 	if err != nil {
 		return "", err
 	}
-	cwd := absRoot
-	if c, ok := args["cwd"].(string); ok && c != "" {
-		cwd, err = resolveUnderWorkdir(ctx, c)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	sec := 120.0
-	if v, ok := args["timeout_seconds"].(float64); ok && v > 0 {
-		sec = v
-	}
-	if sec > 600 {
-		sec = 600
-	}
-	execCtx, cancel := context.WithTimeout(ctx, time.Duration(sec)*time.Second)
-	defer cancel()
-
-	return sandbox.RunShell(execCtx, cmdStr, cwd)
-}
-
-// stripBashCommentLines removes full-line # comments (OpenClaude v3 bashPermissions stripCommentLines).
-// If every line would be removed, returns the original command unchanged.
-func stripBashCommentLines(command string) string {
-	lines := strings.Split(command, "\n")
-	var kept []string
-	for _, line := range lines {
-		t := strings.TrimSpace(line)
-		if t != "" && !strings.HasPrefix(t, "#") {
-			kept = append(kept, line)
-		}
-	}
-	if len(kept) == 0 {
-		return command
-	}
-	return strings.Join(kept, "\n")
+	return s.Execute(ctx, bashv2.ExecuteInput{
+		ToolCallID: ToolCallID(ctx),
+		Args:       args,
+		Workspace:  absRoot,
+	})
 }

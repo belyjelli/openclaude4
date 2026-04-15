@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gitlawb/openclaude4/internal/bashv2"
 	"github.com/gitlawb/openclaude4/internal/chatlive"
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
@@ -27,6 +28,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/skills"
 	"github.com/gitlawb/openclaude4/internal/startupbanner"
 	"github.com/gitlawb/openclaude4/internal/tools"
+	"github.com/gitlawb/openclaude4/internal/toolpolicy"
 	"github.com/gitlawb/openclaude4/internal/tui"
 	sdk "github.com/sashabaranov/go-openai"
 	"github.com/spf13/cobra"
@@ -299,6 +301,18 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			return o
 		},
 	}
+	bashSess := bashv2.NewSession(bashv2.SessionOpts{
+		Config: config.BashV2(),
+		Policy: func(toolName string, a map[string]any) (decided bool, allow bool, reason string) {
+			o, ok, tag := permEng.Eval(toolName, a)
+			if !ok {
+				return false, false, ""
+			}
+			return true, o.Allow, tag
+		},
+		SafeReadOnlyNoConfirm: tools.IsBashReadOnlyNoConfirm,
+	})
+	ctx = bashv2.WithSession(ctx, bashSess)
 	live.BindAgent(agent)
 	providers.WarmChatModelCache()
 
@@ -433,6 +447,21 @@ func runPrintTurn(
 	if err := beforeUserTurn(); err != nil {
 		return err
 	}
+
+	allowG, denyG := config.PermissionsFromViper()
+	permEng := toolpolicy.NewEngine(allowG, denyG)
+	bashSess := bashv2.NewSession(bashv2.SessionOpts{
+		Config: config.BashV2(),
+		Policy: func(toolName string, a map[string]any) (decided bool, allow bool, reason string) {
+			o, ok, tag := permEng.Eval(toolName, a)
+			if !ok {
+				return false, false, ""
+			}
+			return true, o.Allow, tag
+		},
+		SafeReadOnlyNoConfirm: tools.IsBashReadOnlyNoConfirm,
+	})
+	ctx = bashv2.WithSession(ctx, bashSess)
 
 	expanded, err := mentions.ExpandUserText(ctx, prompt, mentions.Deps{MCP: mcpMgr, Agents: agentProfiles})
 	if err != nil {

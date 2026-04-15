@@ -94,13 +94,14 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 
 	subDepth := parent.EventSubTaskDepth + 1
 	sub := &Agent{
-		Client:            subClient,
-		Registry:          childReg,
-		Confirm:           parent.Confirm,
-		Out:               io.Discard,
-		MaxIterations:     subMax,
-		OnEvent:           parent.OnEvent,
-		EventSubTaskDepth: subDepth,
+		Client:             subClient,
+		Registry:           childReg,
+		Confirm:            parent.Confirm,
+		PermissionPolicy:   parent.PermissionPolicy,
+		Out:                io.Discard,
+		MaxIterations:      subMax,
+		OnEvent:            parent.OnEvent,
+		EventSubTaskDepth:  subDepth,
 	}
 
 	userText := goal

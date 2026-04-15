@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/gitlawb/openclaude4/internal/bashv2"
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/core/mentions"
@@ -256,6 +257,18 @@ func (s *AgentService) Chat(stream grpc.BidiStreamingServer[openclaudev4.ClientM
 					)
 
 					permEng, permStore := grpcPermissionEngine(activeStore, persist)
+					bashSess := bashv2.NewSession(bashv2.SessionOpts{
+						Config: config.BashV2(),
+						Policy: func(toolName string, a map[string]any) (decided bool, allow bool, reason string) {
+							o, ok, tag := permEng.Eval(toolName, a)
+							if !ok {
+								return false, false, ""
+							}
+							return true, o.Allow, tag
+						},
+						SafeReadOnlyNoConfirm: tools.IsBashReadOnlyNoConfirm,
+					})
+					turnCtx = bashv2.WithSession(turnCtx, bashSess)
 					rawWait := func(toolName string, args map[string]any) core.PermissionOutcome {
 						if s.Kernel.AutoApprove {
 							return core.AllowPermission()

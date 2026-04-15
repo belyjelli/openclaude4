@@ -14,6 +14,8 @@ const (
 	KindModelRefusal EventKind = "model_refusal"
 	// KindToolCall is emitted once per tool invocation with a complete id/name/arguments.
 	KindToolCall EventKind = "tool_call"
+	// KindToolOutputDelta streams merged stdout/stderr fragments for long-running tools (e.g. Bash v2).
+	KindToolOutputDelta EventKind = "tool_output_delta"
 	// KindPermissionPrompt is emitted immediately before blocking on [ConfirmTool] for a dangerous tool.
 	KindPermissionPrompt EventKind = "permission_prompt"
 	// KindPermissionResult reports whether the user approved the pending dangerous tool.
@@ -68,6 +70,9 @@ type Event struct {
 	// ToolResult (content matches what is sent back to the model)
 	ToolResultText string `json:"toolResultText,omitempty"`
 	ToolExecError  string `json:"toolExecError,omitempty"`
+
+	// ToolOutputDelta (KindToolOutputDelta): incremental tool stdout/stderr.
+	ToolOutputTotalBytes int `json:"toolOutputTotalBytes,omitempty"`
 }
 
 // EventHandler receives kernel events. Implementations must return quickly; do not call RunUserTurn from here.
