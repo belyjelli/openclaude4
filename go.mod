@@ -3,13 +3,14 @@ module github.com/gitlawb/openclaude4
 go 1.26.1
 
 require (
+	github.com/OpenRouterTeam/go-sdk v0.3.0
 	github.com/alecthomas/chroma/v2 v2.20.0
 	github.com/bmatcuk/doublestar/v4 v4.8.1
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/charmbracelet/x/ansi v0.11.6
-	github.com/mattn/go-isatty v0.0.20
+	github.com/mattn/go-isatty v0.0.21
 	github.com/modelcontextprotocol/go-sdk v1.5.0
 	github.com/muesli/termenv v0.16.0
 	github.com/sashabaranov/go-openai v1.41.2
@@ -20,10 +21,10 @@ require (
 	golang.org/x/net v0.49.0
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
+	mvdan.cc/sh/v3 v3.13.1
 )
 
 require (
-	github.com/OpenRouterTeam/go-sdk v0.3.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
@@ -60,5 +61,4 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect
-	mvdan.cc/sh/v3 v3.13.1 // indirect
 )
