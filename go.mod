@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/OpenRouterTeam/go-sdk v0.3.0
-	github.com/alecthomas/chroma/v2 v2.20.0
+	github.com/alecthomas/chroma/v2 v2.23.1
 	github.com/bmatcuk/doublestar/v4 v4.8.1
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
