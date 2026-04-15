@@ -17,9 +17,10 @@ import (
 
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/ghstatus"
+	"github.com/gitlawb/openclaude4/internal/mcp"
 	"github.com/gitlawb/openclaude4/internal/providers"
-	"github.com/gitlawb/openclaude4/internal/tools"
 	"github.com/gitlawb/openclaude4/internal/startupbanner"
+	"github.com/gitlawb/openclaude4/internal/tools"
 	"github.com/mattn/go-isatty"
 )
 
@@ -130,11 +131,15 @@ func PrintDoctorReport(w io.Writer, ver, cmt string) {
 
 	_, _ = fmt.Fprintf(w, "%s\n", providers.PingProviderBestEffort())
 
-	mcpSrv := config.MCPServers()
+	mcpSrv, mcpSrc, _ := mcp.ResolveFromEnvironment()
 	if len(mcpSrv) == 0 {
-		_, _ = fmt.Fprintln(w, "MCP (config): no servers in mcp.servers")
+		_, _ = fmt.Fprintln(w, "MCP (effective): no servers configured")
 	} else {
-		_, _ = fmt.Fprintf(w, "MCP (config): %d server(s)\n", len(mcpSrv))
+		src := "v2"
+		if mcpSrc == mcp.SourceLegacy {
+			src = "legacy mcp.servers"
+		}
+		_, _ = fmt.Fprintf(w, "MCP (effective, %s): %d server(s)\n", src, len(mcpSrv))
 		for _, s := range mcpSrv {
 			cmd0 := ""
 			if len(s.Command) > 0 {
@@ -162,8 +167,8 @@ func PrintDoctorReport(w io.Writer, ver, cmt string) {
 }
 
 func mcpDoctorSummaryLine() string {
-	cfg := config.MCPServers()
-	if len(cfg) == 0 {
+	cfg, _, err := mcp.ResolveFromEnvironment()
+	if err != nil || len(cfg) == 0 {
 		return ""
 	}
 	return fmt.Sprintf("MCP: %d server(s) in config — /mcp list", len(cfg))

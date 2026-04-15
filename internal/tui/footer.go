@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/gitlawb/openclaude4/internal/mcpclient"
+	"github.com/gitlawb/openclaude4/internal/mcp"
 	"github.com/gitlawb/openclaude4/internal/session"
 	sdk "github.com/sashabaranov/go-openai"
 )
@@ -37,7 +37,7 @@ func autoApproveEnabled(auto *atomic.Bool) bool {
 }
 
 // buildFooterLeft returns the permission-style left segment (plain text before styling).
-func buildFooterLeft(autoOn bool, mcp *mcpclient.Manager) string {
+func buildFooterLeft(autoOn bool, mcp *mcp.Manager) string {
 	var b strings.Builder
 	if autoOn {
 		b.WriteString("⏵⏵ accept edits on (shift+tab to cycle)")
@@ -51,7 +51,7 @@ func buildFooterLeft(autoOn bool, mcp *mcpclient.Manager) string {
 	return b.String()
 }
 
-func mcpNonAskSummary(mcp *mcpclient.Manager) string {
+func mcpNonAskSummary(mcp *mcp.Manager) string {
 	if mcp == nil || len(mcp.Servers) == 0 {
 		return ""
 	}

@@ -1,4 +1,4 @@
-package mcpclient
+package mcp
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/tools"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -43,7 +42,7 @@ func (s ServerTools) Approval() string { return s.approval }
 
 // ConnectAndRegister starts stdio MCP servers from cfg, lists tools (with pagination), and registers them on reg.
 // Servers that fail to start are skipped; messages are written to log (e.g. os.Stderr).
-func ConnectAndRegister(ctx context.Context, reg *tools.Registry, servers []config.MCPServer, log io.Writer) *Manager {
+func ConnectAndRegister(ctx context.Context, reg *tools.Registry, servers []ServerConfig, log io.Writer) *Manager {
 	if len(servers) == 0 {
 		return &Manager{}
 	}
@@ -58,10 +57,19 @@ func ConnectAndRegister(ctx context.Context, reg *tools.Registry, servers []conf
 	}
 
 	for _, srv := range servers {
+		if len(srv.Command) == 0 {
+			continue
+		}
+		tport := strings.ToLower(strings.TrimSpace(srv.Transport))
+		if tport != "" && tport != "stdio" {
+			_, _ = fmt.Fprintf(OrDiscard(log), "mcp: server %q: transport %q is not supported yet (only stdio)\n", srv.Name, srv.Transport)
+			continue
+		}
+
 		cmd := exec.CommandContext(ctx, srv.Command[0], srv.Command[1:]...)
 		cmd.Env = os.Environ()
 		for k, v := range srv.Env {
-			cmd.Env = append(cmd.Env, k+"="+v)
+			cmd.Env = append(cmd.Env, k+"="+expandEnvVal(v))
 		}
 		cmd.Stderr = os.Stderr
 		if log != nil && log != os.Stderr {
@@ -137,6 +145,15 @@ func ConnectAndRegister(ctx context.Context, reg *tools.Registry, servers []conf
 		})
 	}
 	return m
+}
+
+func expandEnvVal(s string) string {
+	return os.Expand(s, func(key string) string {
+		if v, ok := os.LookupEnv(key); ok {
+			return v
+		}
+		return os.Getenv(key)
+	})
 }
 
 // OrDiscard returns w or io.Discard if w is nil.

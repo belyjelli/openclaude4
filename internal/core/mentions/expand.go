@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/gitlawb/openclaude4/internal/config"
-	"github.com/gitlawb/openclaude4/internal/mcpclient"
+	"github.com/gitlawb/openclaude4/internal/mcp"
 	"github.com/gitlawb/openclaude4/internal/tools"
 )
 
@@ -19,7 +19,7 @@ const maxDirEntries = 1000
 
 // Deps carries optional services for mention expansion.
 type Deps struct {
-	MCP    *mcpclient.Manager
+	MCP    *mcp.Manager
 	Agents []config.AgentProfile // optional; when non-empty, @agent-… / @"… (agent)" must resolve or expansion errors
 }
 
@@ -187,7 +187,7 @@ func sliceLines(text string, start, end int) string {
 	return strings.Join(chunk, "\n")
 }
 
-func expandMCPKey(ctx context.Context, m *mcpclient.Manager, server, uri, rawKey string) (section string, byteLen int, err error) {
+func expandMCPKey(ctx context.Context, m *mcp.Manager, server, uri, rawKey string) (section string, byteLen int, err error) {
 	text, err := m.ReadResourceText(ctx, server, uri)
 	if err != nil {
 		return "", 0, fmt.Errorf("@%s: %w", rawKey, err)

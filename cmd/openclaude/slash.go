@@ -12,7 +12,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/chatlive"
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
-	"github.com/gitlawb/openclaude4/internal/mcpclient"
+	"github.com/gitlawb/openclaude4/internal/mcp"
 	"github.com/gitlawb/openclaude4/internal/session"
 	"github.com/gitlawb/openclaude4/internal/skills"
 	"github.com/gitlawb/openclaude4/internal/tui"
@@ -24,7 +24,7 @@ var errSlashExitChat = errors.New("slash exit chat")
 
 type chatState struct {
 	messages                *[]sdk.ChatCompletionMessage
-	mcpMgr                  *mcpclient.Manager
+	mcpMgr                  *mcp.Manager
 	client                  core.StreamClient
 	live                    *chatlive.LiveChat
 	persist                 *chatPersist

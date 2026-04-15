@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/gitlawb/openclaude4/internal/mcpclient"
+	"github.com/gitlawb/openclaude4/internal/mcp"
 	"github.com/gitlawb/openclaude4/internal/providers"
 )
 
@@ -565,7 +565,7 @@ func (m *model) fillSkillOverlay(val string, ts, te int, token string) {
 	m.clampSlashSel()
 }
 
-func mcpResourceEntryHint(r mcpclient.MCPResource) string {
+func mcpResourceEntryHint(r mcp.MCPResource) string {
 	label := strings.TrimSpace(r.Title)
 	if label == "" {
 		label = strings.TrimSpace(r.Name)

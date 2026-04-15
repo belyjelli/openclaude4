@@ -173,10 +173,9 @@ func runProviderInteractiveWizard(st chatState, out io.Writer, in io.Reader, cli
 				}
 				continue
 			}
-			if w.IsModelPickMenu() {
-				if !w.ParseModelMenuInput(line) {
-					_, _ = fmt.Fprintf(out, "Try a number 1–%d, or b to go back.\n", len(w.MenuOptions()))
-				}
+			// Base URL menus and model-pick menus are all numbered StepMenu screens.
+			if !w.ParseModelMenuInput(line) {
+				_, _ = fmt.Fprintf(out, "Try a number 1–%d, or b to go back.\n", len(w.MenuOptions()))
 			}
 
 		case providerwizard.StepText:

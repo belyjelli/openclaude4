@@ -13,7 +13,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
 	ocrpc "github.com/gitlawb/openclaude4/internal/grpc"
-	"github.com/gitlawb/openclaude4/internal/mcpclient"
+	"github.com/gitlawb/openclaude4/internal/mcp"
 	"github.com/gitlawb/openclaude4/internal/providers"
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
 	"github.com/gitlawb/openclaude4/internal/skills"
@@ -85,7 +85,8 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		skillCat = skills.EmptyCatalog()
 	}
 	reg := tools.NewDefaultRegistry(skillCat)
-	mcpMgr := mcpclient.ConnectAndRegister(ctx, reg, config.MCPServers(), os.Stderr)
+	mcpServers, _, _ := mcp.ResolveFromEnvironment()
+	mcpMgr := mcp.ConnectAndRegister(ctx, reg, mcpServers, os.Stderr)
 	defer mcpMgr.Close()
 
 	var taskSlot atomic.Pointer[core.Agent]
@@ -112,12 +113,12 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 	gs := grpc.NewServer()
 	k := ocrpc.Kernel{
-		Client:          client,
-		Registry:        reg,
-		AutoApprove:     autoApprove,
-		TaskParent:      &taskSlot,
-		MCPManager:      mcpMgr,
-		AgentProfiles:   config.LoadAgentProfiles(),
+		Client:        client,
+		Registry:      reg,
+		AutoApprove:   autoApprove,
+		TaskParent:    &taskSlot,
+		MCPManager:    mcpMgr,
+		AgentProfiles: config.LoadAgentProfiles(),
 		Session: ocrpc.SessionOpts{
 			Disabled: config.SessionDisabled(),
 			Dir:      config.EffectiveSessionDir(),

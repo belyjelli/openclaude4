@@ -45,6 +45,8 @@ func init() {
 	rootCmd.PersistentFlags().StringP("print", "p", "", "One-shot: run a single user message, print only the final assistant reply to stdout (use -p - to read prompt from stdin). Incompatible with --tui; use OPENCLAUDE_AUTO_APPROVE_TOOLS for tools in CI")
 	rootCmd.PersistentFlags().StringSlice("image-url", nil, "HTTP(S) image URL for the next user message (vision models; repeatable). First REPL/TUI line or -p consumes.")
 	rootCmd.PersistentFlags().StringSlice("image-file", nil, "Local image path for the next user message (repeatable; max 8MiB each). First REPL/TUI line or -p consumes.")
+	rootCmd.PersistentFlags().String("mcp-config", "", "Path to extra MCP v2 config (YAML/JSON version 2); merged last in the cascade (env OPENCLAUDE_MCP_CONFIG)")
+	_ = viper.BindPFlag("mcp.config_path", rootCmd.PersistentFlags().Lookup("mcp-config"))
 
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
 		path, _ := cmd.Flags().GetString("config")

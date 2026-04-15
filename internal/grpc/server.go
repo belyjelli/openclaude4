@@ -19,7 +19,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/core/mentions"
 	"github.com/gitlawb/openclaude4/internal/grpc/openclaudev4"
-	"github.com/gitlawb/openclaude4/internal/mcpclient"
+	"github.com/gitlawb/openclaude4/internal/mcp"
 	"github.com/gitlawb/openclaude4/internal/session"
 	"github.com/gitlawb/openclaude4/internal/toolpolicy"
 	"github.com/gitlawb/openclaude4/internal/tools"
@@ -62,7 +62,7 @@ type Kernel struct {
 	// Session enables on-disk transcript load/save per stream when Disabled is false and Dir is non-empty.
 	Session SessionOpts
 	// MCPManager is optional; used to expand @server:uri mentions in user text.
-	MCPManager *mcpclient.Manager
+	MCPManager *mcp.Manager
 	// AgentProfiles optional; when set, @agent-… mentions must resolve against this catalog.
 	AgentProfiles []config.AgentProfile
 }

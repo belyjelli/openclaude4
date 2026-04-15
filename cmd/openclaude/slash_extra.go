@@ -10,6 +10,7 @@ import (
 
 	"github.com/gitlawb/openclaude4/internal/config"
 	"github.com/gitlawb/openclaude4/internal/core"
+	"github.com/gitlawb/openclaude4/internal/mcp"
 	"github.com/gitlawb/openclaude4/internal/session"
 	"github.com/gitlawb/openclaude4/internal/skills"
 	"github.com/gitlawb/openclaude4/internal/tui"
@@ -196,11 +197,13 @@ func printPermissionsSummary(out io.Writer) {
 	} else {
 		_, _ = fmt.Fprintln(out, "OPENCLAUDE_AUTO_APPROVE_TOOLS: off (dangerous tools and MCP approval=ask prompt before run)")
 	}
-	srv := config.MCPServers()
-	if len(srv) == 0 {
+	srv, _, err := mcp.ResolveFromEnvironment()
+	if err != nil {
+		_, _ = fmt.Fprintf(out, "MCP servers: (error: %v)\n", err)
+	} else if len(srv) == 0 {
 		_, _ = fmt.Fprintln(out, "MCP servers: (none in config)")
 	} else {
-		_, _ = fmt.Fprintln(out, "MCP server tool approval (config):")
+		_, _ = fmt.Fprintln(out, "MCP server tool approval (effective config):")
 		for _, s := range srv {
 			_, _ = fmt.Fprintf(out, "  %s: %s\n", s.Name, config.NormalizeMCPApproval(s.Approval))
 		}

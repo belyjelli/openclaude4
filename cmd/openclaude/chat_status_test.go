@@ -4,17 +4,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gitlawb/openclaude4/internal/mcpclient"
+	"github.com/gitlawb/openclaude4/internal/mcp"
 )
 
 func TestTuiMCPStatusFragment(t *testing.T) {
 	if s := tuiMCPStatusFragment(nil); s != "" {
 		t.Fatalf("nil: %q", s)
 	}
-	if s := tuiMCPStatusFragment(&mcpclient.Manager{}); s != "" {
+	if s := tuiMCPStatusFragment(&mcp.Manager{}); s != "" {
 		t.Fatalf("empty: %q", s)
 	}
-	m := &mcpclient.Manager{Servers: []mcpclient.ServerTools{
+	m := &mcp.Manager{Servers: []mcp.ServerTools{
 		{OpenAINames: []string{"a"}},
 		{OpenAINames: []string{"b", "c"}},
 	}}

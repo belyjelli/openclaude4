@@ -103,12 +103,13 @@ func DescribeEffectiveConfig(w io.Writer) {
 
 	srv := MCPServers()
 	if len(srv) == 0 {
-		_, _ = fmt.Fprintln(w, "  mcp.servers: (none)")
-		return
+		_, _ = fmt.Fprintln(w, "  mcp.servers (openclaude.yaml): (none)")
+	} else {
+		_, _ = fmt.Fprintf(w, "  mcp.servers (openclaude.yaml) (%d):\n", len(srv))
+		for _, s := range srv {
+			ap := NormalizeMCPApproval(s.Approval)
+			_, _ = fmt.Fprintf(w, "    - %s  approval=%s\n", s.Name, ap)
+		}
 	}
-	_, _ = fmt.Fprintf(w, "  mcp.servers (%d):\n", len(srv))
-	for _, s := range srv {
-		ap := NormalizeMCPApproval(s.Approval)
-		_, _ = fmt.Fprintf(w, "    - %s  approval=%s\n", s.Name, ap)
-	}
+	_, _ = fmt.Fprintln(w, "  mcp v2: ~/.openclaude/mcp.yaml and .mcp.v2.yaml — run: openclaude mcp list")
 }

@@ -19,7 +19,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/core/mentions"
 	"github.com/gitlawb/openclaude4/internal/hooks"
-	"github.com/gitlawb/openclaude4/internal/mcpclient"
+	"github.com/gitlawb/openclaude4/internal/mcp"
 	"github.com/gitlawb/openclaude4/internal/providers"
 	"github.com/gitlawb/openclaude4/internal/providers/openaicomp"
 	"github.com/gitlawb/openclaude4/internal/providerwizard"
@@ -112,7 +112,11 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		skillCat = skills.EmptyCatalog()
 	}
 	reg := tools.NewDefaultRegistry(skillCat)
-	mcpMgr := mcpclient.ConnectAndRegister(ctx, reg, config.MCPServers(), os.Stderr)
+	mcpServers, mcpSrc, _ := mcp.ResolveFromEnvironment()
+	if mcpSrc == mcp.SourceLegacy && len(mcpServers) > 0 {
+		mcp.WarnLegacyMCPOnce(func(s string) { _, _ = fmt.Fprint(os.Stderr, s) })
+	}
+	mcpMgr := mcp.ConnectAndRegister(ctx, reg, mcpServers, os.Stderr)
 	defer mcpMgr.Close()
 	agentProfiles := config.LoadAgentProfiles()
 
@@ -221,14 +225,14 @@ func runChat(cmd *cobra.Command, _ []string) error {
 					isBusy: func() bool { return atomic.LoadInt32(&busyFlag) != 0 },
 				}, w, nil)
 			},
-			Theme:          themeHolder,
-			VimKeys:        vimKeysHolder,
+			Theme:              themeHolder,
+			VimKeys:            vimKeysHolder,
 			ToolPreviewMax:     tuiToolPreviewMax(),
 			ToolResultMaxLines: tuiToolMaxLines(),
 			MarkdownAssist:     tuiMarkdownEnabled(),
-			ImageURLs:      pendingImgURLs,
-			ImageFiles:     pendingImgFiles,
-			BeforeUserTurn: beforeUserTurn,
+			ImageURLs:          pendingImgURLs,
+			ImageFiles:         pendingImgFiles,
+			BeforeUserTurn:     beforeUserTurn,
 			AfterTurn: func() error {
 				if persist != nil {
 					return persist.Save()
@@ -408,7 +412,7 @@ func runPrintTurn(
 	agent **core.Agent,
 	imageURLs []string,
 	imageFiles []string,
-	mcpMgr *mcpclient.Manager,
+	mcpMgr *mcp.Manager,
 	agentProfiles []config.AgentProfile,
 ) error {
 	printArg, _ := cmd.Flags().GetString("print")
@@ -617,7 +621,7 @@ func tuiAuthStatusFragment(info providers.StreamClientInfo) string {
 }
 
 // tuiMCPStatusFragment returns a short MCP summary or empty when none.
-func tuiMCPStatusFragment(m *mcpclient.Manager) string {
+func tuiMCPStatusFragment(m *mcp.Manager) string {
 	if m == nil || len(m.Servers) == 0 {
 		return ""
 	}
@@ -631,7 +635,7 @@ func tuiMCPStatusFragment(m *mcpclient.Manager) string {
 	return fmt.Sprintf("MCP %d srv", len(m.Servers))
 }
 
-func buildTUIStatusLine(client core.StreamClient, persist *chatPersist, mcp *mcpclient.Manager) string {
+func buildTUIStatusLine(client core.StreamClient, persist *chatPersist, mcp *mcp.Manager) string {
 	var b strings.Builder
 	if info, ok := providers.AsStreamClientInfo(client); ok {
 		b.WriteString(info.ProviderKind())
@@ -707,7 +711,7 @@ func tuiMarkdownEnabled() bool {
 	return v != "0" && v != "false" && v != "no"
 }
 
-func mcpSummaryLine(mcp *mcpclient.Manager) string {
+func mcpSummaryLine(mcp *mcp.Manager) string {
 	if mcp == nil || len(mcp.Servers) == 0 {
 		return ""
 	}

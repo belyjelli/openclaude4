@@ -19,7 +19,7 @@ import (
 	"github.com/gitlawb/openclaude4/internal/core"
 	"github.com/gitlawb/openclaude4/internal/core/mentions"
 	"github.com/gitlawb/openclaude4/internal/ghstatus"
-	"github.com/gitlawb/openclaude4/internal/mcpclient"
+	"github.com/gitlawb/openclaude4/internal/mcp"
 	"github.com/gitlawb/openclaude4/internal/providerwizard"
 	"github.com/gitlawb/openclaude4/internal/toolpolicy"
 	"github.com/gitlawb/openclaude4/internal/tools"
@@ -39,7 +39,7 @@ type Config struct {
 	AutoApprove *atomic.Bool
 	Banner      string
 	// MCPManager is optional; used for footer hints when servers use non-ask approval.
-	MCPManager *mcpclient.Manager
+	MCPManager *mcp.Manager
 	Slash      func(line string) (appendOut string, exitChat bool, err error)
 	// BeforeUserTurn runs before each user-authored model turn (optional; e.g. auto-compact).
 	BeforeUserTurn func() error
