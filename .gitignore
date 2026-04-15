@@ -3,3 +3,4 @@
 *.exe
 /bin/
 /occli
+/.openclaude/tmp
