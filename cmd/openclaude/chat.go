@@ -386,20 +386,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
 		}
-		if len(parts) == 1 && parts[0].Type == sdk.ChatMessagePartTypeText {
-			if len(skillAllow) > 0 {
-				err = agent.RunUserTurnScoped(ctx, &messages, parts[0].Text, skillAllow)
-			} else {
-				err = agent.RunUserTurn(ctx, &messages, parts[0].Text)
-			}
-		} else {
-			if len(skillAllow) > 0 {
-				err = agent.RunUserTurnMultiScoped(ctx, &messages, parts, skillAllow)
-			} else {
-				err = agent.RunUserTurnMulti(ctx, &messages, parts)
-			}
-		}
-		if err != nil {
+		if err := runReplTurnWithIterRecovery(ctx, reader, agent, reg, &messages, parts, skillAllow); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
 		}
@@ -412,6 +399,88 @@ func runChat(cmd *cobra.Command, _ []string) error {
 				_, _ = fmt.Fprintf(os.Stderr, "session save: %v\n", err)
 			}
 		}
+	}
+}
+
+// runReplTurnWithIterRecovery runs a user turn; on iteration limit, prompts (plain REPL) to pick ≤N tools and retries once with a scoped registry.
+func runReplTurnWithIterRecovery(
+	ctx context.Context,
+	reader *bufio.Reader,
+	agent *core.Agent,
+	reg *tools.Registry,
+	messages *[]sdk.ChatCompletionMessage,
+	parts []sdk.ChatMessagePart,
+	skillAllow []string,
+) error {
+	var err error
+	if len(parts) == 1 && parts[0].Type == sdk.ChatMessagePartTypeText {
+		if len(skillAllow) > 0 {
+			err = agent.RunUserTurnScoped(ctx, messages, parts[0].Text, skillAllow)
+		} else {
+			err = agent.RunUserTurn(ctx, messages, parts[0].Text)
+		}
+	} else {
+		if len(skillAllow) > 0 {
+			err = agent.RunUserTurnMultiScoped(ctx, messages, parts, skillAllow)
+		} else {
+			err = agent.RunUserTurnMulti(ctx, messages, parts)
+		}
+	}
+	var ile *core.IterationLimitError
+	if err == nil || !errors.As(err, &ile) {
+		return err
+	}
+	cands := tools.IterLimitPickCandidates(reg, skillAllow)
+	if len(cands) == 0 {
+		return err
+	}
+	maxTools := ile.MaxIterations
+	if maxTools <= 0 {
+		maxTools = core.DefaultMaxIterations
+	}
+	allow, ok := promptReplToolSubset(os.Stderr, reader, cands, maxTools)
+	if !ok {
+		return err
+	}
+	agent.SuppressNextUserMessageEvent = true
+	if len(parts) == 1 && parts[0].Type == sdk.ChatMessagePartTypeText {
+		return agent.RunUserTurnScoped(ctx, messages, parts[0].Text, allow)
+	}
+	return agent.RunUserTurnMultiScoped(ctx, messages, parts, allow)
+}
+
+func promptReplToolSubset(stderr io.Writer, stdin *bufio.Reader, allNames []string, maxTools int) ([]string, bool) {
+	_, _ = fmt.Fprintf(stderr, "Tool iteration limit — pick at most %d tools to send on retry (Task is always omitted in scoped retry):\n", maxTools)
+	for _, n := range allNames {
+		_, _ = fmt.Fprintf(stderr, "  - %s\n", n)
+	}
+	for {
+		_, _ = fmt.Fprintf(stderr, "\nEnter comma-separated tool names to KEEP, or q to cancel:\n> ")
+		line, err := stdin.ReadString('\n')
+		if err != nil {
+			return nil, false
+		}
+		line = strings.TrimSpace(line)
+		if line == "" || strings.EqualFold(line, "q") {
+			return nil, false
+		}
+		want := make(map[string]struct{})
+		for _, p := range strings.Split(line, ",") {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				want[p] = struct{}{}
+			}
+		}
+		var allow []string
+		for _, n := range allNames {
+			if _, ok := want[n]; ok {
+				allow = append(allow, n)
+			}
+		}
+		if len(allow) >= 1 && len(allow) <= maxTools {
+			return allow, true
+		}
+		_, _ = fmt.Fprintf(stderr, "Invalid: need 1–%d names exactly as listed above.\n", maxTools)
 	}
 }
 

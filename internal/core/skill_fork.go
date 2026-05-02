@@ -18,8 +18,8 @@ func RunSkillForked(ctx context.Context, parent *Agent, allow []string, expanded
 	if subMax <= 0 {
 		subMax = defaultTaskSubMaxIter
 	}
-	if subMax > defaultMaxIterations {
-		subMax = defaultMaxIterations
+	if subMax > DefaultMaxIterations {
+		subMax = DefaultMaxIterations
 	}
 	reg := parent.SubAgentRegistry(allow)
 	child := &Agent{

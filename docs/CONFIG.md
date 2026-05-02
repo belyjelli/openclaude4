@@ -146,6 +146,8 @@ With `--tui`, the startup banner (ANSI or plain, per the rules above) is shown *
 | `OPENCLAUDE_TUI_TOOL_MAX_LINES` | Max **lines** of each tool result painted after the rune cap (default 120; `0` = unlimited; invalid = default). When truncated, a dim hint line is appended. |
 | `OPENCLAUDE_TUI_MARKDOWN` | Set `0` / `false` / `no` for plain assistant text while **streaming** and on **finished** turns (default: Goldmark + Chroma terminal markdown). While streaming, an **unclosed** fenced code block (` ``` ` / `~~~`) is shown **plain** from its opening line until the closing fence, so the prefix above it can still render as markdown. |
 
+**Iteration limit (TUI):** if the model hits the per-message tool-loop cap (see [Timeouts, iteration limits](#timeouts-iteration-limits-and-http-behavior)), a **Tool iteration limit** panel opens: **Space** toggles tools, **↑↓** moves, **Enter** retries with only checked tools (**Esc** / **q** cancels). At most **N** tools may stay enabled, where **N** matches that agent’s iteration cap (default **24**, or `Agent.MaxIterations` when set). **Task** does not appear (scoped retry always omits it). See [SECURITY.md](./SECURITY.md#agent-and-task-iteration-caps-not-http-but-bounds-work-per-user-line).
+
 **Running registry:** each interactive chat writes `<session-dir>/running/<pid>.json` (removed on clean exit). Inspect with **`openclaude sessions`** or **`/session running`** in the REPL/TUI.
 
 **Skills (SKILL.md):**
@@ -223,8 +225,8 @@ There are **no** YAML/env knobs for these today; values are fixed in Go code. Ra
 | **`WebSearch`** | DuckDuckGo instant-answer JSON API (**15 s**, **1 MiB** cap; related topics stop around **~8000** bytes). | `internal/tools/web_search.go` |
 | **`WebFetch`** | HTTP(S) GET **20 s**, **5** redirects, **2 MiB** body; SSRF-minded URL rules; HTML→text; `max_chars` truncation. See [SECURITY.md](./SECURITY.md#built-in-http-tool-webfetch). | `internal/tools/web_fetch.go` |
 | **`SpiderScrape`** | Optional: registered only if `spider` is on `PATH`. Runs `spider … scrape` (**60 s** timeout); same URL rules as WebFetch; output cap per `max_chars`. See [SECURITY.md](./SECURITY.md#optional-subprocess-tool-spiderscrape). | `internal/tools/spider_scrape.go` |
-| **Main chat agent** | Up to **24** model↔tool rounds per user line (unless code sets `Agent.MaxIterations` > 0). | `internal/core/agent.go` (`defaultMaxIterations`) |
-| **`Task` tool** | Sub-agent default **12** rounds; `max_iterations` only honored if **0 < value < 1000**, then capped at **24**. | `internal/core/task_tool.go` |
+| **Main chat agent** | Up to **24** model↔tool rounds per user line by default (`core.DefaultMaxIterations`), unless code sets `Agent.MaxIterations` > 0. On limit: transcript for that turn is rolled back; the error is `*core.IterationLimitError`. **TUI:** tool checklist to retry with a subset (≤ cap). **Plain REPL:** stderr lists tools; enter comma-separated names to **keep**, or `q` to cancel. **gRPC:** only the error string is returned—no built-in picker. | `internal/core/agent.go`, `internal/core/agent_errors.go`, `internal/tui/tool_pick.go`, `cmd/openclaude/chat.go` (`runReplTurnWithIterRecovery`) |
+| **`Task` tool** | Sub-agent default **12** rounds; `max_iterations` only honored if **0 < value < 1000**, then capped at **24** (`core.DefaultMaxIterations`). | `internal/core/task_tool.go` |
 | **LLM HTTP** | Uses `go-openai` `DefaultConfig` with default `http.Client{}` (**no** `Timeout` in our wiring). Streams end on completion, error, or process exit—not on a fixed OpenClaude HTTP deadline. | `internal/providers/openaicomp/client.go` |
 | **`openclaude doctor` ping** | Reachability GETs use **3 s** HTTP client timeout. | `internal/providers/ping.go` |
 | **MCP `CallTool`** | Uses the chat command `context`; no separate OpenClaude timeout or rate limit. | `internal/mcpclient/manager.go` |

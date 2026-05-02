@@ -102,6 +102,7 @@ type model struct {
 	perm              *permState
 	permSel           int // index in permMenuEntries while perm != nil
 	pwiz              *providerWiz
+	toolPick          *toolPickState
 	width             int
 	height            int
 	permBr            *permBridge
@@ -331,7 +332,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.MouseMsg:
-		if m.perm == nil && m.pwiz == nil {
+		if m.perm == nil && m.pwiz == nil && m.toolPick == nil {
 			if msg.Action == tea.MouseActionPress {
 				switch msg.Button { //nolint:exhaustive
 				case tea.MouseButtonWheelUp:
@@ -361,6 +362,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.syncSuggestOverlay()
 			m.reflowLayout()
 			return m, textinput.Blink
+		}
+		if m.toolPick != nil {
+			return m.handleToolPickKey(msg)
 		}
 		if m.slashSuggestActive() {
 			switch msg.Type { //nolint:exhaustive
@@ -480,14 +484,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		vimNor := m.cfg.VimKeys != nil && m.cfg.VimKeys.Enabled() && m.vimNormal
-		if msg.Type == tea.KeyTab && !m.busy && m.perm == nil && m.pwiz == nil && !m.slashSuggestActive() && !vimNor {
+		if msg.Type == tea.KeyTab && !m.busy && m.perm == nil && m.pwiz == nil && m.toolPick == nil && !m.slashSuggestActive() && !vimNor {
 			if m.tryExpandNonSlashTab() {
 				m.syncSuggestOverlay()
 				m.reflowLayout()
 				return m, textinput.Blink
 			}
 		}
-		if !m.slashSuggestActive() && m.perm == nil && m.pwiz == nil && !m.busy {
+		if !m.slashSuggestActive() && m.perm == nil && m.pwiz == nil && m.toolPick == nil && !m.busy {
 			vimBlockHist := m.cfg.VimKeys != nil && m.cfg.VimKeys.Enabled() && m.vimNormal
 			if !vimBlockHist {
 				if msg.Type == tea.KeyUp {
@@ -559,6 +563,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.handleVimNormalKey(msg)
 			return m, textinput.Blink
 		}
+
+	case toolPickMsg:
+		m.runningTool = ""
+		m.runningToolLine = ""
+		m.pendingToolScheduleCount = 0
+		m.setBusy(false)
+		m.toolPick = newToolPickState(msg.parts, msg.hasVis, msg.candidates, msg.maxIterations)
+		m.toolPick.ensureScroll()
+		m.reflowLayout()
+		return m, textinput.Blink
 
 	case kernelMsg:
 		m.applyKernel(msg.e)
@@ -651,7 +665,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	if m.perm == nil && m.pwiz == nil {
+	if m.perm == nil && m.pwiz == nil && m.toolPick == nil {
 		oldInput := m.ti.Value()
 		m.vp, cmd = m.vp.Update(msg)
 		tiMsg := msg
@@ -917,6 +931,20 @@ func (m *model) runModelTurnFromUserText(line string) (tea.Model, tea.Cmd) {
 			}
 		}
 		if err != nil {
+			var ile *core.IterationLimitError
+			if errors.As(err, &ile) {
+				cands := toolPickCandidates(m.cfg.Registry, allow)
+				if len(cands) > 0 {
+					send(toolPickMsg{
+						parts:         parts,
+						slashAllow:    allow,
+						hasVis:        clear,
+						maxIterations: ile.MaxIterations,
+						candidates:    cands,
+					})
+					return
+				}
+			}
 			send(runTurnErrMsg{err: err})
 			return
 		}
@@ -1157,6 +1185,9 @@ func (m *model) applyLayoutSizes() {
 	if m.perm != nil {
 		footerH += permPanelReserveLines
 	}
+	if m.toolPick != nil {
+		footerH += toolPickPanelReserveLines
+	}
 	if m.pwiz != nil {
 		footerH += pwizPanelReserveLines
 	}
@@ -1281,6 +1312,12 @@ func (m *model) View() string {
 	}
 
 	var permBlock string
+	var toolPickBlock string
+	if m.toolPick != nil {
+		iw := providerWizPanelInnerW(m.width)
+		toolPickBlock = m.renderToolPickPanel(iw)
+	}
+
 	if m.perm != nil {
 		m.clampPermSel()
 		innerW := providerWizPanelInnerW(m.width)
@@ -1349,6 +1386,8 @@ func (m *model) View() string {
 	rows = append(rows, body)
 	if m.pwiz != nil {
 		rows = append(rows, m.renderProviderWizPanel())
+	} else if toolPickBlock != "" {
+		rows = append(rows, toolPickBlock)
 	} else if permBlock != "" {
 		rows = append(rows, permBlock)
 	}

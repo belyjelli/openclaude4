@@ -75,8 +75,15 @@ Chat streaming uses `github.com/sashabaranov/go-openai` with `sdk.DefaultConfig`
 
 ### Agent and `Task` iteration caps (not HTTP, but bounds work per user line)
 
-- **Main agent** (`internal/core/agent.go`): at most **24** model↔tool rounds per user message (`defaultMaxIterations`), unless `Agent.MaxIterations` is set positive.
-- **`Task` sub-agent** (`internal/core/task_tool.go`): default **12** rounds; `max_iterations` applies only when it is a positive number **strictly below 1000**, then is **capped at 24** (same constant as the main agent). Values **≥ 1000** leave the default **12** in effect.
+- **Main agent** (`internal/core/agent.go`): at most **24** model↔tool rounds per user message (`core.DefaultMaxIterations`), unless `Agent.MaxIterations` is set positive.
+- **`Task` sub-agent** (`internal/core/task_tool.go`): default **12** rounds; `max_iterations` applies only when it is a positive number **strictly below 1000**, then is **capped at 24** (`core.DefaultMaxIterations`). Values **≥ 1000** leave the default **12** in effect.
+
+When the main agent hits its iteration cap:
+
+1. **Transcript rollback** — Messages added during that failed turn (user line plus assistant/tool rounds) are removed from the in-memory/API transcript so the session is not left half-finished (`runUserTurnWithUserMessage` uses a `turnStart` snapshot).
+2. **Typed error** — Callers receive `*core.IterationLimitError` (message still reads `agent: exceeded N tool iterations`). Stream failures mid-turn use the same rollback to `turnStart`.
+3. **Interactive recovery (CLI)** — **TUI** (`--tui`): a **Tool iteration limit** dialog lists tools (see `internal/tui/tool_pick.go`); you **uncheck** tools until at most **N** remain enabled, where **N** is the agent’s iteration cap for that run (same **N** as in the error). **Enter** retries via `RunUserTurnScoped` with only those tools; **Task** is not offered (scoped sub-registry always omits it). The retry suppresses a duplicate **KindUserMessage** kernel event (`Agent.SuppressNextUserMessageEvent`). **Plain REPL**: stderr prompts for comma-separated tool names to **keep** (`cmd/openclaude/chat.go`). If the cap is hit again, the dialog or prompt can repeat (nested limits use the current allow-list as the candidate filter via `tools.IterLimitPickCandidates`).
+4. **gRPC / programmatic clients** — No server-side tool-picker UI; clients see the error and must implement their own retry or subset logic if desired.
 
 ### MCP tool calls
 

@@ -16,7 +16,8 @@ import (
 	sdk "github.com/sashabaranov/go-openai"
 )
 
-const defaultMaxIterations = 24
+// DefaultMaxIterations is the default maximum model↔tool rounds per user message.
+const DefaultMaxIterations = 24
 
 // StreamClient can start a streaming chat completion with tools.
 type StreamClient interface {
@@ -36,6 +37,8 @@ type Agent struct {
 	PermissionPolicy PermissionPolicy
 	Out              io.Writer
 	MaxIterations    int
+	// SuppressNextUserMessageEvent, when true, the next RunUserTurn* omits KindUserMessage and the user_prompt_submit hook (for silent retries).
+	SuppressNextUserMessageEvent bool
 	// EventSubTaskDepth is stamped on every emitted [Event] (0 main thread; incremented for Task / skill-fork children).
 	EventSubTaskDepth int
 	// OnEvent receives structured kernel events (streaming text, tool calls, errors).
@@ -108,7 +111,10 @@ func (a *Agent) RunUserTurnMulti(ctx context.Context, messages *[]sdk.ChatComple
 // RunUserTurnScoped is like [Agent.RunUserTurn] but restricts tools to allow (v3 allowed_tools).
 // When allow is empty, all tools except Task are available (same as [Agent.SubAgentRegistry] with empty allow).
 func (a *Agent) RunUserTurnScoped(ctx context.Context, messages *[]sdk.ChatCompletionMessage, userText string, allow []string) error {
+	suppress := a.SuppressNextUserMessageEvent
+	a.SuppressNextUserMessageEvent = false
 	child := a.forkLikeAgent(a.SubAgentRegistry(allow))
+	child.SuppressNextUserMessageEvent = suppress
 	return child.runUserTurnWithUserMessage(ctx, messages, sdk.ChatCompletionMessage{
 		Role:    sdk.ChatMessageRoleUser,
 		Content: userText,
@@ -120,7 +126,10 @@ func (a *Agent) RunUserTurnMultiScoped(ctx context.Context, messages *[]sdk.Chat
 	if len(parts) == 0 {
 		return errors.New("agent: empty multimodal user message")
 	}
+	suppress := a.SuppressNextUserMessageEvent
+	a.SuppressNextUserMessageEvent = false
 	child := a.forkLikeAgent(a.SubAgentRegistry(allow))
+	child.SuppressNextUserMessageEvent = suppress
 	return child.runUserTurnWithUserMessage(ctx, messages, sdk.ChatCompletionMessage{
 		Role:         sdk.ChatMessageRoleUser,
 		MultiContent: parts,
@@ -149,10 +158,12 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 	}
 	max := a.MaxIterations
 	if max <= 0 {
-		max = defaultMaxIterations
+		max = DefaultMaxIterations
 	}
 
 	ensureSystemMessage(messages)
+
+	turnStart := len(*messages)
 
 	oaiTools, err := tools.OpenAITools(a.Registry)
 	if err != nil {
@@ -166,12 +177,16 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 		user.Content = apialign.NoContentUserMessage
 	}
 	*messages = append(*messages, user)
-	a.emit(Event{Kind: KindUserMessage, UserText: UserMessageSummary(user)})
-	dispatchSkillHook(ctx, hooks.UserPromptSubmit, map[string]any{
-		"session_id": hooks.SessionIDFrom(ctx),
-		"cwd":        tools.WorkDir(ctx),
-		"prompt":     UserMessageSummary(user),
-	})
+	suppressUserKernel := a.SuppressNextUserMessageEvent
+	a.SuppressNextUserMessageEvent = false
+	if !suppressUserKernel {
+		a.emit(Event{Kind: KindUserMessage, UserText: UserMessageSummary(user)})
+		dispatchSkillHook(ctx, hooks.UserPromptSubmit, map[string]any{
+			"session_id": hooks.SessionIDFrom(ctx),
+			"cwd":        tools.WorkDir(ctx),
+			"prompt":     UserMessageSummary(user),
+		})
+	}
 
 	emit := func(e Event) { a.emit(e) }
 
@@ -180,7 +195,7 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 		stream, err := a.Client.StreamChatWithTools(ctx, *messages, oaiTools)
 		if err != nil {
 			a.emit(Event{Kind: KindError, Message: fmt.Sprintf("stream: %v", err)})
-			*messages = (*messages)[:len(*messages)-1]
+			*messages = (*messages)[:turnStart]
 			return fmt.Errorf("stream: %w", err)
 		}
 
@@ -188,7 +203,7 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 		assistant, err := consumeAssistantStream(stream, a.Out, emit, modelRound, model)
 		_ = stream.Close()
 		if err != nil {
-			*messages = (*messages)[:len(*messages)-1]
+			*messages = (*messages)[:turnStart]
 			return err
 		}
 
@@ -365,8 +380,8 @@ func (a *Agent) runUserTurnWithUserMessage(ctx context.Context, messages *[]sdk.
 	}
 
 	a.emit(Event{Kind: KindError, Message: fmt.Sprintf("agent: exceeded %d tool iterations", max)})
-	*messages = (*messages)[:len(*messages)-1]
-	return fmt.Errorf("agent: exceeded %d tool iterations", max)
+	*messages = (*messages)[:turnStart]
+	return &IterationLimitError{MaxIterations: max}
 }
 
 func toolResultMessage(toolCallID, name, result string, execErr error) sdk.ChatCompletionMessage {

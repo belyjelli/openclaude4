@@ -79,8 +79,8 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 	if v, ok := args["max_iterations"].(float64); ok && v > 0 && v < 1000 {
 		subMax = int(v)
 	}
-	if subMax > defaultMaxIterations {
-		subMax = defaultMaxIterations
+	if subMax > DefaultMaxIterations {
+		subMax = DefaultMaxIterations
 	}
 
 	childReg := tools.CloneRegistryOmit(parent.Registry, "Task")

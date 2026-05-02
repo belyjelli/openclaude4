@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"strings"
 
 	sdk "github.com/sashabaranov/go-openai"
@@ -49,6 +50,19 @@ func (r *Registry) List() []Tool {
 	for _, t := range r.tools {
 		out = append(out, t)
 	}
+	return out
+}
+
+// SortedNames returns registered tool names in lexicographic order.
+func (r *Registry) SortedNames() []string {
+	if r == nil || len(r.tools) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(r.tools))
+	for name := range r.tools {
+		out = append(out, name)
+	}
+	sort.Strings(out)
 	return out
 }
 

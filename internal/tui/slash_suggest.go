@@ -459,7 +459,7 @@ func (m *model) fillModelSlashArgs(leading int, trimmed string, spaceIdx int) {
 }
 
 func (m *model) syncSuggestOverlay() {
-	if m.perm != nil || m.pwiz != nil {
+	if m.perm != nil || m.pwiz != nil || m.toolPick != nil {
 		m.clearSuggestOverlay()
 		return
 	}
@@ -621,7 +621,7 @@ func (m *model) clampSlashSel() {
 }
 
 func (m *model) tryExpandNonSlashTab() bool {
-	if m.busy || m.perm != nil || m.pwiz != nil {
+	if m.busy || m.perm != nil || m.pwiz != nil || m.toolPick != nil {
 		return false
 	}
 	val := m.ti.Value()

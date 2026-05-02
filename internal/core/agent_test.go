@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -625,8 +626,12 @@ func TestRunUserTurn_MaxIterations(t *testing.T) {
 
 	var messages []sdk.ChatCompletionMessage
 	err := agent.RunUserTurn(ctx, &messages, "keep reading")
-	if err == nil || !strings.Contains(err.Error(), "exceeded") {
-		t.Fatalf("expected iteration limit error, got %v", err)
+	var ile *IterationLimitError
+	if err == nil || !errors.As(err, &ile) || ile.MaxIterations != 2 {
+		t.Fatalf("expected IterationLimitError with max 2, got %v", err)
+	}
+	if len(messages) != 1 || messages[0].Role != sdk.ChatMessageRoleSystem {
+		t.Fatalf("expected transcript rolled back to system-only, got %d message(s)", len(messages))
 	}
 }
 
